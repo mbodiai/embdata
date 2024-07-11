@@ -9,7 +9,11 @@
 
 
 
-### A good chunk of data wrangling and exploratory data analysis that just works. See [embodied-agents](https://github.com/mbodiai/embodied-agents) for full examples.
+### A good chunk of data wrangling and exploratory data analysis that just works. See [embodied-agents](https://github.com/mbodiai/embodied-agents) for real world usage.
+
+
+## Plot, filter and transform your data with ease. On any type of data structure.
+
 
 [![Video Title](https://img.youtube.com/vi/L5JqM2_rIRM/0.jpg)](https://www.youtube.com/watch?v=L5JqM2_rIRM)
 
@@ -29,38 +33,6 @@
   - [License](#license)
   - [Design Decisions](#design-decisions)
   - [Classes](#classes-1)
-    - [Episode](#episode-1)
-      - [concat](#concat)
-      - [trajectory](#trajectory)
-      - [map](#map)
-      - [filter](#filter)
-      - [unpack](#unpack)
-      - [iter](#iter)
-      - [append](#append)
-      - [split](#split)
-      - [dataset](#dataset)
-      - [rerun](#rerun)
-      - [show](#show)
-    - [Trajectory](#trajectory-1)
-      - [stats](#stats)
-      - [plot](#plot)
-      - [map](#map-1)
-      - [make\_relative](#make_relative)
-      - [make\_absolute](#make_absolute)
-      - [resample](#resample)
-      - [save](#save)
-      - [show](#show-1)
-      - [frequencies](#frequencies)
-      - [frequencies\_nd](#frequencies_nd)
-      - [low\_pass\_filter](#low_pass_filter)
-      - [q01](#q01)
-      - [q99](#q99)
-      - [transform](#transform)
-      - [make\_minmax](#make_minmax)
-      - [make\_pca](#make_pca)
-      - [make\_standard](#make_standard)
-      - [make\_unminmax](#make_unminmax)
-      - [make\_unstandard](#make_unstandard)
 
 ## Installation
 
