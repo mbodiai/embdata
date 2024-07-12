@@ -398,62 +398,146 @@ The `HandControl` class allows for easy manipulation and representation of robot
 
 </details>
 <details>
-<summary><strong>Full Examples</strong></summary>
+<summary><strong>Full Example: Finetuning OpenVLA with Robotics Data</strong></summary>
 
-
-### Define Custom Motion Controls
+This example demonstrates how to use embdata to download a dataset, process it, visualize it, and use it to fine-tune a model with OpenVLA (Open Visual Language and Action Model).
 
 ```python
-from embdata.motion import HandControl, HeadControl, MobileSingleArmControl, MobileSingleHandControl, HumanoidControl
-from embdata.motion import Motion
+import numpy as np
+import torch
+from datasets import load_dataset
+from transformers import AutoTokenizer, AutoModelForVision2Seq, Trainer, TrainingArguments, AutoFeatureExtractor
+from embdata import Sample, Episode, Trajectory, VisionMotorStep, ImageTask, Motion
+from embdata.motion.control import HandControl
 
-# Create motion controls
-hand_control = HandControl(gripper=0.5)
-head_control = HeadControl(pan=0.2, tilt=-0.1)
-arm_control = MobileSingleArmControl(x=0.1, y=0.2, z=0.3, gripper=0.5)
-mobile_hand_control = MobileSingleHandControl(x=0.1, y=0.2, z=0.3, roll=0.1, pitch=0.2, yaw=0.3, gripper=0.5)
-humanoid_control = HumanoidControl(
-    left_arm=[0.1, 0.2, 0.3, 0.4],
-    right_arm=[0.5, 0.6, 0.7, 0.8],
-    left_leg=[0.9, 1.0, 1.1],
-    right_leg=[1.2, 1.3, 1.4]
+# Define custom Sample subclasses
+class RobotState(Sample):
+    position: np.ndarray
+    velocity: np.ndarray
+    gripper_state: float
+
+class RobotAction(Sample):
+    pose: np.ndarray
+    grasp: float
+
+# Download and prepare the dataset
+dataset = load_dataset("mbodiai/xarm_overfit", split="train")
+
+# Process the data
+def process_data(example):
+    observation = RobotState(
+        position=np.array(example['observation']['pose'][:3]),
+        velocity=np.array(example['observation']['pose'][3:6]),
+        gripper_state=example['observation']['gripper']
+    )
+    action = RobotAction(
+        pose=np.array(list(example['action']['pose'].values())),
+        grasp=example['action']['grasp']
+    )
+    image_task = ImageTask(
+        image=example['observation']['image'],
+        task=example['observation']['instruction']
+    )
+    return VisionMotorStep(observation=observation, action=action, image=image_task)
+
+processed_data = [process_data(example) for example in dataset]
+
+# Create an episode
+episode = Episode(steps=processed_data)
+
+# Data flattening and cleaning
+def flatten_and_clean(step):
+    flat_step = step.flatten(output_type="dict", non_numerical="ignore")
+    return {k: float(v) if isinstance(v, (int, float)) else v for k, v in flat_step.items() if v is not None}
+
+flattened_data = [flatten_and_clean(step) for step in episode]
+
+# Data filtering
+filtered_episode = episode.filter(lambda step: step.observation.gripper_state > 0.5)
+
+# Create a trajectory
+action_trajectory = episode.trajectory(field="action")
+
+# Visualize the data
+episode.show()
+
+# Extract and visualize action trajectories
+pose_trajectory = Trajectory(steps=[step.action.pose for step in episode], freq_hz=10)
+pose_trajectory.plot()
+
+# Apply a low-pass filter to the trajectory
+filtered_trajectory = pose_trajectory.low_pass_filter(cutoff_freq=2)
+filtered_trajectory.plot()
+
+# Prepare data for finetuning
+def prepare_for_finetuning(step):
+    return {
+        "image": step.image.image,
+        "instruction": step.image.task,
+        "action": HandControl(pose=step.action.pose, grasp=step.action.grasp).numpy()
+    }
+
+finetuning_data = [prepare_for_finetuning(step) for step in filtered_episode]
+
+# Load pre-trained models and processors
+model_name = "openvla/openvla-7b"
+tokenizer = AutoTokenizer.from_pretrained(model_name)
+model = AutoModelForVision2Seq.from_pretrained(model_name)
+image_processor = AutoFeatureExtractor.from_pretrained(model_name)
+
+# Tokenize and process the dataset
+def preprocess_function(examples):
+    inputs = tokenizer(examples["instruction"], truncation=True, padding="max_length")
+    inputs["pixel_values"] = image_processor(examples["image"], return_tensors="pt").pixel_values
+    inputs["labels"] = torch.tensor(examples["action"])
+    return inputs
+
+tokenized_dataset = Dataset.from_list(finetuning_data).map(preprocess_function, batched=True)
+
+# Set up training arguments
+training_args = TrainingArguments(
+    output_dir="./results",
+    num_train_epochs=3,
+    per_device_train_batch_size=8,
+    per_device_eval_batch_size=8,
+    warmup_steps=500,
+    weight_decay=0.01,
+    logging_dir="./logs",
 )
 
-# Access control values
-print(hand_control.gripper)
-print(head_control.pan, head_control.tilt)
-print(arm_control.x, arm_control.y, arm_control.z, arm_control.gripper)
-print(mobile_hand_control.x, mobile_hand_control.y, mobile_hand_control.z, mobile_hand_control.roll, mobile_hand_control.pitch, mobile_hand_control.yaw, mobile_hand_control.gripper)
-print(humanoid_control.left_arm, humanoid_control.right_leg)
+# Create Trainer instance
+trainer = Trainer(
+    model=model,
+    args=training_args,
+    train_dataset=tokenized_dataset,
+)
 
-# Create a custom Motion control by subclassing
-class QuadrupedControl(Motion):
-    front_left: float
-    front_right: float
-    back_left: float
-    back_right: float
+# Finetune the model
+trainer.train()
 
-# Use the custom Motion control
-quadruped_control = QuadrupedControl(front_left=0.1, front_right=0.2, back_left=0.3, back_right=0.4)
-print(quadruped_control.front_left, quadruped_control.back_right)
-    back_left: float
-    back_right: float
+# Save the finetuned model
+model.save_pretrained("./finetuned_openvla")
+tokenizer.save_pretrained("./finetuned_openvla")
+image_processor.save_pretrained("./finetuned_openvla")
 
-# Use the custom Motion control
-quadruped_control = QuadrupedControl(front_left=0.1, front_right=0.2, back_left=0.3, back_right=0.4)
-print(quadruped_control.front_left, quadruped_control.back_right)
-    back_left: float
-    back_right: float
-
-# Use the custom Motion control
-quadruped_control = QuadrupedControl(front_left=0.1, front_right=0.2, back_left=0.3, back_right=0.4)
-print(quadruped_control.front_left, quadruped_control.back_right)
+print("Finetuning complete. Model saved to ./finetuned_openvla")
 ```
 
-## Full Training Example
+This example showcases:
+1. Downloading the dataset from the specified repository
+2. Processing the data using `VisionMotorStep`, `ImageTask`, and `Motion` classes from embdata
+3. Creating an `Episode` from the processed data
+4. Visualizing the data using `episode.show()`
+5. Extracting and visualizing action trajectories using the `Trajectory` class, and applying a low-pass filter
+6. Preparing the data for finetuning a robotics transformer
+7. Loading pre-trained models and processors for image and text inputs
+8. Tokenizing and processing the dataset for the model
+9. Setting up training arguments
+10. Creating a Trainer instance
+11. Finetuning the model
+12. Saving the finetuned model, tokenizer, and feature extractor
 
-This example demonstrates how to use embdata to download a dataset, process it, visualize it, and use it to fine-tune a model with Hugging Face Transformers.
-    
+This example provides a comprehensive demonstration of using embdata for finetuning a robotics transformer model.
 
 </details>
 
