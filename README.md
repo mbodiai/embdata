@@ -65,6 +65,25 @@ random_sample = sample.random_sample()
 
 # Get the corresponding Gym space
 space = sample.space()
+
+# Read a Sample from JSON or dictionary
+sample_from_json = Sample.read('{"x": 1, "y": 2}')
+
+# Get default value and space
+default_sample = Sample.default_value()
+default_space = Sample.default_space()
+
+# Get model information
+model_info = sample.model_info()
+
+# Pack and unpack samples
+samples = [Sample(a=1, b=2), Sample(a=3, b=4)]
+packed = Sample.pack_from(samples)
+unpacked = packed.unpack()
+
+# Convert to HuggingFace Dataset and Features
+dataset = sample.dataset()
+features = sample.features()
 ```
 
 ### Methods
@@ -73,6 +92,23 @@ space = sample.space()
 - `to(format)`: Converts the sample to different formats (dict, numpy, torch, etc.)
 - `random_sample()`: Creates a random sample based on the current structure
 - `space()`: Returns the corresponding Gym space for the sample
+- `read()`: Reads a Sample instance from a JSON string, dictionary, or path
+- `default_value()`: Gets the default value for the Sample instance
+- `default_space()`: Returns the Gym space for the Sample class based on its class attributes
+- `model_info()`: Gets the model information
+- `pack_from()`: Packs a list of samples into a single sample with lists for attributes
+- `unpack()`: Unpacks the packed Sample object into a list of Sample objects or dictionaries
+- `dataset()`: Converts the Sample instance to a HuggingFace Dataset object
+- `features()`: Converts the Sample instance to a HuggingFace Features object
+- `space_for()`: Default Gym space generation for a given value
+- `init_from()`: Initializes a Sample instance from various data types
+- `from_space()`: Generates a Sample instance from a Gym space
+- `model_field_info()`: Gets the extra json values set from a FieldInfo for a given attribute key
+- `default_sample()`: Generates a default Sample instance from its class attributes
+- `numpy()`: Converts the Sample instance to a numpy array
+- `tolist()`: Converts the Sample instance to a list
+- `torch()`: Converts the Sample instance to a PyTorch tensor
+- `json()`: Converts the Sample instance to a JSON string
 
 The `Sample` class provides a wide range of functionality for data manipulation, conversion, and integration with various libraries and frameworks.
 
