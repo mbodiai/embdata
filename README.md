@@ -845,6 +845,104 @@ print(robot_control.velocity)  # Output: 0.3
 The `HandControl` class allows for easy manipulation and representation of robot hand controls in a 7D space, making it useful for robotics and motion control applications. It can be integrated into more complex control structures and supports nested data representations.
 
 </details>
+
+<details>
+<summary><strong>AbsoluteHandControl</strong></summary>
+
+### AbsoluteHandControl
+
+The `AbsoluteHandControl` class represents an action for a 7D space with absolute positioning, including the pose of a robot hand and its grasp state.
+
+#### Attributes
+- `pose` (Pose): The absolute pose of the robot hand, including position and orientation.
+- `grasp` (float): The openness of the robot hand, ranging from -1 (closed) to 1 (open).
+
+</details>
+
+<details>
+<summary><strong>RelativePoseHandControl</strong></summary>
+
+### RelativePoseHandControl
+
+The `RelativePoseHandControl` class represents an action for a 7D space with relative positioning for the pose and absolute positioning for the grasp.
+
+#### Attributes
+- `pose` (Pose): The relative pose of the robot hand, including position and orientation.
+- `grasp` (float): The openness of the robot hand, ranging from -1 (closed) to 1 (open).
+
+</details>
+
+<details>
+<summary><strong>HeadControl</strong></summary>
+
+### HeadControl
+
+The `HeadControl` class represents the control for a robot's head movement.
+
+#### Attributes
+- `tilt` (float): Tilt of the robot head in radians (down is negative).
+- `pan` (float): Pan of the robot head in radians (left is negative).
+
+</details>
+
+<details>
+<summary><strong>MobileSingleHandControl</strong></summary>
+
+### MobileSingleHandControl
+
+The `MobileSingleHandControl` class represents control for a robot that can move its base in 2D space with a 6D EEF control and grasp.
+
+#### Attributes
+- `base` (PlanarPose | None): Location of the robot on the ground.
+- `hand` (HandControl | None): Control for the robot hand.
+- `head` (HeadControl | None): Control for the robot head.
+
+</details>
+
+<details>
+<summary><strong>MobileSingleArmControl</strong></summary>
+
+### MobileSingleArmControl
+
+The `MobileSingleArmControl` class represents control for a robot that can move in 2D space with a single arm.
+
+#### Attributes
+- `base` (PlanarPose | None): Location of the robot on the ground.
+- `arm` (NumpyArray | None): Control for the robot arm.
+- `head` (HeadControl | None): Control for the robot head.
+
+</details>
+
+<details>
+<summary><strong>MobileBimanualArmControl</strong></summary>
+
+### MobileBimanualArmControl
+
+The `MobileBimanualArmControl` class represents control for a robot that can move in 2D space with two arms.
+
+#### Attributes
+- `base` (PlanarPose | None): Location of the robot on the ground.
+- `left_arm` (NumpyArray | None): Control for the left robot arm.
+- `right_arm` (NumpyArray | None): Control for the right robot arm.
+- `head` (HeadControl | None): Control for the robot head.
+
+</details>
+
+<details>
+<summary><strong>HumanoidControl</strong></summary>
+
+### HumanoidControl
+
+The `HumanoidControl` class represents control for a humanoid robot.
+
+#### Attributes
+- `left_arm` (NumpyArray | None): Control for the left robot arm.
+- `right_arm` (NumpyArray | None): Control for the right robot arm.
+- `left_leg` (NumpyArray | None): Control for the left robot leg.
+- `right_leg` (NumpyArray | None): Control for the right robot leg.
+- `head` (HeadControl | None): Control for the robot head.
+
+</details>
 ## Geometry Module
 
 The `embdata.geometry` module provides classes for representing geometric data in cartesian and polar coordinates.
