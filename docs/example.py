@@ -17,11 +17,11 @@ def process_example(example):
         ]
     )
     return {
-        "image": flattened[0]["data.pickle.steps.observation.image.bytes"],
-        "instruction": flattened[1]["data.pickle.steps.observation.natural_language_instruction"],
-        "action": flattened[2]["data.pickle.steps.action"],
-        "reward": flattened[3]["data.pickle.steps.reward"],
-        "is_terminal": flattened[4]["data.pickle.steps.is_terminal"]
+        "image": flattened["data.pickle.steps.observation.image.bytes"],
+        "instruction": flattened["data.pickle.steps.observation.natural_language_instruction"],
+        "action": flattened["data.pickle.steps.action"],
+        "reward": flattened["data.pickle.steps.reward"],
+        "is_terminal": flattened["data.pickle.steps.is_terminal"]
     }
 
 class GPT2CLIP(nn.Module):
