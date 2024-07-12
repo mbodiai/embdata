@@ -42,16 +42,36 @@ def CoordinateField(  # noqa
     description: str | None = None,
     **kwargs,
 ):
-    """Pydantic Field with extra metadata for coordinates.
+    """
+    Create a Pydantic Field with extra metadata for coordinates.
+
+    This function extends Pydantic's Field with additional metadata specific to coordinate systems,
+    including reference frame, unit, and bounds information.
 
     Args:
         default: Default value for the field.
+        default_factory: Factory for creating the default value.
         reference_frame: Reference frame for the coordinates.
-        unit: Unit of the coordinate.
-        angular_unit: Unit of the angular coordinate.
+        unit: Unit of the coordinate (LinearUnit, AngularUnit, or TemporalUnit).
+        bounds: Tuple representing the allowed range for the coordinate value.
+        description: Description of the field.
+        **kwargs: Additional keyword arguments for field configuration.
 
     Returns:
         Field: Pydantic Field with extra metadata.
+
+    Examples:
+        >>> from pydantic import BaseModel
+        >>> class Robot(BaseModel):
+        ...     x: float = CoordinateField(unit="m", bounds=(0, 10))
+        ...     angle: float = CoordinateField(unit="rad", bounds=(0, 6.28))
+        >>> robot = Robot(x=5, angle=3.14)
+        >>> robot.dict()
+        {'x': 5.0, 'angle': 3.14}
+        >>> Robot(x=15, angle=3.14)
+        Traceback (most recent call last):
+        ...
+        ValueError: x value 15.0 is not within bounds (0, 10)
     """
     json_schema_extra = {
         "_info": {
@@ -172,14 +192,33 @@ class Coordinate(Sample):
         return self
 
 class Pose3D(Coordinate):
-    """Absolute coordinates for a 3D space representing x, y, and theta."""
+    """
+    Absolute coordinates for a 3D space representing x, y, and theta.
+
+    This class represents a pose in 3D space with x and y coordinates for position
+    and theta for orientation.
+
+    Attributes:
+        x (float): X-coordinate in meters.
+        y (float): Y-coordinate in meters.
+        theta (float): Orientation angle in radians.
+
+    Examples:
+        >>> import math
+        >>> pose = Pose3D(x=1, y=2, theta=math.pi/2)
+        >>> pose
+        Pose3D(x=1.0, y=2.0, theta=1.5707963267948966)
+        >>> pose.to("cm")
+        Pose3D(x=100.0, y=200.0, theta=1.5707963267948966)
+    """
 
     x: float = CoordinateField(unit="m")
     y: float = CoordinateField(unit="m")
     theta: float = CoordinateField(unit="rad")
 
     def to(self, container_or_unit=None, unit="m", angular_unit="rad", **kwargs) -> Any:
-        """Convert the pose to a different unit or container.
+        """
+        Convert the pose to a different unit or container.
 
         This method allows for flexible conversion of the Pose3D object to different units
         or to a different container type.
@@ -195,13 +234,16 @@ class Pose3D(Coordinate):
                  or as a different container type.
 
         Examples:
-            >>> pose = Pose3D(x=1, y=2, theta=np.pi / 2)
+            >>> import math
+            >>> pose = Pose3D(x=1, y=2, theta=math.pi / 2)
             >>> pose.to("cm")
             Pose3D(x=100.0, y=200.0, theta=1.5707963267948966)
             >>> pose.to("deg")
             Pose3D(x=1.0, y=2.0, theta=90.0)
             >>> pose.to("list")
             [1.0, 2.0, 1.5707963267948966]
+            >>> pose.to("dict")
+            {'x': 1.0, 'y': 2.0, 'theta': 1.5707963267948966}
         """
         if container_or_unit is not None and container_or_unit not in str(LinearUnit) + str(AngularUnit):
             return super().to(container_or_unit)

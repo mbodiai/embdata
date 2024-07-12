@@ -374,3 +374,62 @@ filtered_traj.plot().show()
 ```
 
 </details>
+## Classes
+
+<details>
+<summary>Pose3D</summary>
+
+```python
+class Pose3D(Coordinate):
+    """
+    Absolute coordinates for a 3D space representing x, y, and theta.
+
+    This class represents a pose in 3D space with x and y coordinates for position
+    and theta for orientation.
+
+    Attributes:
+        x (float): X-coordinate in meters.
+        y (float): Y-coordinate in meters.
+        theta (float): Orientation angle in radians.
+
+    Examples:
+        >>> import math
+        >>> pose = Pose3D(x=1, y=2, theta=math.pi/2)
+        >>> pose
+        Pose3D(x=1.0, y=2.0, theta=1.5707963267948966)
+        >>> pose.to("cm")
+        Pose3D(x=100.0, y=200.0, theta=1.5707963267948966)
+    """
+
+    def to(self, container_or_unit=None, unit="m", angular_unit="rad", **kwargs) -> Any:
+        """
+        Convert the pose to a different unit or container.
+
+        This method allows for flexible conversion of the Pose3D object to different units
+        or to a different container type.
+
+        Args:
+            container_or_unit (str, optional): The target container type or unit.
+            unit (str, optional): The target linear unit. Defaults to "m".
+            angular_unit (str, optional): The target angular unit. Defaults to "rad".
+            **kwargs: Additional keyword arguments for field configuration.
+
+        Returns:
+            Any: The converted pose, either as a new Pose3D object with different units
+                 or as a different container type.
+
+        Examples:
+            >>> import math
+            >>> pose = Pose3D(x=1, y=2, theta=math.pi / 2)
+            >>> pose.to("cm")
+            Pose3D(x=100.0, y=200.0, theta=1.5707963267948966)
+            >>> pose.to("deg")
+            Pose3D(x=1.0, y=2.0, theta=90.0)
+            >>> pose.to("list")
+            [1.0, 2.0, 1.5707963267948966]
+            >>> pose.to("dict")
+            {'x': 1.0, 'y': 2.0, 'theta': 1.5707963267948966}
+        """
+```
+
+</details>
