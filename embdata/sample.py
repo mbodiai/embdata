@@ -284,8 +284,8 @@ class Sample(BaseModel):
                 for _ in range(max_items):
                     value, index = unflatten_recursive(schema_part["items"], index)
                     items.append(value)
-                return items, index
-            return flat_data[index], index + 1
+                return items, index + len(items)
+            return flat_data[index], index + 1 if index < len(flat_data) else (None, index)
 
         unflattened_dict, _ = unflatten_recursive(schema)
         return cls(**unflattened_dict)
@@ -454,10 +454,10 @@ class Sample(BaseModel):
             return torch.tensor(list(accumulator.values()) if isinstance(accumulator, dict) else accumulator)
 
         if to:
+            if output_type == "dict":
+                return {key: accumulator[key] for key in sorted(accumulator.keys())}
             return [accumulator[key] for key in sorted(accumulator.keys())]
-        if output_type == "dict":
-            return accumulator
-        return accumulator if isinstance(accumulator, list) else list(accumulator.values())
+        return accumulator if output_type == "dict" else list(accumulator.values())
 
     def schema(self, include_descriptions=False) -> Dict:
         """Returns a simplified json schema.
