@@ -22,8 +22,7 @@ PHI_FEATURES = Features({"messages": [{"role": Value("string"), "content": Value
 
 
 def to_features_dict(indict: Any, exclude_keys: set | None = None) -> Dict[str, Any]:
-    """
-    Convert a dictionary to a Datasets Features object.
+    """Convert a dictionary to a Datasets Features object.
 
     This function recursively converts a nested dictionary into a format compatible with
     Hugging Face Datasets' Features. It handles various data types including strings,

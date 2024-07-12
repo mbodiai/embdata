@@ -42,8 +42,7 @@ def CoordinateField(  # noqa
     description: str | None = None,
     **kwargs,
 ):
-    """
-    Create a Pydantic Field with extra metadata for coordinates.
+    """Create a Pydantic Field with extra metadata for coordinates.
 
     This function extends Pydantic's Field with additional metadata specific to coordinate systems,
     including reference frame, unit, and bounds information.
@@ -192,8 +191,7 @@ class Coordinate(Sample):
         return self
 
 class Pose3D(Coordinate):
-    """
-    Absolute coordinates for a 3D space representing x, y, and theta.
+    """Absolute coordinates for a 3D space representing x, y, and theta.
 
     This class represents a pose in 3D space with x and y coordinates for position
     and theta for orientation.
@@ -217,8 +215,7 @@ class Pose3D(Coordinate):
     theta: float = CoordinateField(unit="rad")
 
     def to(self, container_or_unit=None, unit="m", angular_unit="rad", **kwargs) -> Any:
-        """
-        Convert the pose to a different unit or container.
+        """Convert the pose to a different unit or container.
 
         This method allows for flexible conversion of the Pose3D object to different units
         or to a different container type.
@@ -322,9 +319,9 @@ class Pose6D(Coordinate):
             [1.0, 2.0, 3.0, 0.0, 0.0, 1.5707963267948966]
         """
         if container_or_unit in ("quaternion", "quat", "q"):
-            return self.get_quaternion(sequence=sequence)
+            return self.quaternion(sequence=sequence)
         if container_or_unit in ("rotation_matrix", "rotation", "R"):
-            return self.get_rotation_matrix(sequence=sequence)
+            return self.rotation_matrix(sequence=sequence)
         if container_or_unit is not None and container_or_unit not in str(LinearUnit) + str(AngularUnit):
             return super().to(container_or_unit)
 
@@ -351,7 +348,7 @@ class Pose6D(Coordinate):
             **{k: (float, v[1]) for k, v in converted_fields.items()},
         )(**{k: v[0] for k, v in converted_fields.items()})
 
-    def get_quaternion(self, sequence="zyx") -> np.ndarray:
+    def quaternion(self, sequence="zyx") -> np.ndarray:
         """Convert roll, pitch, yaw to a quaternion based on the given sequence.
 
         This method uses scipy's Rotation class to perform the conversion.
@@ -370,7 +367,7 @@ class Pose6D(Coordinate):
         rotation = Rotation.from_euler(sequence, [self.roll, self.pitch, self.yaw])
         return rotation.as_quat()
 
-    def get_rotation_matrix(self, sequence="zyx") -> np.ndarray:
+    def rotation_matrix(self, sequence="zyx") -> np.ndarray:
         """Convert roll, pitch, yaw to a rotation matrix based on the given sequence.
 
         This method uses scipy's Rotation class to perform the conversion.

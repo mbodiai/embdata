@@ -17,13 +17,83 @@
 
 - [embodied data](#embodied-data)
   - [Data, types, pipes, manipulation for embodied learning.](#data-types-pipes-manipulation-for-embodied-learning)
+    - [A good chunk of data wrangling and exploratory data analysis that just works. See embodied-agents for real world usage.](#a-good-chunk-of-data-wrangling-and-exploratory-data-analysis-that-just-works-see-embodied-agents-for-real-world-usage)
   - [Plot, filter and transform your data with ease. On any type of data structure.](#plot-filter-and-transform-your-data-with-ease-on-any-type-of-data-structure)
   - [Table of Contents](#table-of-contents)
   - [Installation](#installation)
   - [Usage](#usage)
+    - [Key Features](#key-features)
+    - [Usage Example](#usage-example)
+    - [Methods](#methods)
+    - [Key Features](#key-features-1)
+    - [Usage Example](#usage-example-1)
+    - [Methods](#methods-1)
+    - [Properties](#properties)
+    - [Class Methods](#class-methods)
+    - [Key Features](#key-features-2)
+    - [Usage Example](#usage-example-2)
+    - [Methods](#methods-2)
+    - [Key Features](#key-features-3)
+    - [Usage Example](#usage-example-3)
+    - [Methods](#methods-3)
+    - [Properties](#properties-1)
+    - [Key Features](#key-features-4)
+    - [Usage Example](#usage-example-4)
+    - [Methods](#methods-4)
+    - [Key Features](#key-features-5)
+    - [Usage Example](#usage-example-5)
+    - [Attributes](#attributes)
   - [License](#license)
   - [Design Decisions](#design-decisions)
-  - [API Reference](#api-reference)
+  - [Classes](#classes)
+    - [Episode](#episode)
+      - [Key Features](#key-features-6)
+      - [Usage Example](#usage-example-6)
+      - [Methods](#methods-5)
+      - [Properties](#properties-2)
+    - [Image](#image)
+      - [Key Features](#key-features-7)
+      - [Usage Example](#usage-example-7)
+      - [Methods](#methods-6)
+      - [Properties](#properties-3)
+    - [Sample](#sample)
+      - [Key Features](#key-features-8)
+      - [Usage Example](#usage-example-8)
+      - [Methods](#methods-7)
+    - [Trajectory](#trajectory)
+      - [Key Features](#key-features-9)
+      - [Usage Example](#usage-example-9)
+      - [Methods](#methods-8)
+      - [Properties](#properties-4)
+    - [Motion](#motion)
+      - [Key Features](#key-features-10)
+      - [Usage Example](#usage-example-10)
+      - [Methods](#methods-9)
+      - [Fields](#fields)
+      - [Key Concepts](#key-concepts)
+    - [AnyMotionControl](#anymotioncontrol)
+      - [Key Features](#key-features-11)
+      - [Usage Example](#usage-example-11)
+      - [Methods](#methods-10)
+      - [Fields](#fields-1)
+    - [HandControl](#handcontrol)
+      - [Key Features](#key-features-12)
+      - [Usage Example](#usage-example-12)
+      - [Attributes](#attributes-1)
+    - [AbsoluteHandControl](#absolutehandcontrol)
+      - [Attributes](#attributes-2)
+    - [RelativePoseHandControl](#relativeposehandcontrol)
+      - [Attributes](#attributes-3)
+    - [HeadControl](#headcontrol)
+      - [Attributes](#attributes-4)
+    - [MobileSingleHandControl](#mobilesinglehandcontrol)
+      - [Attributes](#attributes-5)
+    - [MobileSingleArmControl](#mobilesinglearmcontrol)
+      - [Attributes](#attributes-6)
+    - [MobileBimanualArmControl](#mobilebimanualarmcontrol)
+      - [Attributes](#attributes-7)
+    - [HumanoidControl](#humanoidcontrol)
+      - [Attributes](#attributes-8)
 
 ## Installation
 
@@ -412,16 +482,16 @@ from embdata.motion.control import HandControl
 
 # Define custom Sample subclasses
 class RobotState(Sample):
-    position: np.ndarray
-    velocity: np.ndarray
-    gripper_state: float
-
-class RobotAction(Sample):
-    pose: np.ndarray
-    grasp: float
+    end_effector_pose: Pose = AbsoluteMotionField(
+        default_factory=Pose,
+        description="Absolute End Effector pose of the robot.",
+    )
+    is_first: int
+    is_last: int
+    is_terminal: int
 
 # Download and prepare the dataset
-dataset = load_dataset("mbodiai/xarm_overfit", split="train")
+dataset = load_dataset("mbodiai/oxe_bridge_v2", split="train")
 
 # Process the data
 def process_data(example):
@@ -780,8 +850,9 @@ print(traj.stats())
 filtered_traj = traj.low_pass_filter(cutoff_freq=2)
 filtered_traj.plot().show()
 
-# Resample the trajectory
-resampled_traj = traj.resample(target_hz=5)
+# Upsample with rotation splines and bicubic interpolation
+upsampled_traj = traj.resample(target_hz=20)
+print(upsampled_traj) # Output: Trajectory(steps=..., freq_hz=20, dim_labels=['X', 'Y'])
 
 # Access data
 print(traj.array)  # Output: [[0 0] [1 1] [2 0] [3 1] [4 0]]

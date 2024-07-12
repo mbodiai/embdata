@@ -139,7 +139,7 @@ select = [
 ]
 ignore = [
   "D105", # Missing docstring in magic method
-
+  "PGH004",
   "D100",
   "D101",
   "D104",

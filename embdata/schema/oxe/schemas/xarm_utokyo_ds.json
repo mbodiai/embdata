@@ -1,0 +1,224 @@
+{
+  "type": "object",
+  "properties": {
+    "__key__": {
+      "type": "string"
+    },
+    "metadata": {
+      "type": "object",
+      "properties": {
+        "# Depth Cams": {
+          "type": "integer"
+        },
+        "# Episodes": {
+          "type": "string"
+        },
+        "# RGB Cams": {
+          "type": "integer"
+        },
+        "# Wrist Cams": {
+          "type": "integer"
+        },
+        "Action Space": {
+          "type": "string"
+        },
+        "Control Frequency": {
+          "type": "string"
+        },
+        "Data Collect Method": {
+          "type": "string"
+        },
+        "Dataset": {
+          "type": "string"
+        },
+        "Description": {
+          "type": "string"
+        },
+        "File Size (GB)": {
+          "type": "number"
+        },
+        "Gripper": {
+          "type": "string"
+        },
+        "Has Camera Calibration?": {
+          "type": "string"
+        },
+        "Has Proprioception?": {
+          "type": "string"
+        },
+        "Has Suboptimal?": {
+          "type": "string"
+        },
+        "Language Annotations": {
+          "type": "number"
+        },
+        "Registered Dataset Name": {
+          "type": "string"
+        },
+        "Robot": {
+          "type": "string"
+        },
+        "Robot Morphology": {
+          "type": "string"
+        },
+        "Scene Type": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "# Depth Cams",
+        "# Episodes",
+        "# RGB Cams",
+        "# Wrist Cams",
+        "Action Space",
+        "Control Frequency",
+        "Data Collect Method",
+        "Dataset",
+        "Description",
+        "File Size (GB)",
+        "Gripper",
+        "Has Camera Calibration?",
+        "Has Proprioception?",
+        "Has Suboptimal?",
+        "Language Annotations",
+        "Registered Dataset Name",
+        "Robot",
+        "Robot Morphology",
+        "Scene Type"
+      ]
+    },
+    "episode": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "action": {
+            "type": "array",
+            "items": {
+              "type": "number"
+            }
+          },
+          "discount": {
+            "type": "number"
+          },
+          "is_first": {
+            "type": "integer"
+          },
+          "is_last": {
+            "type": "integer"
+          },
+          "is_terminal": {
+            "type": "integer"
+          },
+          "language_embedding": {
+            "type": "array",
+            "items": {
+              "type": "number"
+            }
+          },
+          "language_instruction": {
+            "type": "string"
+          },
+          "observation": {
+            "type": "object",
+            "properties": {
+              "end_effector_pose": {
+                "type": "array",
+                "items": {
+                  "type": "number"
+                }
+              },
+              "hand_image": {
+                "type": "object",
+                "properties": {
+                  "bytes": {
+                    "type": "string",
+                    "contentEncoding": "base64"
+                  },
+                  "path": {
+                    "type": "null"
+                  }
+                },
+                "required": [
+                  "bytes",
+                  "path"
+                ]
+              },
+              "image": {
+                "type": "object",
+                "properties": {
+                  "bytes": {
+                    "type": "string",
+                    "contentEncoding": "base64"
+                  },
+                  "path": {
+                    "type": "null"
+                  }
+                },
+                "required": [
+                  "bytes",
+                  "path"
+                ]
+              },
+              "image2": {
+                "type": "object",
+                "properties": {
+                  "bytes": {
+                    "type": "string",
+                    "contentEncoding": "base64"
+                  },
+                  "path": {
+                    "type": "null"
+                  }
+                },
+                "required": [
+                  "bytes",
+                  "path"
+                ]
+              },
+              "joint_state": {
+                "type": "array",
+                "items": {
+                  "type": "number"
+                }
+              },
+              "joint_trajectory": {
+                "type": "array",
+                "items": {
+                  "type": "number"
+                }
+              }
+            },
+            "required": [
+              "end_effector_pose",
+              "hand_image",
+              "image",
+              "image2",
+              "joint_state",
+              "joint_trajectory"
+            ]
+          },
+          "reward": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "action",
+          "discount",
+          "is_first",
+          "is_last",
+          "is_terminal",
+          "language_embedding",
+          "language_instruction",
+          "observation",
+          "reward"
+        ]
+      }
+    }
+  },
+  "required": [
+    "__key__",
+    "metadata",
+    "episode"
+  ]
+}

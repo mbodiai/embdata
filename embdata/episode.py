@@ -1,6 +1,6 @@
 import logging
 from threading import Thread
-from typing import Any, Callable, Dict, Iterable, Iterator, List
+from typing import Any, Callable, Dict, Iterable, Iterator, List, Literal
 
 import rerun as rr
 from datasets import Dataset
@@ -406,7 +406,8 @@ class Episode(Sample):
             [Sample(value=10), Sample(value=20), Sample(value=30)]
         """
         if not self.steps:
-            raise ValueError("Episode has no steps")
+            msg = "Episode has no steps"
+            raise ValueError(msg)
         return tuple([step[k] for step in self.steps] for k, _ in self.steps[0])
 
     def iter(self) -> Iterator[TimeStep]:
@@ -429,7 +430,8 @@ class Episode(Sample):
         if isinstance(other, Episode):
             self.steps += other.steps
         else:
-            raise ValueError("Can only add another Episode")
+            msg = "Can only add another Episode"
+            raise TypeError(msg)
         return self
 
     def append(self, step: TimeStep) -> None:
@@ -493,13 +495,14 @@ class Episode(Sample):
 
     def dataset(self) -> Dataset:
         if self.steps is None or len(self.steps) == 0:
-            raise ValueError("Episode has no steps")
+            msg = "Episode has no steps"
+            raise ValueError(msg)
         data = [step.dict() for step in self.steps]
         return Dataset.from_list(data, features=self.steps[0].features())
 
-    def rerun(self, local=True, port=5003, ws_port=5004) -> "Episode":
+    def rerun(self, mode=Literal["local", "remote"], port=5003, ws_port=5004) -> "Episode":
         """Start a rerun server."""
-        rr.init("rerun-mbodied-data", spawn=not local)
+        rr.init("rerun-mbodied-data", spawn=mode == "local")
         rr.serve(open_browser=False, web_port=port, ws_port=ws_port)
         for i, step in enumerate(self.steps):
             if not hasattr(step, "timestamp"):
@@ -516,8 +519,8 @@ class Episode(Sample):
         while hasattr(self, "_rr_thread") and self._rr_thread.is_alive():
             pass
 
-    def show(self, local=True, port=5003) -> None:
-        thread = Thread(target=self.rerun, kwargs={"port": port, "local": local})
+    def show(self, mode: Literal["local", "remote"], port=5003) -> None:
+        thread = Thread(target=self.rerun, kwargs={"port": port, "mode": mode})
         self._rr_thread = thread
         thread.start()
 
