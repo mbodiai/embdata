@@ -453,7 +453,16 @@ class Sample(BaseModel):
             return torch.tensor(list(accumulator.values()) if isinstance(accumulator, dict) else accumulator)
 
         if to:
-            return [accumulator[key] for key in sorted(accumulator.keys())]
+            if output_type == "dict":
+                return [{key: accumulator[key] for key in sorted(accumulator.keys())}]
+            elif output_type == "list":
+                return [list(accumulator.values())]
+            elif output_type == "np":
+                return [np.array(list(accumulator.values()))]
+            elif output_type == "pt":
+                return [torch.tensor(list(accumulator.values()))]
+            else:
+                raise ValueError(f"Unsupported output_type: {output_type}")
         else:
             return accumulator
 
