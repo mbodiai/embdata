@@ -106,9 +106,6 @@ def test_flatten_to_keys(sample_instance):
     deeper_result = nested_structure.flatten(to="items.*.dict_value.a")
     assert deeper_result == [11, 11, 11]
 
-
-if __name__ == "__main__":
-    pytest.main([__file__, "-vv"])
 def test_flatten_nested_dicts_and_lists_output_list():
     sample = Sample(
         a=1,
@@ -144,3 +141,6 @@ def test_flatten_nested_dicts_and_lists_output_list():
 
     unflattened_sample_dict = Sample.unflatten(flattened_dict, sample.schema())
     assert unflattened_sample_dict == sample, f"Expected {sample}, but got {unflattened_sample_dict}"
+
+if __name__ == "__main__":
+    pytest.main([__file__, "-vv"])
