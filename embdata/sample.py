@@ -285,7 +285,9 @@ class Sample(BaseModel):
                     value, index = unflatten_recursive(schema_part["items"], index)
                     items.append(value)
                 return items, index
-            return flat_data[index], index + 1 if index < len(flat_data) else (None, index)
+            if index < len(flat_data):
+                return flat_data[index], index + 1
+            return None, index
 
         unflattened_dict, _ = unflatten_recursive(schema)
         return cls(**unflattened_dict)
