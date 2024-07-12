@@ -280,7 +280,8 @@ class Sample(BaseModel):
                 return result, index
             if schema_part["type"] == "array":
                 items = []
-                for _ in range(schema_part.get("maxItems", len(flat_data) - index)):
+                max_items = schema_part.get("maxItems", len(flat_data) - index)
+                for _ in range(max_items):
                     value, index = unflatten_recursive(schema_part["items"], index)
                     items.append(value)
                 return items, index
@@ -453,14 +454,8 @@ class Sample(BaseModel):
             return torch.tensor(list(accumulator.values()) if isinstance(accumulator, dict) else accumulator)
 
         if to:
-            if output_type == "dict":
-                return [accumulator]
-            if output_type == "np":
-                return np.array([accumulator[key] for key in sorted(accumulator.keys())])
-            if output_type == "pt":
-                return torch.tensor([accumulator[key] for key in sorted(accumulator.keys())])
             return [accumulator[key] for key in sorted(accumulator.keys())]
-        return accumulator
+        return accumulator if output_type == "dict" else list(accumulator.values())
 
     def schema(self, include_descriptions=False) -> Dict:
         """Returns a simplified json schema.
