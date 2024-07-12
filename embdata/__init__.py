@@ -27,6 +27,7 @@ from typing import List
 from .episode import Episode, ImageTask, TimeStep, VisionMotorStep
 from .image import Image
 from .sample import Sample
+from .trajectory import Trajectory
 
 __all__ = [
     "Episode",
@@ -35,4 +36,5 @@ __all__ = [
     "VisionMotorStep",
     "Image",
     "Sample",
+    "Trajectory",
 ]
