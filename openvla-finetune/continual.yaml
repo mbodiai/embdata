@@ -1,0 +1,21 @@
+vla_path: "openvla/openvla-7b"
+dataset_name: "mbodiai/xarm_overfit"
+split: "train"
+run_root_dir: "runs"
+
+batch_size: 16
+max_steps: 5000
+save_steps: 5000
+learning_rate: 5e-6
+grad_accumulation_steps: 1
+shuffle_buffer_size: 100000
+
+use_lora: true
+lora_rank: 32
+lora_dropout: 0.0
+use_quantization: false
+
+wandb_project: "openvla"
+wandb_entity: null
+image_augmentation: false
+lr_scheduler_type: "constant"

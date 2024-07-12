@@ -503,9 +503,6 @@ The `HandControl` class allows for easy manipulation and representation of robot
 </details>
 
 <details>
-<summary><strong>Full Example: Finetuning OpenVLA with Robotics Data</strong></summary>
-
-</details>
 
 ## License
 
