@@ -292,7 +292,41 @@ def test_sample_with_nested_dicts_and_lists():
     expected = [1, 2, 3, 4, 6]
     assert flattened == expected, f"Expected {expected}, but got {flattened}"
 
-def test_flatten_with_to_np_output():
+def test_sample_with_nested_dicts_and_lists_output_list():
+    sample = Sample(
+        a=1,
+        b=[
+            {"c": 2, "d": [3, 4]},
+            {"c": 5, "d": [6, 7]}
+        ],
+        e=Sample(f=8, g=[{"h": 9, "i": 10}, {"h": 11, "i": 12}])
+    )
+    flattened = sample.flatten(output_type="list")
+    expected = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]
+    assert flattened == expected, f"Expected {expected}, but got {flattened}"
+
+    flattened_dict = sample.flatten(output_type="dict")
+    expected_dict = {
+        "a": 1,
+        "b.0.c": 2,
+        "b.0.d.0": 3,
+        "b.0.d.1": 4,
+        "b.1.c": 5,
+        "b.1.d.0": 6,
+        "b.1.d.1": 7,
+        "e.f": 8,
+        "e.g.0.h": 9,
+        "e.g.0.i": 10,
+        "e.g.1.h": 11,
+        "e.g.1.i": 12
+    }
+    assert flattened_dict == expected_dict, f"Expected {expected_dict}, but got {flattened_dict}"
+
+    unflattened_sample = Sample.unflatten(flattened, sample.schema())
+    assert unflattened_sample == sample, f"Expected {sample}, but got {unflattened_sample}"
+
+    unflattened_sample_dict = Sample.unflatten(flattened_dict, sample.schema())
+    assert unflattened_sample_dict == sample, f"Expected {sample}, but got {unflattened_sample_dict}"
     sample = Sample(
         a=1,
         b={"c": 2, "d": [3, 4]},
