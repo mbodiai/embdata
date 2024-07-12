@@ -51,21 +51,12 @@ class StreamlinedDataset(Episode):
                 transforms.ToPILImage()
             ])
         
-        # Define dataset statistics for normalization
-        self.dataset_statistics = {
-            "min": np.array([-0.07074, -0.10867, -0.08653, -6.28318977, -0.33160999, -0.33950999, 0.0]),
-            "max": np.array([0.10836, 0.10925, 0.10709, 6.28318977, 0.14999001, 0.33197999, 1.0]),
-            "q01": np.array([-0.0504155, -0.1054613, -0.08275, -6.28318977, -0.0226686, -0.33344679, 0.0]),
-            "q99": np.array([0.0992138, 0.1063098, 0.0832235, 6.28318977, 0.0, 0.2959943, 1.0]),
-        }
+        # Calculate dataset statistics using Trajectory
+        self.action_trajectory = self.trajectory(field="action")
+        self.dataset_statistics = self.action_trajectory.stats()
 
     def normalize_action(self, action: np.ndarray) -> np.ndarray:
-        q01 = self.dataset_statistics['q01'][:-1]
-        q99 = self.dataset_statistics['q99'][:-1]
-        normalized_action = 2 * (action[:-1] - q01) / (q99 - q01 + 1e-8) - 1
-        normalized_action = np.clip(normalized_action, -1, 1)
-        normalized_action = np.append(normalized_action, action[-1])
-        return normalized_action
+        return self.action_trajectory.transform("minmax", min=-1, max=1).numpy()
 
     def process_sample(self, data: Dict[str, Any]) -> VisionMotorStep:
         image = data["observation"]["image"]
@@ -136,6 +127,13 @@ class StreamlinedTrainer(Trainer):
             "input_ids": input_ids,
             "labels": labels
         }
+
+    def on_train_begin(self, args, state, control, **kwargs):
+        super().on_train_begin(args, state, control, **kwargs)
+        # Log dataset statistics
+        wandb.config.update({
+            "dataset_stats": self.train_dataset.dataset_statistics,
+        })
 
 def main(cfg: FinetuneConfig):
     processor = AutoProcessor.from_pretrained(cfg.vla_path, trust_remote_code=True)
