@@ -373,29 +373,28 @@ class Sample(BaseModel):
             - If multiple `to` keys are passed, the output list is concatenated in the order of occurrence.
             - The order of elements in the flattened output is guaranteed to be consistent across calls.
         """
-        to_keys = to
-        if to_keys is not None:
-            if isinstance(to_keys, (str, set)):
-                to_keys = {to_keys} if isinstance(to_keys, str) else to_keys
-            elif isinstance(to_keys, list):
-                to_keys = set(to_keys)
-            else:
-                raise ValueError(f"Unsupported type for 'to': {type(to_keys)}")
+        if to is not None:
+            if isinstance(to, str):
+                to = {to}
+            elif isinstance(to, list):
+                to = set(to)
+            elif not isinstance(to, set):
+                raise ValueError(f"Unsupported type for 'to': {type(to)}")
         keys = set()
         keys_map = describe_keys(self)
-        for k in to_keys or []:
+        for k in to or []:
             if not isinstance(k, str):
-                raise ValueError(f"Invalid key in 'to_keys': {k} (expected str)")
+                raise ValueError(f"Invalid key in 'to': {k} (expected str)")
             if k in keys_map:
                 keys.add(keys_map[k])
             else:
                 keys.add(k)
-        to_keys = keys
+        to = keys
 
         if output_type in ["np", "pt"]:
             non_numerical = "ignore"
 
-        accumulator = {} if output_type == "dict" or to_keys else []
+        accumulator = {} if output_type == "dict" or to else []
 
         def ignore_key(k, current_path):
             # Ignore keys starting with underscore by default.
