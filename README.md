@@ -120,7 +120,7 @@ The `Sample` class provides a wide range of functionality for data manipulation,
 The `Image` class represents image data and provides methods for manipulation and conversion.
 
 ### Key Features
-- Multiple representation formats (NumPy array, base64, file path, PIL Image)
+- Multiple representation formats (NumPy array, base64, file path, PIL Image, URL)
 - Easy conversion between different image formats
 - Resizing and encoding capabilities
 - Integration with other data processing pipelines
@@ -145,20 +145,38 @@ resized_img = Image(img_from_file, size=(50, 50))
 
 # Save the image
 img.save("output_image.png")
+
+# Create an Image from a URL
+img_from_url = Image("https://example.com/image.jpg")
+
+# Create an Image from a base64 string
+img_from_base64 = Image.from_base64(base64_str, encoding="png")
 ```
 
 ### Methods
 - `open(path)`: Opens an image from a file path
 - `save(path, encoding, quality)`: Saves the image to a file
 - `show()`: Displays the image using matplotlib
+- `from_base64(base64_str, encoding, size, make_rgb)`: Creates an Image instance from a base64 string
+- `load_url(url, download)`: Downloads an image from a URL or decodes it from a base64 data URI
+- `from_bytes(bytes_data, encoding, size)`: Creates an Image instance from a bytes object
+- `space()`: Returns the space of the image
+- `dump(*args, as_field, **kwargs)`: Returns a dict or a field of the image
+- `infer_features_dict()`: Infers features of the image
 
 ### Properties
 - `array`: The image as a NumPy array
 - `base64`: The image as a base64 encoded string
 - `path`: The file path of the image
 - `pil`: The image as a PIL Image object
+- `url`: The URL of the image
 - `size`: The size of the image as a (width, height) tuple
 - `encoding`: The encoding format of the image
+
+### Class Methods
+- `supports(arg)`: Checks if the argument is supported by the Image class
+- `pil_to_data(image, encoding, size, make_rgb)`: Creates an Image instance from a PIL image
+- `bytes_to_data(bytes_data, encoding, size, make_rgb)`: Creates an Image instance from a bytes object
 
 The `Image` class provides a convenient interface for working with image data in various formats and performing common image operations.
 
