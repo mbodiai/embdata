@@ -726,12 +726,66 @@ print(robot_motion)
 # Output: RobotMotion(twist=Twist(x=0.2, y=0.1, z=0.0, roll=0.0, pitch=0.0, yaw=0.1), gripper=0.5)
 ```
 
+#### Methods
+- `validate_shape()`: Validates the shape of the motion data
+
+#### Fields
+- `MotionField`: Creates a field for a motion with specified properties
+- `AbsoluteMotionField`: Field for an absolute motion
+- `RelativeMotionField`: Field for a relative motion
+- `VelocityMotionField`: Field for a velocity motion
+- `TorqueMotionField`: Field for a torque motion
+- `AnyMotionField`: Field for any other type of motion
+
 #### Key Concepts
 - Subclasses of Motion should define their fields using MotionField or its variants (e.g., AbsoluteMotionField, VelocityMotionField) to ensure proper validation and type checking.
 - The Motion class does not allow extra fields and enforces validation of motion type, shape, and bounds.
 - It can handle various types of motion data, including nested structures with images and text, as long as they are properly defined using the appropriate MotionFields.
 
 The `Motion` class provides a flexible foundation for creating motion-specific data models with built-in validation and type checking, making it easier to work with complex motion data in robotics and other applications.
+
+</details>
+
+<details>
+<summary><strong>AnyMotionControl</strong></summary>
+
+### AnyMotionControl
+
+The `AnyMotionControl` class is a subclass of `Motion` that allows for arbitrary fields with minimal validation. It's designed for motion control with flexible structure.
+
+#### Key Features
+- Allows arbitrary fields
+- Minimal validation compared to `Motion`
+- Includes optional `names` and `joints` fields
+
+#### Usage Example
+
+```python
+from embdata.motion import AnyMotionControl
+
+# Create an AnyMotionControl instance
+control = AnyMotionControl(names=["shoulder", "elbow", "wrist"], joints=[0.1, 0.2, 0.3])
+print(control)  # Output: AnyMotionControl(names=['shoulder', 'elbow', 'wrist'], joints=[0.1, 0.2, 0.3])
+
+# Add arbitrary fields
+control.extra_field = "some value"
+print(control.extra_field)  # Output: some value
+
+# Validation example
+try:
+    invalid_control = AnyMotionControl(names=["joint1", "joint2"], joints=[0.1, 0.2, 0.3])
+except ValueError as e:
+    print(f"Validation error: {e}")
+```
+
+#### Methods
+- `validate_joints()`: Validates that the number of joints matches the number of names and that all joints are numbers
+
+#### Fields
+- `names`: Optional list of joint names
+- `joints`: Optional list of joint values
+
+The `AnyMotionControl` class provides a flexible structure for motion control data with minimal constraints, allowing for easy integration with various robotic systems and control schemes.
 
 </details>
 
