@@ -377,157 +377,113 @@ filtered_traj.plot().show()
 ## Classes
 
 <details>
-<summary>Pose3D</summary>
+<summary><strong>Pose3D</strong></summary>
 
+### Pose3D
+
+Absolute coordinates for a 3D space representing x, y, and theta.
+
+This class represents a pose in 3D space with x and y coordinates for position
+and theta for orientation.
+
+#### Attributes:
+- `x` (float): X-coordinate in meters.
+- `y` (float): Y-coordinate in meters.
+- `theta` (float): Orientation angle in radians.
+
+#### Methods:
+- `to(container_or_unit=None, unit="m", angular_unit="rad", **kwargs) -> Any`: Convert the pose to a different unit or container.
+
+#### Example:
 ```python
-class Pose3D(Coordinate):
-    """
-    Absolute coordinates for a 3D space representing x, y, and theta.
+import math
+from embdata.geometry import Pose3D
 
-    This class represents a pose in 3D space with x and y coordinates for position
-    and theta for orientation.
+# Create a Pose3D instance
+pose = Pose3D(x=1, y=2, theta=math.pi/2)
+print(pose)  # Output: Pose3D(x=1.0, y=2.0, theta=1.5707963267948966)
 
-    Attributes:
-        x (float): X-coordinate in meters.
-        y (float): Y-coordinate in meters.
-        theta (float): Orientation angle in radians.
+# Convert to centimeters
+pose_cm = pose.to("cm")
+print(pose_cm)  # Output: Pose3D(x=100.0, y=200.0, theta=1.5707963267948966)
 
-    Examples:
-        >>> import math
-        >>> pose = Pose3D(x=1, y=2, theta=math.pi/2)
-        >>> pose
-        Pose3D(x=1.0, y=2.0, theta=1.5707963267948966)
-        >>> pose.to("cm")
-        Pose3D(x=100.0, y=200.0, theta=1.5707963267948966)
-    """
+# Convert theta to degrees
+pose_deg = pose.to(angular_unit="deg")
+print(pose_deg)  # Output: Pose3D(x=1.0, y=2.0, theta=90.0)
 
-    def to(self, container_or_unit=None, unit="m", angular_unit="rad", **kwargs) -> Any:
-        """
-        Convert the pose to a different unit or container.
+# Convert to a list
+pose_list = pose.to("list")
+print(pose_list)  # Output: [1.0, 2.0, 1.5707963267948966]
 
-        This method allows for flexible conversion of the Pose3D object to different units
-        or to a different container type.
-
-        Args:
-            container_or_unit (str, optional): The target container type or unit.
-            unit (str, optional): The target linear unit. Defaults to "m".
-            angular_unit (str, optional): The target angular unit. Defaults to "rad".
-            **kwargs: Additional keyword arguments for field configuration.
-
-        Returns:
-            Any: The converted pose, either as a new Pose3D object with different units
-                 or as a different container type.
-
-        Examples:
-            >>> import math
-            >>> pose = Pose3D(x=1, y=2, theta=math.pi / 2)
-            >>> pose.to("cm")
-            Pose3D(x=100.0, y=200.0, theta=1.5707963267948966)
-            >>> pose.to("deg")
-            Pose3D(x=1.0, y=2.0, theta=90.0)
-            >>> pose.to("list")
-            [1.0, 2.0, 1.5707963267948966]
-            >>> pose.to("dict")
-            {'x': 1.0, 'y': 2.0, 'theta': 1.5707963267948966}
-        """
+# Convert to a dictionary
+pose_dict = pose.to("dict")
+print(pose_dict)  # Output: {'x': 1.0, 'y': 2.0, 'theta': 1.5707963267948966}
 ```
 
 </details>
 ## Classes
 
 <details>
-<summary>Sample</summary>
+<summary><strong>Sample</strong></summary>
 
+### Sample
+
+A base model class for serializing, recording, and manipulating arbitrary data.
+
+This class provides a flexible and extensible way to handle complex data structures,
+including nested objects, arrays, and various data types. It offers methods for
+flattening, unflattening, converting between different formats, and working with
+machine learning frameworks.
+
+#### Attributes:
+- `model_config` (ConfigDict): Configuration for the model, including settings for validation, extra fields, and arbitrary types.
+
+#### Methods:
+- `__init__(self, item=None, **data)`: Initialize a Sample instance.
+- `schema(self, include_descriptions=False)`: Get a simplified JSON schema of the data.
+- `to(self, container)`: Convert the Sample instance to a different container type.
+- `flatten(self, output_type="list", non_numerical="allow", ignore=None, sep=".", to=None)`: Flatten the Sample instance into a one-dimensional structure.
+- `unflatten(cls, one_d_array_or_dict, schema=None)`: Unflatten a one-dimensional array or dictionary into a Sample instance.
+- `space(self)`: Return the corresponding Gym space for the Sample instance.
+- `random_sample(self)`: Generate a random Sample instance based on its attributes.
+
+#### Example:
 ```python
-class Sample(BaseModel):
-    """A base model class for serializing, recording, and manipulating arbitrary data.
+from embdata import Sample
+import numpy as np
 
-    This class provides a flexible and extensible way to handle complex data structures,
-    including nested objects, arrays, and various data types. It offers methods for
-    flattening, unflattening, converting between different formats, and working with
-    machine learning frameworks.
+# Create a simple Sample instance
+sample = Sample(x=1, y=2, z={"a": 3, "b": 4}, extra_field=5)
 
-    Attributes:
-        model_config (ConfigDict): Configuration for the model, including settings for
-            validation, extra fields, and arbitrary types.
+# Flatten the sample
+flat_sample = sample.flatten()
+print(flat_sample)  # Output: [1, 2, 3, 4, 5]
 
-    Methods:
-        __init__(self, item=None, **data): Initialize a Sample instance.
-        schema(self, include_descriptions=False): Get a simplified JSON schema of the data.
-        to(self, container): Convert the Sample instance to a different container type.
-        flatten(self, output_type="list", non_numerical="allow", ignore=None, sep=".", to=None):
-            Flatten the Sample instance into a one-dimensional structure.
-        unflatten(cls, one_d_array_or_dict, schema=None): Unflatten a one-dimensional array or
-            dictionary into a Sample instance.
-        space(self): Return the corresponding Gym space for the Sample instance.
-        random_sample(self): Generate a random Sample instance based on its attributes.
+# Get the schema
+schema = sample.schema()
+print(schema)
 
-    Examples:
-        >>> sample = Sample(x=1, y=2, z={"a": 3, "b": 4}, extra_field=5)
-        >>> sample.flatten()
-        [1, 2, 3, 4, 5]
-        >>> sample.schema()
-        {
-            'type': 'object',
-            'properties': {
-                'x': {'type': 'number'},
-                'y': {'type': 'number'},
-                'z': {
-                    'type': 'object',
-                    'properties': {
-                        'a': {'type': 'number'},
-                        'b': {'type': 'number'}
-                    }
-                },
-                'extra_field': {'type': 'number'}
-            }
-        }
-        >>> flat_list = sample.flatten()
-        >>> Sample.unflatten(flat_list, sample.schema())
-        Sample(x=1, y=2, z={'a': 3, 'b': 4}, extra_field=5)
+# Unflatten a list back to a Sample instance
+unflattened_sample = Sample.unflatten(flat_sample, schema)
+print(unflattened_sample)  # Output: Sample(x=1, y=2, z={'a': 3, 'b': 4}, extra_field=5)
 
-        # Complex nested structure with image and text
-        >>> nested_sample = Sample(
-        ...     image=Sample(
-        ...         data=np.random.rand(32, 32, 3),
-        ...         metadata={"format": "RGB", "size": (32, 32)}
-        ...     ),
-        ...     text=Sample(
-        ...         content="Hello, world!",
-        ...         tokens=["Hello", ",", "world", "!"],
-        ...         embeddings=np.random.rand(4, 128)
-        ...     ),
-        ...     labels=["greeting", "example"]
-        ... )
-        >>> nested_sample.schema()
-        {
-            'type': 'object',
-            'properties': {
-                'image': {
-                    'type': 'object',
-                    'properties': {
-                        'data': {'type': 'array'},
-                        'metadata': {
-                            'type': 'object',
-                            'properties': {
-                                'format': {'type': 'string'},
-                                'size': {'type': 'array'}
-                            }
-                        }
-                    }
-                },
-                'text': {
-                    'type': 'object',
-                    'properties': {
-                        'content': {'type': 'string'},
-                        'tokens': {'type': 'array'},
-                        'embeddings': {'type': 'array'}
-                    }
-                },
-                'labels': {'type': 'array'}
-            }
-        }
-    """
+# Create a complex nested structure
+nested_sample = Sample(
+    image=Sample(
+        data=np.random.rand(32, 32, 3),
+        metadata={"format": "RGB", "size": (32, 32)}
+    ),
+    text=Sample(
+        content="Hello, world!",
+        tokens=["Hello", ",", "world", "!"],
+        embeddings=np.random.rand(4, 128)
+    ),
+    labels=["greeting", "example"]
+)
+
+# Get the schema of the nested structure
+nested_schema = nested_sample.schema()
+print(nested_schema)
 ```
 
 </details>
@@ -688,76 +644,116 @@ class Image(Sample):
 ## Classes
 
 <details>
-<summary>Motion</summary>
+<summary><strong>Motion</strong></summary>
 
+### Motion
+
+Base class for defining motion-related data structures.
+
+This class extends the Coordinate class and provides a foundation for creating
+motion-specific data models. It does not allow extra fields and enforces
+validation of motion type, shape, and bounds.
+
+#### Attributes:
+- Inherited from Coordinate
+
+#### Usage:
+Subclasses of Motion should define their fields using MotionField or its variants
+(e.g., AbsoluteMotionField, VelocityMotionField) to ensure proper validation and
+type checking.
+
+#### Example:
 ```python
-class Motion(Coordinate):
-    """
-    Base class for defining motion-related data structures.
+from embdata.motion import Motion
+from embdata.motion.fields import VelocityMotionField
 
-    This class extends the Coordinate class and provides a foundation for creating
-    motion-specific data models. It does not allow extra fields and enforces
-    validation of motion type, shape, and bounds.
+class Twist(Motion):
+    x: float = VelocityMotionField(default=0.0, bounds=[-1.0, 1.0])
+    y: float = VelocityMotionField(default=0.0, bounds=[-1.0, 1.0])
+    z: float = VelocityMotionField(default=0.0, bounds=[-1.0, 1.0])
+    roll: float = VelocityMotionField(default=0.0, bounds=["-pi", "pi"])
+    pitch: float = VelocityMotionField(default=0.0, bounds=["-pi", "pi"])
+    yaw: float = VelocityMotionField(default=0.0, bounds=["-pi", "pi"])
 
-    Subclasses of Motion should define their fields using MotionField or its variants
-    (e.g., AbsoluteMotionField, VelocityMotionField) to ensure proper validation and
-    type checking.
+# Create a Twist instance
+twist = Twist(x=0.5, y=-0.3, z=0.1, roll=0.2, pitch=-0.1, yaw=0.8)
+print(twist)
+# Output: Twist(x=0.5, y=-0.3, z=0.1, roll=0.2, pitch=-0.1, yaw=0.8)
 
-    Attributes:
-        Inherited from Coordinate
+# Attempt to create an invalid Twist instance
+try:
+    invalid_twist = Twist(x=1.5, y=-0.3, z=0.1, roll=0.2, pitch=-0.1, yaw=0.8)
+except ValueError as e:
+    print(f"Error: {e}")
+    # Output: Error: x value 1.5 is not within bounds [-1.0, 1.0]
 
-    Example:
-        >>> class Twist(Motion):
-        ...     x: float = VelocityMotionField(default=0.0, bounds=[-1.0, 1.0])
-        ...     y: float = VelocityMotionField(default=0.0, bounds=[-1.0, 1.0])
-        ...     z: float = VelocityMotionField(default=0.0, bounds=[-1.0, 1.0])
-        ...     roll: float = VelocityMotionField(default=0.0, bounds=["-pi", "pi"])
-        ...     pitch: float = VelocityMotionField(default=0.0, bounds=["-pi", "pi"])
-        ...     yaw: float = VelocityMotionField(default=0.0, bounds=["-pi", "pi"])
-        >>> twist = Twist(x=0.5, y=-0.3, z=0.1, roll=0.2, pitch=-0.1, yaw=0.8)
-        >>> print(twist)
-        Twist(x=0.5, y=-0.3, z=0.1, roll=0.2, pitch=-0.1, yaw=0.8)
+# Example with complex nested structure
+class RobotMotion(Motion):
+    twist: Twist
+    gripper: float = VelocityMotionField(default=0.0, bounds=[0.0, 1.0])
 
-    Note:
-        The Motion class is designed to work with complex nested structures.
-        It can handle various types of motion data, including images and text,
-        as long as they are properly defined using the appropriate MotionFields.
-    """
+robot_motion = RobotMotion(
+    twist=Twist(x=0.2, y=0.1, z=0.0, roll=0.0, pitch=0.0, yaw=0.1),
+    gripper=0.5
+)
+print(robot_motion)
+# Output: RobotMotion(twist=Twist(x=0.2, y=0.1, z=0.0, roll=0.0, pitch=0.0, yaw=0.1), gripper=0.5)
 ```
+
+Note: The Motion class is designed to work with complex nested structures.
+It can handle various types of motion data, including images and text,
+as long as they are properly defined using the appropriate MotionFields.
 
 </details>
 ## Classes
 
 <details>
-<summary>HandControl</summary>
+<summary><strong>HandControl</strong></summary>
 
+### HandControl
+
+Action for a 7D space representing x, y, z, roll, pitch, yaw, and openness of the hand.
+
+This class represents the control for a robot hand, including its pose and grasp state.
+
+#### Attributes:
+- `pose` (Pose): The pose of the robot hand, including position and orientation.
+- `grasp` (float): The openness of the robot hand, ranging from 0 (closed) to 1 (open).
+
+#### Example:
 ```python
-class HandControl(Motion):
-    """Action for a 7D space representing x, y, z, roll, pitch, yaw, and openness of the hand.
+from embdata.geometry import Pose
+from embdata.motion.control import HandControl
 
-    This class represents the control for a robot hand, including its pose and grasp state.
+# Create a HandControl instance
+hand_control = HandControl(
+    pose=Pose(position=[0.1, 0.2, 0.3], orientation=[0, 0, 0, 1]),
+    grasp=0.5
+)
 
-    Attributes:
-        pose (Pose): The pose of the robot hand, including position and orientation.
-        grasp (float): The openness of the robot hand, ranging from 0 (closed) to 1 (open).
+# Access and modify the hand control
+print(hand_control.pose.position)  # Output: [0.1, 0.2, 0.3]
+hand_control.grasp = 0.8
+print(hand_control.grasp)  # Output: 0.8
 
-    Example:
-        ```python
-        from embdata.geometry import Pose
-        from embdata.motion.control import HandControl
+# Example with complex nested structure
+from embdata.motion import Motion
+from embdata.motion.fields import VelocityMotionField
 
-        # Create a HandControl instance
-        hand_control = HandControl(
-            pose=Pose(position=[0.1, 0.2, 0.3], orientation=[0, 0, 0, 1]),
-            grasp=0.5
-        )
+class RobotControl(Motion):
+    hand: HandControl
+    velocity: float = VelocityMotionField(default=0.0, bounds=[0.0, 1.0])
 
-        # Access and modify the hand control
-        print(hand_control.pose.position)  # Output: [0.1, 0.2, 0.3]
-        hand_control.grasp = 0.8
-        print(hand_control.grasp)  # Output: 0.8
-        ```
-    """
+robot_control = RobotControl(
+    hand=HandControl(
+        pose=Pose(position=[0.1, 0.2, 0.3], orientation=[0, 0, 0, 1]),
+        grasp=0.5
+    ),
+    velocity=0.3
+)
+
+print(robot_control.hand.pose.position)  # Output: [0.1, 0.2, 0.3]
+print(robot_control.velocity)  # Output: 0.3
 ```
 
 </details>
