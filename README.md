@@ -55,10 +55,15 @@ sample = Sample(x=1, y=2, z={"a": 3, "b": 4})
 flat_sample = sample.flatten()
 print(flat_sample)  # [1, 2, 3, 4]
 
+# Flatten to a nested field
+nested_sample = Sample(x=1, y=2, z=[{"a": 3, "b": 4}, {"a": 5, "b": 6}]))
+a_fields = nested_sample.flatten(to="a") # [3, 5]
+
 # Convert to different formats
 as_dict = sample.to("dict")
-as_numpy = sample.to("np")
-as_torch = sample.to("pt")
+as_numpy = sample.numpy()
+as_torch = sample.torch()
+
 
 # Create a random sample based on the structure
 random_sample = sample.random_sample()
@@ -191,6 +196,7 @@ The `Trajectory` class represents a time series of multidimensional data, such a
 - Representation of time series data with optional frequency information
 - Methods for statistical analysis, visualization, and manipulation
 - Support for resampling and filtering operations
+- Support for minmax, standard, and PCA transformations
 
 ### Usage Example
 ```python
@@ -225,6 +231,7 @@ traj.save("trajectory_plot.png")
 - `low_pass_filter(cutoff_freq)`: Applies a low-pass filter to the trajectory
 - `save(filename)`: Saves the trajectory plot to a file
 - `show()`: Displays the trajectory plot
+- `transform(operation, **kwargs)`: Applies a transformation to the trajectory
 
 The `Trajectory` class offers methods for analyzing, visualizing, and manipulating trajectory data, making it easier to work with time series data in robotics and other applications.
 
@@ -266,10 +273,14 @@ split_episodes = episode.split(split_condition)
 # Extract a trajectory from the episode
 action_trajectory = episode.trajectory(field="action", freq_hz=10)
 
+# Visualize 3D geometrical data, images, and graphs with rerun.io
+episode.show()
+
 # Access episode metadata
 print(episode.metadata)
 print(episode.freq_hz)
 ```
+
 
 ### Methods
 - `append(step)`: Adds a new step to the episode
@@ -289,7 +300,7 @@ The `Episode` class simplifies the process of working with sequential data in re
 <details>
 <summary><strong>Pose3D</strong></summary>
 
-The `Pose3D` class represents absolute coordinates for a 3D space with x, y, and theta (orientation).
+The `Pose6D` class represents absolute coordinates for a 6D pose in 3D space, including position and orientation.
 
 ### Key Features
 - Representation of 3D pose with position (x, y) and orientation (theta)
@@ -298,28 +309,32 @@ The `Pose3D` class represents absolute coordinates for a 3D space with x, y, and
 
 ### Usage Example
 ```python
-from embdata.geometry import Pose3D
+from embdata.geometry import Pose6D
 import math
 
 # Create a Pose3D instance
-pose = Pose3D(x=1, y=2, theta=math.pi/2)
-print(pose)  # Pose3D(x=1.0, y=2.0,
-
- theta=1.5707963267948966)
+pose = Pose6D(x=1.0, y=2.0, z=3.0, roll=math.pi/10, pitch=math.pi/5, yaw=math.pi/3)
 
 # Convert to different units
 pose_cm = pose.to("cm")
-print(pose_cm)  # Pose3D(x=100.0, y=200.0, theta=1.5707963267948966)
+print(pose_cm)  # Pose6D(x=100.0, y=200.0, z=300.0, roll=0.3141592653589793, pitch=0.6283185307179586, yaw=1.0471975511965976)
+
 
 pose_deg = pose.to(angular_unit="deg")
-print(pose_deg)  # Pose3D(x=1.0, y=2.0, theta=90.0)
+print(pose_deg)  # Pose6D(x=1.0, y=2.0, z=3.0, roll=5.729577951308232, pitch=11.459155902616465, yaw=17.374763072956262)
 
 # Convert to different formats
-pose_list = pose.to("list")
-print(pose_list)  # [1.0, 2.0, 1.5707963267948966]
+pose_list = pose.numpy()
+print(pose_list)  # array([1.0, 2.0, 3.0, 0.1, 0.2, 0.3])
 
-pose_dict = pose.to("dict")
-print(pose_dict)  # {'x': 1.0, 'y': 2.0, 'theta': 1.5707963267948966}
+pose_dict = pose.dict()
+print(pose_dict)  # {'x': 1.0, 'y': 2.0, 'z': 3.0, 'roll': 0.1, 'pitch': 0.2, 'yaw': 0.3}
+
+pose.to("quaternion")
+print(pose.quaternion())  # [0.9659258262890683, 0.0, 0.13052619222005157, 0.0]
+
+pose.to("rotation_matrix")
+print(pose.rotation_matrix())  # array([[ 0.8660254, -0.25, 0.4330127], [0.4330127, 0.75, -0.5], [-0.25, 0.61237244, 0.75]]
 ```
 
 ### Methods
@@ -380,6 +395,64 @@ print(robot_control.velocity)  # 0.3
 - `grasp`: The openness of the robot hand (float, 0 to 1)
 
 The `HandControl` class allows for easy manipulation and representation of robot hand controls in a 7D space, making it useful for robotics and motion control applications.
+
+</details>
+<details>
+<summary><strong>Full Examples</strong></summary>
+
+
+### Define Custom Motion Controls
+
+```python
+from embdata.motion import HandControl, HeadControl, MobileSingleArmControl, MobileSingleHandControl, HumanoidControl
+from embdata.motion import Motion
+
+# Create motion controls
+hand_control = HandControl(gripper=0.5)
+head_control = HeadControl(pan=0.2, tilt=-0.1)
+arm_control = MobileSingleArmControl(x=0.1, y=0.2, z=0.3, gripper=0.5)
+mobile_hand_control = MobileSingleHandControl(x=0.1, y=0.2, z=0.3, roll=0.1, pitch=0.2, yaw=0.3, gripper=0.5)
+humanoid_control = HumanoidControl(
+    left_arm=[0.1, 0.2, 0.3, 0.4],
+    right_arm=[0.5, 0.6, 0.7, 0.8],
+    left_leg=[0.9, 1.0, 1.1],
+    right_leg=[1.2, 1.3, 1.4]
+)
+
+# Access control values
+print(hand_control.gripper)
+print(head_control.pan, head_control.tilt)
+print(arm_control.x, arm_control.y, arm_control.z, arm_control.gripper)
+print(mobile_hand_control.x, mobile_hand_control.y, mobile_hand_control.z, mobile_hand_control.roll, mobile_hand_control.pitch, mobile_hand_control.yaw, mobile_hand_control.gripper)
+print(humanoid_control.left_arm, humanoid_control.right_leg)
+
+# Create a custom Motion control by subclassing
+class QuadrupedControl(Motion):
+    front_left: float
+    front_right: float
+    back_left: float
+    back_right: float
+
+# Use the custom Motion control
+quadruped_control = QuadrupedControl(front_left=0.1, front_right=0.2, back_left=0.3, back_right=0.4)
+print(quadruped_control.front_left, quadruped_control.back_right)
+    back_left: float
+    back_right: float
+
+# Use the custom Motion control
+quadruped_control = QuadrupedControl(front_left=0.1, front_right=0.2, back_left=0.3, back_right=0.4)
+print(quadruped_control.front_left, quadruped_control.back_right)
+    back_left: float
+    back_right: float
+
+# Use the custom Motion control
+quadruped_control = QuadrupedControl(front_left=0.1, front_right=0.2, back_left=0.3, back_right=0.4)
+print(quadruped_control.front_left, quadruped_control.back_right)
+```
+
+## Full Training Example
+
+This example demonstrates how to use embdata to download a dataset, process it, visualize it, and use it to fine-tune a model with Hugging Face Transformers.
 
 </details>
 
@@ -943,129 +1016,3 @@ The `HumanoidControl` class represents control for a humanoid robot.
 - `head` (HeadControl | None): Control for the robot head.
 
 </details>
-## Geometry Module
-
-The `embdata.geometry` module provides classes for representing geometric data in cartesian and polar coordinates.
-
-### Classes
-
-#### CoordinateField
-
-A function to create a Pydantic Field with extra metadata for coordinates.
-
-#### Coordinate
-
-A base class for representing coordinates in an arbitrary space.
-
-Methods:
-- `convert_linear_unit(value: float, from_unit: str, to_unit: str) -> float`
-- `convert_angular_unit(value: float, from_unit: str, to_unit: str) -> float`
-- `validate_bounds()`
-
-#### Pose3D
-
-Represents absolute coordinates for a 3D space (x, y, theta).
-
-Methods:
-- `to(container_or_unit=None, unit="m", angular_unit="rad", **kwargs) -> Any`
-
-#### Pose6D
-
-Represents absolute coordinates for a 6D space (x, y, z, roll, pitch, yaw).
-
-Methods:
-- `to(container_or_unit=None, sequence="zyx", unit="m", angular_unit="rad", **kwargs) -> Any`
-- `get_quaternion(sequence="zyx") -> np.ndarray`
-- `get_rotation_matrix(sequence="zyx") -> np.ndarray`
-
-### Usage
-
-```python
-import math
-from embdata.geometry import Pose3D, Pose6D
-
-# Create a 3D pose
-pose_3d = Pose3D(x=1, y=2, theta=math.pi / 2)
-print(pose_3d)  # Pose3D(x=1.0, y=2.0, theta=1.5707963267948966)
-
-# Convert to centimeters
-pose_3d_cm = pose_3d.to("cm")
-print(pose_3d_cm)  # Pose3D(x=100.0, y=200.0, theta=1.5707963267948966)
-
-# Create a 6D pose
-pose_6d = Pose6D(x=1, y=2, z=3, roll=0, pitch=0, yaw=math.pi / 2)
-
-# Get quaternion representation
-quaternion = pose_6d.get_quaternion()
-print(quaternion)  # [0. 0. 0.70710678 0.70710678]
-
-# Get rotation matrix
-rotation_matrix = pose_6d.get_rotation_matrix()
-print(rotation_matrix)
-# [[ 0. -1.  0.]
-#  [ 1.  0.  0.]
-#  [ 0.  0.  1.]]
-```
-## Geometry Module
-
-The `embdata.geometry` module provides classes for representing geometric data in cartesian and polar coordinates.
-
-### Classes
-
-#### CoordinateField
-
-A function to create a Pydantic Field with extra metadata for coordinates.
-
-#### Coordinate
-
-A base class for representing coordinates in an arbitrary space.
-
-Methods:
-- `convert_linear_unit(value: float, from_unit: str, to_unit: str) -> float`
-- `convert_angular_unit(value: float, from_unit: str, to_unit: str) -> float`
-- `validate_bounds()`
-
-#### Pose3D
-
-Represents absolute coordinates for a 3D space (x, y, theta).
-
-Methods:
-- `to(container_or_unit=None, unit="m", angular_unit="rad", **kwargs) -> Any`
-
-#### Pose6D
-
-Represents absolute coordinates for a 6D space (x, y, z, roll, pitch, yaw).
-
-Methods:
-- `to(container_or_unit=None, sequence="zyx", unit="m", angular_unit="rad", **kwargs) -> Any`
-- `get_quaternion(sequence="zyx") -> np.ndarray`
-- `get_rotation_matrix(sequence="zyx") -> np.ndarray`
-
-### Usage
-
-```python
-import math
-from embdata.geometry import Pose3D, Pose6D
-
-# Create a 3D pose
-pose_3d = Pose3D(x=1, y=2, theta=math.pi / 2)
-print(pose_3d)  # Pose3D(x=1.0, y=2.0, theta=1.5707963267948966)
-
-# Convert to centimeters
-pose_3d_cm = pose_3d.to("cm")
-print(pose_3d_cm)  # Pose3D(x=100.0, y=200.0, theta=1.5707963267948966)
-
-# Create a 6D pose
-pose_6d = Pose6D(x=1, y=2, z=3, roll=0, pitch=0, yaw=math.pi / 2)
-
-# Get quaternion representation
-quaternion = pose_6d.get_quaternion()
-print(quaternion)  # [0. 0. 0.70710678 0.70710678]
-
-# Get rotation matrix
-rotation_matrix = pose_6d.get_rotation_matrix()
-print(rotation_matrix)
-# [[ 0. -1.  0.]
-#  [ 1.  0.  0.]
-#  [ 0.  0.  1.]]
-```
