@@ -38,6 +38,13 @@ pip install embdata
 
 The `Sample` class is a flexible base model for serializing, recording, and manipulating arbitrary data.
 
+### Key Features
+- Serialization and deserialization of complex data structures
+- Flattening and unflattening of nested structures
+- Conversion between different formats (e.g., dict, numpy arrays, torch tensors)
+- Integration with machine learning frameworks and gym spaces
+
+### Usage Example
 ```python
 from embdata import Sample
 
@@ -60,6 +67,13 @@ random_sample = sample.random_sample()
 space = sample.space()
 ```
 
+### Methods
+- `flatten()`: Flattens the nested structure into a 1D representation
+- `unflatten()`: Reconstructs the original nested structure from a flattened representation
+- `to(format)`: Converts the sample to different formats (dict, numpy, torch, etc.)
+- `random_sample()`: Creates a random sample based on the current structure
+- `space()`: Returns the corresponding Gym space for the sample
+
 The `Sample` class provides a wide range of functionality for data manipulation, conversion, and integration with various libraries and frameworks.
 
 </details>
@@ -69,6 +83,13 @@ The `Sample` class provides a wide range of functionality for data manipulation,
 
 The `Image` class represents image data and provides methods for manipulation and conversion.
 
+### Key Features
+- Multiple representation formats (NumPy array, base64, file path, PIL Image)
+- Easy conversion between different image formats
+- Resizing and encoding capabilities
+- Integration with other data processing pipelines
+
+### Usage Example
 ```python
 from embdata import Image
 import numpy as np
@@ -89,6 +110,18 @@ resized_img = img.resize((50, 50))
 # Save the image
 img.save("output_image.png")
 ```
+
+### Methods
+- `open(path)`: Opens an image from a file path
+- `to_base64()`: Converts the image to a base64 encoded string
+- `resize(size)`: Resizes the image to the specified dimensions
+- `save(path, encoding, quality)`: Saves the image to a file
+
+### Properties
+- `array`: The image as a NumPy array
+- `base64`: The image as a base64 encoded string
+- `path`: The file path of the image
+- `pil`: The image as a PIL Image object
 
 The `Image` class provides a convenient interface for working with image data in various formats and performing common image operations.
 
@@ -130,6 +163,13 @@ The `Trajectory` class offers methods for analyzing, visualizing, and manipulati
 
 The `Episode` class provides a list-like interface for a sequence of observations, actions, and other data, particularly useful for reinforcement learning scenarios.
 
+### Key Features
+- List-like interface for managing sequences of data
+- Methods for appending, iterating, and splitting episodes
+- Support for metadata and frequency information
+- Integration with reinforcement learning workflows
+
+### Usage Example
 ```python
 from embdata import Episode, Sample
 
@@ -155,6 +195,16 @@ split_episodes = episode.split(split_condition)
 print(episode.metadata)
 print(episode.freq_hz)
 ```
+
+### Methods
+- `append(step)`: Adds a new step to the episode
+- `iter()`: Returns an iterator over the steps in the episode
+- `split(condition)`: Splits the episode based on a given condition
+- `trajectory(field, freq_hz)`: Extracts a trajectory from the episode for a specified field
+
+### Properties
+- `metadata`: Additional metadata for the episode
+- `freq_hz`: The frequency of the episode in Hz
 
 The `Episode` class simplifies the process of working with sequential data in reinforcement learning and other time-series applications.
 
