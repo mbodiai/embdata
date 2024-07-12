@@ -34,13 +34,9 @@ class FinetuneConfig:
     image_augmentation: bool = False
     lr_scheduler_type: str = "constant"
 
-class StreamlinedDataset(Sample):
+class StreamlinedDataset(Episode):
     def __init__(self, dataset_name: str, split: str):
-        self.dataset = load_dataset(dataset_name, split=split, streaming=True)
-
-    def __iter__(self):
-        for data in self.dataset:
-            yield self.process_sample(data)
+        super().__init__(load_dataset(dataset_name, split=split, streaming=True))
 
     def process_sample(self, data: Dict[str, Any]) -> VisionMotorStep:
         observation = ImageTask(
@@ -53,10 +49,14 @@ class StreamlinedDataset(Sample):
         )
         return VisionMotorStep(observation=observation, action=action)
 
+    def __iter__(self):
+        return self.map(self.process_sample).iter()
+
 class StreamlinedTrainer(Trainer):
-    def __init__(self, action_tokenizer: ActionTokenizer, **kwargs):
+    def __init__(self, action_tokenizer: ActionTokenizer, processor: Any, **kwargs):
         super().__init__(**kwargs)
         self.action_tokenizer = action_tokenizer
+        self.processor = processor
 
     def compute_loss(self, model, inputs, return_outputs=False):
         labels = inputs.get("labels")
@@ -72,16 +72,27 @@ class StreamlinedTrainer(Trainer):
 
         return loss, outputs
 
-def prepare_sample_for_model(sample: VisionMotorStep, tokenizer: Any, image_processor: Any, action_tokenizer: ActionTokenizer):
-    pixel_values = image_processor(sample.observation.image).pixel_values
-    input_ids = tokenizer(sample.observation.task, add_special_tokens=True, return_tensors="pt").input_ids
-    labels = action_tokenizer(sample.action.numpy())
-    
-    return {
-        "pixel_values": pixel_values,
-        "input_ids": input_ids,
-        "labels": labels
-    }
+    def get_train_dataloader(self) -> torch.utils.data.DataLoader:
+        return torch.utils.data.DataLoader(
+            self.train_dataset,
+            batch_size=self.args.per_device_train_batch_size,
+            collate_fn=self.data_collator,
+            num_workers=self.args.dataloader_num_workers,
+            pin_memory=self.args.dataloader_pin_memory,
+        )
+
+    def data_collator(self, samples: List[VisionMotorStep]) -> Dict[str, torch.Tensor]:
+        batch = Sample.pack_from(samples)
+        
+        pixel_values = self.processor.image_processor(batch.observation.image, return_tensors="pt").pixel_values
+        input_ids = self.processor.tokenizer(batch.observation.task, padding=True, return_tensors="pt").input_ids
+        labels = self.action_tokenizer(batch.action.numpy())
+        
+        return {
+            "pixel_values": pixel_values,
+            "input_ids": input_ids,
+            "labels": labels
+        }
 
 def main(cfg: FinetuneConfig):
     processor = AutoProcessor.from_pretrained(cfg.vla_path, trust_remote_code=True)
@@ -102,12 +113,6 @@ def main(cfg: FinetuneConfig):
     action_tokenizer = ActionTokenizer(processor.tokenizer)
     dataset = StreamlinedDataset(cfg.dataset_name, cfg.split)
 
-    def collate_fn(samples):
-        return {
-            key: torch.stack([sample[key] for sample in samples])
-            for key in samples[0].keys()
-        }
-
     training_args = TrainingArguments(
         output_dir=cfg.run_root_dir,
         per_device_train_batch_size=cfg.batch_size,
@@ -125,9 +130,9 @@ def main(cfg: FinetuneConfig):
         model=vla,
         args=training_args,
         train_dataset=dataset,
-        data_collator=collate_fn,
         tokenizer=processor.tokenizer,
         action_tokenizer=action_tokenizer,
+        processor=processor,
     )
 
     wandb.init(project=cfg.wandb_project, entity=cfg.wandb_entity)
