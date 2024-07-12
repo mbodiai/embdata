@@ -453,14 +453,9 @@ class Sample(BaseModel):
             return torch.tensor(list(accumulator.values()) if isinstance(accumulator, dict) else accumulator)
 
         if to:
-            if output_type == "dict":
-                return [accumulator]
-            if output_type == "np":
-                return np.array([accumulator[key] for key in sorted(accumulator.keys())])
-            if output_type == "pt":
-                return torch.tensor([accumulator[key] for key in sorted(accumulator.keys())])
             return [accumulator[key] for key in sorted(accumulator.keys())]
-        return accumulator
+        else:
+            return accumulator
 
     def schema(self, include_descriptions=False) -> Dict:
         """Returns a simplified json schema.
