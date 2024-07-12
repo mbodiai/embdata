@@ -448,7 +448,10 @@ class Sample(BaseModel):
         if output_type == "pt":
             return torch.tensor(list(accumulator.values()) if isinstance(accumulator, dict) else accumulator)
 
-        return accumulator
+        if to:
+            return [accumulator[key] for key in sorted(accumulator.keys())]
+        else:
+            return accumulator
 
     def schema(self, include_descriptions=False) -> Dict:
         """Returns a simplified json schema.
