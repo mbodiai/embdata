@@ -904,3 +904,173 @@ print(robot_control.velocity)  # Output: 0.3
 ```
 
 </details>
+# embdata
+
+embdata is a Python library for handling and processing various types of data in robotics and AI applications.
+
+## Classes
+
+<details>
+<summary><strong>Episode</strong></summary>
+
+### Episode
+
+The `Episode` class provides a list-like interface for a sequence of observations, actions, and/or other data. It's designed to streamline exploratory data analysis and manipulation of time series data.
+
+#### Usage
+
+```python
+from embdata import Episode, TimeStep
+
+# Create an episode
+episode = Episode()
+
+# Add steps to the episode
+step1 = TimeStep(observation={'position': [0, 0, 0]}, action={'move': [1, 0, 0]})
+step2 = TimeStep(observation={'position': [1, 0, 0]}, action={'move': [0, 1, 0]})
+
+episode.append(step1)
+episode.append(step2)
+
+# Access steps
+first_step = episode[0]
+print(first_step.observation)  # Output: {'position': [0, 0, 0]}
+
+# Iterate through steps
+for step in episode:
+    print(step.action)
+
+# Get episode length
+print(len(episode))  # Output: 2
+```
+
+</details>
+
+<details>
+<summary><strong>Image</strong></summary>
+
+### Image
+
+The `Image` class represents an image sample that can be represented in various formats, including NumPy arrays, base64 encoded strings, file paths, PIL Images, or URLs.
+
+#### Usage
+
+```python
+from embdata import Image
+
+# Create an Image from a file
+img = Image.open('path/to/image.jpg')
+
+# Resize the image
+resized_img = img.resize((224, 224))
+
+# Convert to different formats
+numpy_array = resized_img.array
+base64_string = resized_img.base64
+pil_image = resized_img.pil
+
+# Save the image
+resized_img.save('path/to/save/resized_image.jpg', encoding='jpeg', quality=95)
+```
+
+</details>
+
+<details>
+<summary><strong>Sample</strong></summary>
+
+### Sample
+
+The `Sample` class is a base model for serializing, recording, and manipulating arbitrary data. It provides methods for flattening, unflattening, and converting between different formats.
+
+#### Usage
+
+```python
+from embdata import Sample
+
+class CustomSample(Sample):
+    name: str
+    value: float
+    nested: dict
+
+# Create a sample
+sample = CustomSample(name="example", value=3.14, nested={"key": "value"})
+
+# Flatten the sample
+flattened = sample.flatten()
+print(flattened)  # Output: {'name': 'example', 'value': 3.14, 'nested.key': 'value'}
+
+# Get field info
+field_info = sample.model_field_info('value')
+print(field_info)  # Output: {'type': 'float', ...}
+```
+
+</details>
+
+<details>
+<summary><strong>Trajectory</strong></summary>
+
+### Trajectory
+
+The `Trajectory` class represents a trajectory of steps, typically used for time series of multidimensional data such as robot movements or sensor readings.
+
+#### Usage
+
+```python
+import numpy as np
+from embdata import Trajectory
+
+# Create a trajectory
+data = np.array([[1, 2, 3], [4, 5, 6], [7, 8, 9]])
+traj = Trajectory(steps=data, freq_hz=10, dim_labels=['x', 'y', 'z'])
+
+# Access data
+print(traj.array)  # Output: [[1 2 3] [4 5 6] [7 8 9]]
+
+# Get statistics
+stats = traj.stats()
+print(stats.mean)  # Output: [4. 5. 6.]
+print(stats.std)   # Output: [3. 3. 3.]
+
+# Slice the trajectory
+sliced_traj = traj[1:3]
+print(sliced_traj.array)  # Output: [[4 5 6] [7 8 9]]
+```
+
+</details>
+
+<details>
+<summary><strong>Motion</strong></summary>
+
+### Motion
+
+The `Motion` class is a base class for defining motion-related data structures. It extends the `Coordinate` class and provides a foundation for creating motion-specific data models.
+
+#### Usage
+
+```python
+from embdata.motion import Motion, VelocityMotionField
+
+class Twist(Motion):
+    x: float = VelocityMotionField(default=0.0, bounds=[-1.0, 1.0])
+    y: float = VelocityMotionField(default=0.0, bounds=[-1.0, 1.0])
+    z: float = VelocityMotionField(default=0.0, bounds=[-1.0, 1.0])
+    roll: float = VelocityMotionField(default=0.0, bounds=["-pi", "pi"])
+    pitch: float = VelocityMotionField(default=0.0, bounds=["-pi", "pi"])
+    yaw: float = VelocityMotionField(default=0.0, bounds=["-pi", "pi"])
+
+# Create a Twist motion
+twist = Twist(x=0.5, y=-0.3, z=0.1, roll=0.2, pitch=-0.1, yaw=0.8)
+
+print(twist)  # Output: Twist(x=0.5, y=-0.3, z=0.1, roll=0.2, pitch=-0.1, yaw=0.8)
+
+# Access individual fields
+print(twist.x)  # Output: 0.5
+
+# Validate bounds
+try:
+    invalid_twist = Twist(x=1.5)  # This will raise a ValueError
+except ValueError as e:
+    print(f"Validation error: {e}")
+```
+
+</details>
