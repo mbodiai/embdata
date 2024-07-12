@@ -206,6 +206,7 @@ class Image(Sample):
             base64_str (str): The base64 string to decode.
             encoding (str): The format used for encoding the image when converting to base64.
             size (Optional[Tuple[int, int]]): The size of the image as a (width, height) tuple.
+            make_rgb (bool): Whether to convert the image to RGB format. Defaults to False.
 
         Returns:
             Image: An instance of the Image class with populated fields.
@@ -215,6 +216,19 @@ class Image(Sample):
             >>> image = Image.from_base64(base64_str, encoding="png", size=(1, 1))
             >>> print(image.size)
             (1, 1)
+
+            # Example with complex nested structure
+            >>> nested_data = {
+            ...     "image": Image.from_base64(base64_str, encoding="png"),
+            ...     "metadata": {
+            ...         "text": "A small red square",
+            ...         "tags": ["red", "square", "small"]
+            ...     }
+            ... }
+            >>> print(nested_data["image"].size)
+            (1, 1)
+            >>> print(nested_data["metadata"]["text"])
+            A small red square
         """
         image_data = base64lib.b64decode(base64_str)
         image = PILModule.open(io.BytesIO(image_data))

@@ -613,3 +613,75 @@ def to_features_dict(indict: Any, exclude_keys: set | None = None) -> Dict[str, 
 ```
 
 </details>
+## API Reference
+
+<details>
+<summary>Image</summary>
+
+```python
+class Image(Sample):
+    """An image sample that can be represented in various formats.
+
+    The image can be represented as a NumPy array, a base64 encoded string, a file path, a PIL Image object,
+    or a URL. The image can be resized to and from any size and converted to and from any supported format.
+
+    Attributes:
+        array (Optional[np.ndarray]): The image represented as a NumPy array.
+        base64 (Optional[Base64Str]): The base64 encoded string of the image.
+        path (Optional[FilePath]): The file path of the image.
+        pil (Optional[PILImage]): The image represented as a PIL Image object.
+        url (Optional[AnyUrl]): The URL of the image.
+        size (Optional[tuple[int, int]]): The size of the image as a (width, height) tuple.
+        encoding (Optional[Literal["png", "jpeg", "jpg", "bmp", "gif"]]): The encoding of the image.
+
+    Example:
+        >>> image = Image("https://example.com/image.jpg")
+        >>> image = Image("/path/to/image.jpg")
+        >>> image = Image("data:image/jpeg;base64,/9j/4AAQSkZJRgABAQEAYABgAAD/4Q3zaHR0cDovL25zLmFkb2JlLmNvbS94YXAvMS4wLwA")
+
+        >>> jpeg_from_png = Image("path/to/image.png", encoding="jpeg")
+        >>> resized_image = Image(image, size=(224, 224))
+        >>> pil_image = Image(image).pil
+        >>> array = Image(image).array
+        >>> base64 = Image(image).base64
+    """
+
+    @staticmethod
+    def from_base64(base64_str: str, encoding: str, size=None, make_rgb=False) -> "Image":
+        """Decodes a base64 string to create an Image instance.
+
+        This method takes a base64 encoded string representation of an image,
+        decodes it, and creates an Image instance from it. It's useful when
+        you have image data in base64 format and want to work with it as an Image object.
+
+        Args:
+            base64_str (str): The base64 string to decode.
+            encoding (str): The format used for encoding the image when converting to base64.
+            size (Optional[Tuple[int, int]]): The size of the image as a (width, height) tuple.
+            make_rgb (bool): Whether to convert the image to RGB format. Defaults to False.
+
+        Returns:
+            Image: An instance of the Image class with populated fields.
+
+        Example:
+            >>> base64_str = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAACklEQVR4nGMAAQAABQABDQottAAAAABJRU5ErkJggg=="
+            >>> image = Image.from_base64(base64_str, encoding="png", size=(1, 1))
+            >>> print(image.size)
+            (1, 1)
+
+            # Example with complex nested structure
+            >>> nested_data = {
+            ...     "image": Image.from_base64(base64_str, encoding="png"),
+            ...     "metadata": {
+            ...         "text": "A small red square",
+            ...         "tags": ["red", "square", "small"]
+            ...     }
+            ... }
+            >>> print(nested_data["image"].size)
+            (1, 1)
+            >>> print(nested_data["metadata"]["text"])
+            A small red square
+        """
+```
+
+</details>
