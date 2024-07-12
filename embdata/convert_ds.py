@@ -33,7 +33,9 @@ def to_vision_motor_step(step: Dict, index: int | None = None) -> VisionMotorSte
         >>> step_dict = {
         ...     "episode": 1,
         ...     "observation": {
-        ...         "image": {"bytes": b"complex_image_data_encoded_as_bytes"},
+        ...         "image": {
+        ...             "bytes": b"\\x89PNG\\r\\n\\x1a\\n\\x00\\x00\\x00\\rIHDR\\x00\\x00\\x00\\x01\\x00\\x00\\x00\\x01\\x08\\x06\\x00\\x00\\x00\\x1f\\x15\\xc4\\x89\\x00\\x00\\x00\\nIDATx\\x9cc\\x00\\x01\\x00\\x00\\x05\\x00\\x01\\r\\n-\\xb4\\x00\\x00\\x00\\x00IEND\\xaeB`\\x82"
+        ...         },
         ...         "instruction": "Move the robotic arm to grasp the red cube on the left",
         ...     },
         ...     "action": {"x": 0.1, "y": -0.2, "z": 0.05, "roll": 0.1, "pitch": -0.1, "yaw": 0.2, "gripper": 0.7},
@@ -74,17 +76,32 @@ def to_vision_motor_episode(episode: List[Dict]) -> VisionMotorEpisode:
         >>> episode_steps = [
         ...     {
         ...         "episode": 1,
-        ...         "observation": {"image": {"bytes": b"image_data_step1"}, "instruction": "Locate the blue sphere"},
+        ...         "observation": {
+        ...             "image": {
+        ...                 "bytes": b"\\x89PNG\\r\\n\\x1a\\n\\x00\\x00\\x00\\rIHDR\\x00\\x00\\x00\\x01\\x00\\x00\\x00\\x01\\x08\\x06\\x00\\x00\\x00\\x1f\\x15\\xc4\\x89\\x00\\x00\\x00\\nIDATx\\x9cc\\x00\\x01\\x00\\x00\\x05\\x00\\x01\\r\\n-\\xb4\\x00\\x00\\x00\\x00IEND\\xaeB`\\x82"
+        ...             },
+        ...             "instruction": "Locate the blue sphere"
+        ...         },
         ...         "action": {"x": 0.1, "y": -0.2, "z": 0.0, "roll": 0, "pitch": 0, "yaw": 0, "gripper": 0.5},
         ...     },
         ...     {
         ...         "episode": 1,
-        ...         "observation": {"image": {"bytes": b"image_data_step2"}, "instruction": "Move towards the blue sphere"},
+        ...         "observation": {
+        ...             "image": {
+        ...                 "bytes": b"\\x89PNG\\r\\n\\x1a\\n\\x00\\x00\\x00\\rIHDR\\x00\\x00\\x00\\x01\\x00\\x00\\x00\\x01\\x08\\x06\\x00\\x00\\x00\\x1f\\x15\\xc4\\x89\\x00\\x00\\x00\\nIDATx\\x9cc\\x00\\x01\\x00\\x00\\x05\\x00\\x01\\r\\n-\\xb4\\x00\\x00\\x00\\x00IEND\\xaeB`\\x82"
+        ...             },
+        ...             "instruction": "Move towards the blue sphere"
+        ...         },
         ...         "action": {"x": 0.2, "y": 0.1, "z": -0.1, "roll": 0.1, "pitch": 0, "yaw": -0.1, "gripper": 0.5},
         ...     },
         ...     {
         ...         "episode": 1,
-        ...         "observation": {"image": {"bytes": b"image_data_step3"}, "instruction": "Grasp the blue sphere"},
+        ...         "observation": {
+        ...             "image": {
+        ...                 "bytes": b"\\x89PNG\\r\\n\\x1a\\n\\x00\\x00\\x00\\rIHDR\\x00\\x00\\x00\\x01\\x00\\x00\\x00\\x01\\x08\\x06\\x00\\x00\\x00\\x1f\\x15\\xc4\\x89\\x00\\x00\\x00\\nIDATx\\x9cc\\x00\\x01\\x00\\x00\\x05\\x00\\x01\\r\\n-\\xb4\\x00\\x00\\x00\\x00IEND\\xaeB`\\x82"
+        ...             },
+        ...             "instruction": "Grasp the blue sphere"
+        ...         },
         ...         "action": {"x": 0.0, "y": 0.0, "z": -0.2, "roll": 0, "pitch": 0, "yaw": 0, "gripper": 1.0},
         ...     },
         ... ]
@@ -125,6 +142,8 @@ def process_dataset(dataset_name: str, num_episodes: int = 48) -> List[VisionMot
         # This will print the number of steps in the first episode
         >>> print(processed_episodes[1].steps[0].observation.task)
         # This will print the instruction for the first step of the second episode
+        >>> print(processed_episodes[0].steps[0].observation.image)
+        # This will print the Image object for the first step of the first episode
     """
     ds = load_dataset(dataset_name, split="train")
     episodes = []

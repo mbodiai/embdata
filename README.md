@@ -315,3 +315,142 @@ This package includes the following main classes:
 - `Sample`: A base class for serializing, recording, and manipulating arbitrary data.
 
 </details>
+## API Reference
+
+<details>
+<summary><strong>to_vision_motor_step</strong></summary>
+
+```python
+def to_vision_motor_step(step: Dict, index: int | None = None) -> VisionMotorStep:
+    """Convert a dictionary step to a VisionMotorStep object.
+
+    This function takes a dictionary representing a step in a robotic arm dataset
+    and converts it into a VisionMotorStep object. The step typically includes
+    information about the observation (image and instruction) and the action taken.
+
+    Args:
+        step (Dict): A dictionary containing step information.
+        index (int | None, optional): The index of the step. Defaults to None.
+
+    Returns:
+        VisionMotorStep: A VisionMotorStep object representing the converted step.
+
+    Example:
+        >>> step_dict = {
+        ...     "episode": 1,
+        ...     "observation": {
+        ...         "image": {
+        ...             "bytes": b"\\x89PNG\\r\\n\\x1a\\n\\x00\\x00\\x00\\rIHDR\\x00\\x00\\x00\\x01\\x00\\x00\\x00\\x01\\x08\\x06\\x00\\x00\\x00\\x1f\\x15\\xc4\\x89\\x00\\x00\\x00\\nIDATx\\x9cc\\x00\\x01\\x00\\x00\\x05\\x00\\x01\\r\\n-\\xb4\\x00\\x00\\x00\\x00IEND\\xaeB`\\x82"
+        ...         },
+        ...         "instruction": "Move the robotic arm to grasp the red cube on the left",
+        ...     },
+        ...     "action": {"x": 0.1, "y": -0.2, "z": 0.05, "roll": 0.1, "pitch": -0.1, "yaw": 0.2, "gripper": 0.7},
+        ... }
+        >>> vision_motor_step = to_vision_motor_step(step_dict, index=0)
+        >>> print(vision_motor_step)
+        VisionMotorStep(step_idx=0, episode_idx=1, observation=ImageTask(...), relative_action=RelativePoseHandControl(...))
+        >>> print(vision_motor_step.observation.task)
+        Move the robotic arm to grasp the red cube on the left
+        >>> print(vision_motor_step.relative_action)
+        RelativePoseHandControl(x=0.1, y=-0.2, z=0.05, roll=0.1, pitch=-0.1, yaw=0.2, gripper=0.7)
+    """
+```
+
+</details>
+
+<details>
+<summary><strong>to_vision_motor_episode</strong></summary>
+
+```python
+def to_vision_motor_episode(episode: List[Dict]) -> VisionMotorEpisode:
+    """Convert a list of steps to a VisionMotorEpisode object.
+
+    This function takes a list of dictionaries, each representing a step in an episode,
+    and converts them into a VisionMotorEpisode object. This is useful for processing
+    entire episodes of robotic arm interactions.
+
+    Args:
+        episode (List[Dict]): A list of dictionaries, each representing a step in the episode.
+
+    Returns:
+        VisionMotorEpisode: A VisionMotorEpisode object containing the converted steps.
+
+    Example:
+        >>> episode_steps = [
+        ...     {
+        ...         "episode": 1,
+        ...         "observation": {
+        ...             "image": {
+        ...                 "bytes": b"\\x89PNG\\r\\n\\x1a\\n\\x00\\x00\\x00\\rIHDR\\x00\\x00\\x00\\x01\\x00\\x00\\x00\\x01\\x08\\x06\\x00\\x00\\x00\\x1f\\x15\\xc4\\x89\\x00\\x00\\x00\\nIDATx\\x9cc\\x00\\x01\\x00\\x00\\x05\\x00\\x01\\r\\n-\\xb4\\x00\\x00\\x00\\x00IEND\\xaeB`\\x82"
+        ...             },
+        ...             "instruction": "Locate the blue sphere"
+        ...         },
+        ...         "action": {"x": 0.1, "y": -0.2, "z": 0.0, "roll": 0, "pitch": 0, "yaw": 0, "gripper": 0.5},
+        ...     },
+        ...     {
+        ...         "episode": 1,
+        ...         "observation": {
+        ...             "image": {
+        ...                 "bytes": b"\\x89PNG\\r\\n\\x1a\\n\\x00\\x00\\x00\\rIHDR\\x00\\x00\\x00\\x01\\x00\\x00\\x00\\x01\\x08\\x06\\x00\\x00\\x00\\x1f\\x15\\xc4\\x89\\x00\\x00\\x00\\nIDATx\\x9cc\\x00\\x01\\x00\\x00\\x05\\x00\\x01\\r\\n-\\xb4\\x00\\x00\\x00\\x00IEND\\xaeB`\\x82"
+        ...             },
+        ...             "instruction": "Move towards the blue sphere"
+        ...         },
+        ...         "action": {"x": 0.2, "y": 0.1, "z": -0.1, "roll": 0.1, "pitch": 0, "yaw": -0.1, "gripper": 0.5},
+        ...     },
+        ...     {
+        ...         "episode": 1,
+        ...         "observation": {
+        ...             "image": {
+        ...                 "bytes": b"\\x89PNG\\r\\n\\x1a\\n\\x00\\x00\\x00\\rIHDR\\x00\\x00\\x00\\x01\\x00\\x00\\x00\\x01\\x08\\x06\\x00\\x00\\x00\\x1f\\x15\\xc4\\x89\\x00\\x00\\x00\\nIDATx\\x9cc\\x00\\x01\\x00\\x00\\x05\\x00\\x01\\r\\n-\\xb4\\x00\\x00\\x00\\x00IEND\\xaeB`\\x82"
+        ...             },
+        ...             "instruction": "Grasp the blue sphere"
+        ...         },
+        ...         "action": {"x": 0.0, "y": 0.0, "z": -0.2, "roll": 0, "pitch": 0, "yaw": 0, "gripper": 1.0},
+        ...     },
+        ... ]
+        >>> vision_motor_episode = to_vision_motor_episode(episode_steps)
+        >>> print(len(vision_motor_episode.steps))
+        3
+        >>> print(vision_motor_episode.steps[1].observation.task)
+        Move towards the blue sphere
+        >>> print(vision_motor_episode.steps[2].relative_action)
+        RelativePoseHandControl(x=0.0, y=0.0, z=-0.2, roll=0, pitch=0, yaw=0, gripper=1.0)
+    """
+```
+
+</details>
+
+<details>
+<summary><strong>process_dataset</strong></summary>
+
+```python
+def process_dataset(dataset_name: str, num_episodes: int = 48) -> List[VisionMotorEpisode]:
+    """Process a dataset and convert it into a list of VisionMotorEpisode objects.
+
+    This function loads a specified dataset, processes a given number of episodes,
+    and converts them into VisionMotorEpisode objects. It also performs some
+    additional processing and visualization on the episodes.
+
+    Args:
+        dataset_name (str): The name of the dataset to process.
+        num_episodes (int, optional): The number of episodes to process. Defaults to 48.
+
+    Returns:
+        List[VisionMotorEpisode]: A list of processed VisionMotorEpisode objects.
+
+    Example:
+        >>> processed_episodes = process_dataset("mbodiai/xarm_7_6_delta", num_episodes=2)
+        >>> print(len(processed_episodes))
+        2
+        >>> print(type(processed_episodes[0]))
+        <class 'embdata.episode.VisionMotorEpisode'>
+        >>> print(len(processed_episodes[0].steps))
+        # This will print the number of steps in the first episode
+        >>> print(processed_episodes[1].steps[0].observation.task)
+        # This will print the instruction for the first step of the second episode
+        >>> print(processed_episodes[0].steps[0].observation.image)
+        # This will print the Image object for the first step of the first episode
+    """
+```
+
+</details>
