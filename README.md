@@ -46,182 +46,369 @@ pip install embdata
 
 ## Classes
 
+<details>
+<summary><strong>Coordinate</strong></summary>
 
 ### Coordinate
 
-Classes for representing geometric data in cartesian and polar coordinates.
+A base class for representing geometric data in cartesian and polar coordinates.
 
-#### Pose 
--  (x, y, z, roll, pitch, and yaw) in some reference frame.
-- Contains `.numpy()`, `.dict()`, `.dataset()` methods from `Sample` class we all know and love.
+#### Attributes:
+- Defined by subclasses
 
-Example:
+#### Methods:
+- `convert_linear_unit(value: float, from_unit: str, to_unit: str) -> float`: Convert a value from one linear unit to another.
+- `convert_angular_unit(value: float, from_unit: str, to_unit: str) -> float`: Convert a value from one angular unit to another.
+- `validate_bounds()`: Validate the bounds of the coordinate.
+
+#### Example:
 ```python
-    >>> import math
-    >>> pose_3d = Pose3D(x=1, y=2, theta=math.pi/2)
-    >>> pose_3d.to("cm")
-    Pose3D(x=100.0, y=200.0, theta=1.5707963267948966)
+from embdata.geometry import Coordinate
 
-    >>> pose_3d.to("deg")
-    Pose3D(x=1.0, y=2.0, theta=90.0)
-
-    >>> class BoundedPose6D(Pose6D):
-    ...     x: float = CoordinateField(bounds=(0, 5))
-
-    >>> pose_6d = BoundedPose6D(x=10, y=2, z=3, roll=0, pitch=0, yaw=0)
-    Traceback (most recent call last):
-    ...
-    ValueError: x value 10 is not within bounds (0, 5)
+# This is an abstract base class, so we'll use it through its subclasses like Pose3D or Pose6D
 ```
 
+</details>
+
+<details>
+<summary><strong>Pose3D</strong></summary>
+
+### Pose3D
+
+Absolute coordinates for a 3D space representing x, y, and theta.
+
+#### Attributes:
+- `x` (float): X-coordinate in meters.
+- `y` (float): Y-coordinate in meters.
+- `theta` (float): Orientation angle in radians.
+
+#### Methods:
+- `to(container_or_unit=None, unit="m", angular_unit="rad", **kwargs) -> Any`: Convert the pose to a different unit or container.
+
+#### Example:
+```python
+import math
+from embdata.geometry import Pose3D
+
+# Create a Pose3D instance
+pose = Pose3D(x=1, y=2, theta=math.pi/2)
+print(pose)  # Output: Pose3D(x=1.0, y=2.0, theta=1.5707963267948966)
+
+# Convert to centimeters
+pose_cm = pose.to("cm")
+print(pose_cm)  # Output: Pose3D(x=100.0, y=200.0, theta=1.5707963267948966)
+
+# Convert theta to degrees
+pose_deg = pose.to(angular_unit="deg")
+print(pose_deg)  # Output: Pose3D(x=1.0, y=2.0, theta=90.0)
+
+# Convert to a list
+pose_list = pose.to("list")
+print(pose_list)  # Output: [1.0, 2.0, 1.5707963267948966]
+
+# Convert to a dictionary
+pose_dict = pose.to("dict")
+print(pose_dict)  # Output: {'x': 1.0, 'y': 2.0, 'theta': 1.5707963267948966}
+```
+
+</details>
+
+<details>
+<summary><strong>Pose6D</strong></summary>
+
+### Pose6D
+
+Absolute coordinates for a 6D space representing x, y, z, roll, pitch, and yaw.
+
+#### Attributes:
+- `x` (float): X-coordinate in meters.
+- `y` (float): Y-coordinate in meters.
+- `z` (float): Z-coordinate in meters.
+- `roll` (float): Roll angle in radians.
+- `pitch` (float): Pitch angle in radians.
+- `yaw` (float): Yaw angle in radians.
+
+#### Methods:
+- `to(container_or_unit=None, sequence="zyx", unit="m", angular_unit="rad", **kwargs) -> Any`: Convert the pose to a different unit, container, or representation.
+- `get_quaternion(sequence="zyx") -> np.ndarray`: Convert roll, pitch, yaw to a quaternion.
+- `get_rotation_matrix(sequence="zyx") -> np.ndarray`: Convert roll, pitch, yaw to a rotation matrix.
+
+#### Example:
+```python
+import numpy as np
+from embdata.geometry import Pose6D
+
+# Create a Pose6D instance
+pose = Pose6D(x=1, y=2, z=3, roll=0, pitch=0, yaw=np.pi/2)
+print(pose)  # Output: Pose6D(x=1.0, y=2.0, z=3.0, roll=0.0, pitch=0.0, yaw=1.5707963267948966)
+
+# Convert to centimeters
+pose_cm = pose.to("cm")
+print(pose_cm)  # Output: Pose6D(x=100.0, y=200.0, z=300.0, roll=0.0, pitch=0.0, yaw=1.5707963267948966)
+
+# Get quaternion representation
+quat = pose.get_quaternion()
+print(np.round(quat, 3))  # Output: [0.   0.   0.707 0.707]
+
+# Get rotation matrix
+rot_matrix = pose.get_rotation_matrix()
+print(np.round(rot_matrix, 3))
+# Output:
+# [[ 0. -1.  0.]
+#  [ 1.  0.  0.]
+#  [ 0.  0.  1.]]
+```
+
+</details>
+
+<details>
+<summary><strong>Episode</strong></summary>
 
 ### Episode
 
-The `Episode` class provides a list-like interface for a sequence of observations, actions, and/or other data points. It is designed to streamline exploratory data analysis and manipulation of time series data. Episodes can be easily concatenated, iterated over, and manipulated similar to lists.
+A list-like interface for a sequence of observations, actions, and/or other data.
 
+#### Attributes:
+- `steps` (list[TimeStep]): A list of TimeStep objects representing the episode's steps.
+- `metadata` (Sample | Any | None): Additional metadata for the episode.
+- `freq_hz` (int | None): The frequency of the episode in Hz.
+
+#### Methods:
+- `__init__(self, steps: List[Dict | Sample] | Iterable, observation_key: str = "observation", action_key: str = "action", state_key: str|None=None, supervision_key: str | None = None, metadata: Sample | Any | None = None) -> None`: Initialize an Episode instance.
+- `trajectory(self, field: str = "action", freq_hz: int = 1) -> Trajectory`: Extract a trajectory from the episode for a specified field.
+
+#### Example:
 ```python
-class Episode(Sample):
-    """A list-like interface for a sequence of observations, actions, and/or other.
+from embdata import Episode, TimeStep
 
-    Meant to streamline exploratory data analysis and manipulation of time series data.
+# Create an Episode instance
+steps = [TimeStep(), TimeStep(), TimeStep()]
+episode = Episode(steps=steps)
 
-    Just append to an episode like you would a list and you're ready to start training models.
+# Iterate over the steps
+for step in episode.iter():
+    print(step)
 
-    To iterate over the steps in an episode, use the `iter` method.
+# Concatenate two episodes
+episode1 = Episode(steps=[TimeStep(), TimeStep()])
+episode2 = Episode(steps=[TimeStep(), TimeStep()])
+combined_episode = episode1 + episode2
+print(len(combined_episode))  # Output: 4
+
+# Extract a trajectory
+action_trajectory = episode.trajectory(field="action", freq_hz=10)
+print(action_trajectory.mean())
 ```
 
-Example:
-```python
-    >>> episode = Episode(steps=[TimeStep(), TimeStep(), TimeStep()])
-    >>> for step in episode.iter():
-    ...     print(step)
-```
-To concatenate two episodes, use the `+` operator.
+</details>
 
-Example:
-```python
-    >>> episode1 = Episode(steps=[TimeStep(), TimeStep()])
-    >>> episode2 = Episode(steps=[TimeStep(), TimeStep()])
-    >>> combined_episode = episode1 + episode2
-    >>> len(combined_episode)
-    4 
-```
+<details>
+<summary><strong>Sample</strong></summary>
 
-```python
- def __init__(
-        self, 
-        steps: List[Dict | Sample] | Iterable, 
-        observation_key: str = "observation", 
-        action_key: str = "action",
-        state_key: str|None=None, supervision_key: str | None = None, 
-        metadata: Sample | Any | None = None,
-    ) -> None:
- """Create an episode from a list of dicts, samples, time steps or any iterable with at least two items per step.
+### Sample
 
-        Args:
-            steps (List[Dict|Sample]): The list of dictionaries representing the steps.
-            action_key (str): The key for the action in each dictionary.
-            observation_key (str): The key for the observation in each dictionary.
-            state_key (str, optional): The key for the state in each dictionary. Defaults to None.
-            supervision_key (str, optional): The key for the supervision in each dictionary. Defaults to None.
+A base model class for serializing, recording, and manipulating arbitrary data.
 
-        Returns:
-            'Episode': The created episode.
-```
-```python
-        Example:
-            >>> steps = [
-            ...     {"observation": Image((224, 224)), "action": 1, "supervision": 0},
-            ...     {"observation": Image((224, 224)), "action": 1, "supervision": 1},
-            ...     {"observation": Image((224, 224)), "action": 100, "supervision": 0},
-            ...     {"observation": Image((224, 224)), "action": 300, "supervision": 1},
-            ... ]
-            >>> episode = Episode(steps, "observation", "action", "supervision")
-            >>> episode
-            Episode(
-              Stats(
-                mean=[100.5]
-                variance=[19867.0]
-                skewness=[0.821]
-                kurtosis=[-0.996]
-                min=[1]
-                max=[300]
-                lower_quartile=[1.0]
-                median=[50.5]
-                upper_quartile=[150.0]
-                non_zero_count=[4]
-                zero_count=[0])
-            )
-        """
-```
-### Exploratory data analysis for common minmax and standardization normalization methods.
+#### Attributes:
+- `model_config` (ConfigDict): Configuration for the model, including settings for validation, extra fields, and arbitrary types.
 
-Example
-```python
-    >>> steps = [
-    ...     {"observation": Image((224,224)), "action": 1, "supervision": 0},
-    ...     {"observation": Image((224,224)), "action": 1, "supervision": 1},
-    ...     {"observation": Image((224,224)), "action": 100, "supervision": 0},
-    ...     {"observation": Image((224,224)), "action": 300, "supervision": 1},
-    ]
-    >>> episode = Episode.from_list(steps, "observation", "action", "supervision")
-    >>> episode.trajectory().transform("minmax")
-    Episode(
-        Stats(
-            mean=[0.335]
-            variance=[0.198]
-            skewness=[0.821]
-            kurtosis=[-0.996]
-            min=[0.0]
-            max=[1.0]
-            lower_quartile=[0.0]
-            median=[0.168]
-            upper_quartile=[0.503]
-            non_zero_count=[4]
-            zero_count=[0])
-    )
-    >>> episode.trajectory().transform("unminmax", orig_min=1, orig_max=300)
-    Episode(
-        Stats(
-            mean=[100.5]
-            variance=[19867.0]
-            skewness=[0.821]
-            kurtosis=[-0.996]
-            min=[1]
-            max=[300]
-            lower_quartile=[1.0]
-            median=[50.5]
-            upper_quartile=[150.0]
-            non_zero_count=[4]
-            zero_count=[0])
-    )
-    >>> episode.trajectory().frequencies().show()  # .save("path/to/save.png") also works.
-    >>> episode.trajectory().plot().show()
-```
-### Upsample and downsample the trajectory to a target frequency.
+#### Methods:
+- `__init__(self, item=None, **data)`: Initialize a Sample instance.
+- `schema(self, include_descriptions=False)`: Get a simplified JSON schema of the data.
+- `to(self, container)`: Convert the Sample instance to a different container type.
+- `flatten(self, output_type="list", non_numerical="allow", ignore=None, sep=".", to=None)`: Flatten the Sample instance into a one-dimensional structure.
+- `unflatten(cls, one_d_array_or_dict, schema=None)`: Unflatten a one-dimensional array or dictionary into a Sample instance.
+- `space(self)`: Return the corresponding Gym space for the Sample instance.
+- `random_sample(self)`: Generate a random Sample instance based on its attributes.
 
-- Uses bicupic and rotation spline interpolation to upsample and downsample the trajectory to a target frequency.
+#### Example:
 ```python
-    >>> episode.trajectory().resample(target_hz=10).plot().show() # .save("path/to/save.png") also works.
+from embdata import Sample
+import numpy as np
+
+# Create a simple Sample instance
+sample = Sample(x=1, y=2, z={"a": 3, "b": 4})
+
+# Flatten the sample
+flat_sample = sample.flatten()
+print(flat_sample)  # Output: [1, 2, 3, 4]
+
+# Get the schema
+schema = sample.schema()
+print(schema)
+
+# Unflatten a list back to a Sample instance
+unflattened_sample = Sample.unflatten(flat_sample, schema)
+print(unflattened_sample)  # Output: Sample(x=1, y=2, z={'a': 3, 'b': 4})
+
+# Create a complex nested structure
+nested_sample = Sample(
+    image=Sample(
+        data=np.random.rand(32, 32, 3),
+        metadata={"format": "RGB", "size": (32, 32)}
+    ),
+    text=Sample(
+        content="Hello, world!",
+        tokens=["Hello", ",", "world", "!"],
+        embeddings=np.random.rand(4, 128)
+    ),
+    labels=["greeting", "example"]
+)
+
+# Get the schema of the nested structure
+nested_schema = nested_sample.schema()
+print(nested_schema)
 ```
 
-### Make actions relative or absolute
+</details>
 
-- Make actions relative or absolute to the previous action.
+<details>
+<summary><strong>Trajectory</strong></summary>
+
+### Trajectory
+
+A trajectory of steps representing a time series of multidimensional data.
+
+#### Attributes:
+- `steps` (NumpyArray | List[Sample | NumpyArray]): The trajectory data.
+- `freq_hz` (float | None): The frequency of the trajectory in Hz.
+- `time_idxs` (NumpyArray | None): The time index of each step in the trajectory.
+- `dim_labels` (list[str] | None): The labels for each dimension of the trajectory.
+- `angular_dims` (list[int] | list[str] | None): The dimensions that are angular.
+
+#### Methods:
+- `plot`: Plot the trajectory.
+- `map`: Apply a function to each step in the trajectory.
+- `make_relative`: Convert the trajectory to relative actions.
+- `resample`: Resample the trajectory to a new sample rate.
+- `frequencies`: Plot the frequency spectrogram of the trajectory.
+- `frequencies_nd`: Plot the n-dimensional frequency spectrogram of the trajectory.
+- `low_pass_filter`: Apply a low-pass filter to the trajectory.
+- `stats`: Compute statistics for the trajectory.
+- `transform`: Apply a transformation to the trajectory.
+
+#### Example:
 ```python
-    >>> relative_actions = episode.trajectory("action").make_relative()
-    >>>  absolute_again = episode.trajectory().make_absolute(initial_state=relative_actions[0])
-    assert np.allclose(episode.trajectory("action"), absolute_again)
+import numpy as np
+from embdata.trajectory import Trajectory
+
+# Create a simple 2D trajectory
+steps = np.array([[0, 0], [1, 1], [2, 0], [3, 1], [4, 0]])
+traj = Trajectory(steps, freq_hz=10, dim_labels=['X', 'Y'])
+
+# Plot the trajectory
+traj.plot().show()
+
+# Compute and print statistics
+print(traj.stats())
+
+# Apply a low-pass filter
+filtered_traj = traj.low_pass_filter(cutoff_freq=2)
+filtered_traj.plot().show()
 ```
 
-## Applications
+</details>
 
-### What are the grasping positions in the world frame?
-    
+<details>
+<summary><strong>Image</strong></summary>
+
+### Image
+
+An image sample that can be represented in various formats.
+
+#### Attributes:
+- `array` (Optional[np.ndarray]): The image represented as a NumPy array.
+- `base64` (Optional[Base64Str]): The base64 encoded string of the image.
+- `path` (Optional[FilePath]): The file path of the image.
+- `pil` (Optional[PILImage]): The image represented as a PIL Image object.
+- `url` (Optional[AnyUrl]): The URL of the image.
+- `size` (Optional[tuple[int, int]]): The size of the image as a (width, height) tuple.
+- `encoding` (Optional[Literal["png", "jpeg", "jpg", "bmp", "gif"]]): The encoding of the image.
+
+#### Methods:
+- `from_base64(base64_str: str, encoding: str, size=None, make_rgb=False) -> "Image"`: Decodes a base64 string to create an Image instance.
+- `open(path: str, encoding: str = "jpeg", size=None) -> "Image"`: Open an image from a file path.
+- `save(path: str, encoding: str | None = None, quality: int = 10) -> None`: Save the image to a file.
+
+#### Example:
 ```python
-    >>> initial_state = episode.trajectory('state').flatten(to='end_effector_pose')[0]
-    >>> episode.trajectory('action').make_absolute(initial_state=initial_state).filter(lambda x: x.grasp == 1)
+from embdata import Image
+
+# Create an Image instance from a URL
+image_url = Image("https://example.com/image.jpg")
+
+# Create an Image instance from a file path
+image_file = Image("/path/to/image.jpg")
+
+# Create an Image instance from a base64 string
+base64_str = "data:image/jpeg;base64,/9j/4AAQSkZJRgABAQEAYABgAAD/4Q3zaHR0cDovL25zLmFkb2JlLmNvbS94YXAvMS4wLwA"
+image_base64 = Image(base64_str)
+
+# Convert PNG to JPEG
+jpeg_from_png = Image("path/to/image.png", encoding="jpeg")
+
+# Resize an image
+resized_image = Image(image_url, size=(224, 224))
+
+# Access different representations of the image
+pil_image = image_file.pil
+array = image_file.array
+base64 = image_file.base64
+
+# Save an image
+image_file.save("path/to/save.jpg", encoding="jpeg", quality=95)
 ```
+
+</details>
+
+<details>
+<summary><strong>HandControl</strong></summary>
+
+### HandControl
+
+Action for a 7D space representing x, y, z, roll, pitch, yaw, and openness of the hand.
+
+#### Attributes:
+- `pose` (Pose): The pose of the robot hand, including position and orientation.
+- `grasp` (float): The openness of the robot hand, ranging from 0 (closed) to 1 (open).
+
+#### Example:
+```python
+from embdata.geometry import Pose
+from embdata.motion.control import HandControl
+
+# Create a HandControl instance
+hand_control = HandControl(
+    pose=Pose(position=[0.1, 0.2, 0.3], orientation=[0, 0, 0, 1]),
+    grasp=0.5
+)
+
+# Access and modify the hand control
+print(hand_control.pose.position)  # Output: [0.1, 0.2, 0.3]
+hand_control.grasp = 0.8
+print(hand_control.grasp)  # Output: 0.8
+
+# Example with complex nested structure
+from embdata.motion import Motion
+from embdata.motion.fields import VelocityMotionField
+
+class RobotControl(Motion):
+    hand: HandControl
+    velocity: float = VelocityMotionField(default=0.0, bounds=[0.0, 1.0])
+
+robot_control = RobotControl(
+    hand=HandControl(
+        pose=Pose(position=[0.1, 0.2, 0.3], orientation=[0, 0, 0, 1]),
+        grasp=0.5
+    ),
+    velocity=0.3
+)
+
+print(robot_control.hand.pose.position)  # Output: [0.1, 0.2, 0.3]
+print(robot_control.velocity)  # Output: 0.3
+```
+
+</details>
 
 ## License
 
