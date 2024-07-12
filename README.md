@@ -99,13 +99,13 @@ array_data = np.random.rand(100, 100, 3)
 img = Image(array=array_data)
 
 # Convert to base64
-base64_str = img.to_base64()
+base64_str = img.base64
 
 # Open an image from a file
 img_from_file = Image.open("path/to/image.jpg")
 
 # Resize the image
-resized_img = img.resize((50, 50))
+resized_img = Image(img_from_file, size=(50, 50))
 
 # Save the image
 img.save("output_image.png")
@@ -113,15 +113,16 @@ img.save("output_image.png")
 
 ### Methods
 - `open(path)`: Opens an image from a file path
-- `to_base64()`: Converts the image to a base64 encoded string
-- `resize(size)`: Resizes the image to the specified dimensions
 - `save(path, encoding, quality)`: Saves the image to a file
+- `show()`: Displays the image using matplotlib
 
 ### Properties
 - `array`: The image as a NumPy array
 - `base64`: The image as a base64 encoded string
 - `path`: The file path of the image
 - `pil`: The image as a PIL Image object
+- `size`: The size of the image as a (width, height) tuple
+- `encoding`: The encoding format of the image
 
 The `Image` class provides a convenient interface for working with image data in various formats and performing common image operations.
 
@@ -132,6 +133,12 @@ The `Image` class provides a convenient interface for working with image data in
 
 The `Trajectory` class represents a time series of multidimensional data, such as robot movements or sensor readings.
 
+### Key Features
+- Representation of time series data with optional frequency information
+- Methods for statistical analysis, visualization, and manipulation
+- Support for resampling and filtering operations
+
+### Usage Example
 ```python
 from embdata import Trajectory
 import numpy as np
@@ -150,9 +157,20 @@ traj.plot()
 # Resample the trajectory
 resampled_traj = traj.resample(target_hz=5)
 
+# Apply a low-pass filter
+filtered_traj = traj.low_pass_filter(cutoff_freq=2)
+
 # Save the plot
 traj.save("trajectory_plot.png")
 ```
+
+### Methods
+- `stats()`: Computes statistics for the trajectory
+- `plot()`: Plots the trajectory
+- `resample(target_hz)`: Resamples the trajectory to a new frequency
+- `low_pass_filter(cutoff_freq)`: Applies a low-pass filter to the trajectory
+- `save(filename)`: Saves the trajectory plot to a file
+- `show()`: Displays the trajectory plot
 
 The `Trajectory` class offers methods for analyzing, visualizing, and manipulating trajectory data, making it easier to work with time series data in robotics and other applications.
 
@@ -191,6 +209,9 @@ def split_condition(step):
 
 split_episodes = episode.split(split_condition)
 
+# Extract a trajectory from the episode
+action_trajectory = episode.trajectory(field="action", freq_hz=10)
+
 # Access episode metadata
 print(episode.metadata)
 print(episode.freq_hz)
@@ -201,6 +222,7 @@ print(episode.freq_hz)
 - `iter()`: Returns an iterator over the steps in the episode
 - `split(condition)`: Splits the episode based on a given condition
 - `trajectory(field, freq_hz)`: Extracts a trajectory from the episode for a specified field
+- `filter(condition)`: Filters the episode based on a given condition
 
 ### Properties
 - `metadata`: Additional metadata for the episode
@@ -215,13 +237,21 @@ The `Episode` class simplifies the process of working with sequential data in re
 
 The `Pose3D` class represents absolute coordinates for a 3D space with x, y, and theta (orientation).
 
+### Key Features
+- Representation of 3D pose with position (x, y) and orientation (theta)
+- Conversion between different units (meters, centimeters, radians, degrees)
+- Conversion to different formats (list, dict)
+
+### Usage Example
 ```python
 from embdata.geometry import Pose3D
 import math
 
 # Create a Pose3D instance
 pose = Pose3D(x=1, y=2, theta=math.pi/2)
-print(pose)  # Pose3D(x=1.0, y=2.0, theta=1.5707963267948966)
+print(pose)  # Pose3D(x=1.0, y=2.0,
+
+ theta=1.5707963267948966)
 
 # Convert to different units
 pose_cm = pose.to("cm")
@@ -238,7 +268,10 @@ pose_dict = pose.to("dict")
 print(pose_dict)  # {'x': 1.0, 'y': 2.0, 'theta': 1.5707963267948966}
 ```
 
-The `Pose3D` class provides methods for converting between different units and representations of 3D poses.
+### Methods
+- `to(container_or_unit, unit, angular_unit)`: Converts the pose to different units or formats
+
+The `Pose3D` class provides methods for converting between different units and representations of 3D poses, making it easier to work with spatial data in various contexts.
 
 </details>
 
@@ -247,6 +280,12 @@ The `Pose3D` class provides methods for converting between different units and r
 
 The `HandControl` class represents an action for a 7D space, including the pose of a robot hand and its grasp state.
 
+### Key Features
+- Representation of robot hand pose and grasp state
+- Integration with other motion control classes
+- Support for complex nested structures
+
+### Usage Example
 ```python
 from embdata.geometry import Pose
 from embdata.motion.control import HandControl
@@ -282,7 +321,11 @@ print(robot_control.hand.pose.position)  # [0.1, 0.2, 0.3]
 print(robot_control.velocity)  # 0.3
 ```
 
-The `HandControl` class allows for easy manipulation and representation of robot hand controls in a 7D space.
+### Attributes
+- `pose`: The pose of the robot hand (Pose object)
+- `grasp`: The openness of the robot hand (float, 0 to 1)
+
+The `HandControl` class allows for easy manipulation and representation of robot hand controls in a 7D space, making it useful for robotics and motion control applications.
 
 </details>
 
