@@ -457,7 +457,7 @@ class Sample(BaseModel):
             if output_type == "dict":
                 return {key: accumulator[key] for key in sorted(accumulator.keys())}
             return [accumulator[key] for key in sorted(accumulator.keys())]
-        return accumulator if output_type == "dict" else list(accumulator.values())
+        return accumulator if output_type == "dict" else accumulator
 
     def schema(self, include_descriptions=False) -> Dict:
         """Returns a simplified json schema.
