@@ -7,13 +7,13 @@ import torch.nn as nn
 # Function to flatten and process a single example
 def process_example(example):
     flattened = Sample(example).flatten(
-        to={
-            "image": "data.pickle.steps.observation.image.bytes",
-            "instruction": "data.pickle.steps.observation.natural_language_instruction",
-            "action": "data.pickle.steps.action",
-            "reward": "data.pickle.steps.reward",
-            "is_terminal": "data.pickle.steps.is_terminal"
-        }
+        to=[
+            ("image", "data.pickle.steps.observation.image.bytes"),
+            ("instruction", "data.pickle.steps.observation.natural_language_instruction"),
+            ("action", "data.pickle.steps.action"),
+            ("reward", "data.pickle.steps.reward"),
+            ("is_terminal", "data.pickle.steps.is_terminal")
+        ]
     )
     return flattened
 
