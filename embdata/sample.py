@@ -285,8 +285,6 @@ class Sample(BaseModel):
                     if index < len(flat_data):
                         value, index = unflatten_recursive(schema_part["items"], index)
                         items.append(value)
-                    else:
-                        items.append(None)
                 return items, index
             if index < len(flat_data):
                 return flat_data[index], index + 1
@@ -461,7 +459,7 @@ class Sample(BaseModel):
         if to:
             if output_type == "dict":
                 return accumulator
-            return [accumulator[key] for key in sorted(accumulator.keys())]
+            return {key: accumulator[key] for key in sorted(accumulator.keys())}
         return accumulator if output_type == "dict" else accumulator
 
     def schema(self, include_descriptions=False) -> Dict:
