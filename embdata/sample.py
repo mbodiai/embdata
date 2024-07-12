@@ -453,7 +453,7 @@ class Sample(BaseModel):
             return torch.tensor(list(accumulator.values()) if isinstance(accumulator, dict) else accumulator)
 
         if to:
-            return [{key: accumulator[key] for key in sorted(accumulator.keys())}]
+            return [accumulator[key] for key in sorted(accumulator.keys())]
         else:
             return accumulator
 
