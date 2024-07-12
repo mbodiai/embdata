@@ -138,17 +138,38 @@ quaternion = pose6d.get_quaternion()
 ### Motion Control
 
 ```python
-from embdata.motion import HandControl, HeadControl, MobileSingleArmControl
+from embdata.motion import HandControl, HeadControl, MobileSingleArmControl, MobileSingleHandControl, HumanoidControl
+from embdata.motion import Motion
 
 # Create motion controls
 hand_control = HandControl(gripper=0.5)
 head_control = HeadControl(pan=0.2, tilt=-0.1)
 arm_control = MobileSingleArmControl(x=0.1, y=0.2, z=0.3, gripper=0.5)
+mobile_hand_control = MobileSingleHandControl(x=0.1, y=0.2, z=0.3, roll=0.1, pitch=0.2, yaw=0.3, gripper=0.5)
+humanoid_control = HumanoidControl(
+    left_arm=[0.1, 0.2, 0.3, 0.4],
+    right_arm=[0.5, 0.6, 0.7, 0.8],
+    left_leg=[0.9, 1.0, 1.1],
+    right_leg=[1.2, 1.3, 1.4]
+)
 
 # Access control values
 print(hand_control.gripper)
 print(head_control.pan, head_control.tilt)
 print(arm_control.x, arm_control.y, arm_control.z, arm_control.gripper)
+print(mobile_hand_control.x, mobile_hand_control.y, mobile_hand_control.z, mobile_hand_control.roll, mobile_hand_control.pitch, mobile_hand_control.yaw, mobile_hand_control.gripper)
+print(humanoid_control.left_arm, humanoid_control.right_leg)
+
+# Create a custom Motion control by subclassing
+class QuadrupedControl(Motion):
+    front_left: float
+    front_right: float
+    back_left: float
+    back_right: float
+
+# Use the custom Motion control
+quadruped_control = QuadrupedControl(front_left=0.1, front_right=0.2, back_left=0.3, back_right=0.4)
+print(quadruped_control.front_left, quadruped_control.back_right)
 ```
 
 </details>
