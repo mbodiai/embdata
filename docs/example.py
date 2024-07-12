@@ -7,13 +7,13 @@ import torch.nn as nn
 # Function to flatten and process a single example
 def process_example(example):
     flattened = Sample(example).flatten(
-        to={
-            "image": "data.pickle.steps.observation.image.bytes",
-            "instruction": "data.pickle.steps.observation.natural_language_instruction",
-            "action": "data.pickle.steps.action",
-            "reward": "data.pickle.steps.reward",
-            "is_terminal": "data.pickle.steps.is_terminal"
-        }
+        to=[
+            ("image", "data.pickle.steps.observation.image.bytes"),
+            ("instruction", "data.pickle.steps.observation.natural_language_instruction"),
+            ("action", "data.pickle.steps.action"),
+            ("reward", "data.pickle.steps.reward"),
+            ("is_terminal", "data.pickle.steps.is_terminal")
+        ]
     )
     return flattened
 
@@ -31,12 +31,12 @@ class GPT2CLIP(nn.Module):
         fused_features = torch.cat([text_features, image_features], dim=1)
         fused_features = self.fusion(fused_features)
         action_logits = self.action_head(fused_features)
-        return action_logits
+        return action_logits.squeeze(-1)  # Ensure output is 2D
 
 def prepare_batch(examples):
     gpt2_tokenizer = AutoTokenizer.from_pretrained("gpt2")
     clip_processor = CLIPProcessor.from_pretrained("openai/clip-vit-base-patch32")
-    gpt2_inputs = gpt2_tokenizer(examples["instruction"], padding=True, truncation=True, return_tensors="pt")
+    gpt2_inputs = gpt2_tokenizer(examples["instruction"], padding=True, truncation=True, return_tensors="pt", max_length=512)
     clip_inputs = clip_processor(images=[Image(base64=img).pil for img in examples["image"]], return_tensors="pt")
     actions = torch.tensor(examples["action"])
     return {
@@ -45,3 +45,6 @@ def prepare_batch(examples):
         "pixel_values": clip_inputs.pixel_values,
         "labels": actions
     }
+def create_episode(example):
+    steps = [TimeStep(**step) for step in example['data']['pickle']['steps']]
+    return Episode(steps=steps)
