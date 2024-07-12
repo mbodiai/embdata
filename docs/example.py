@@ -7,6 +7,7 @@ import torch.nn as nn
 # Function to flatten and process a single example
 def process_example(example):
     flattened = Sample(example).flatten(
+        output_type="dict",
         to={
             "data.pickle.steps.observation.image.bytes",
             "data.pickle.steps.observation.natural_language_instruction",
@@ -15,7 +16,13 @@ def process_example(example):
             "data.pickle.steps.is_terminal"
         }
     )
-    return flattened
+    return {
+        "image": flattened["data.pickle.steps.observation.image.bytes"],
+        "instruction": flattened["data.pickle.steps.observation.natural_language_instruction"],
+        "action": flattened["data.pickle.steps.action"],
+        "reward": flattened["data.pickle.steps.reward"],
+        "is_terminal": flattened["data.pickle.steps.is_terminal"]
+    }
 
 class GPT2CLIP(nn.Module):
     def __init__(self, num_actions):
