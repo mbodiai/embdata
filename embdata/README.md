@@ -173,3 +173,94 @@ print(quadruped_control.front_left, quadruped_control.back_right)
 ```
 
 </details>
+
+## Comprehensive Example
+
+This example demonstrates how to use embdata to download a dataset, process it, visualize it, and use it to fine-tune a model with Hugging Face Transformers.
+
+```python
+import numpy as np
+from datasets import load_dataset
+from embdata import Episode, TimeStep, Trajectory, Sample
+from transformers import AutoTokenizer, AutoModelForSequenceClassification, TrainingArguments, Trainer
+
+# 1. Download and prepare the dataset
+dataset = load_dataset("emotion")
+train_data = dataset["train"]
+
+# 2. Create an Episode with desired nested subfields
+episode = Episode()
+for item in train_data:
+    step = TimeStep(
+        text=item["text"],
+        label=item["label"],
+        metadata=Sample(
+            id=item["id"],
+            emotion=dataset["train"].features["label"].int2str(item["label"])
+        )
+    )
+    episode.append(step)
+
+# 3. Clean the data using Trajectory
+# Convert text lengths to a trajectory for analysis
+text_lengths = np.array([len(step.text) for step in episode])
+traj = Trajectory(steps=text_lengths, freq_hz=1)  # 1 Hz as it's not time-series data
+
+# Analyze and visualize the trajectory
+stats = traj.stats()
+print(f"Text length statistics: {stats}")
+traj.save("text_length_distribution.png")
+
+# Filter out very short texts (e.g., less than 10 characters)
+filtered_episode = episode.filter(lambda step: len(step.text) >= 10)
+
+# 4. Visualize the episode
+filtered_episode.show()  # This will open a web-based visualization
+
+# 5. Prepare data for fine-tuning
+tokenizer = AutoTokenizer.from_pretrained("distilbert-base-uncased")
+
+def tokenize_function(examples):
+    return tokenizer(examples["text"], padding="max_length", truncation=True)
+
+# Convert the filtered episode to a dataset
+dataset = filtered_episode.dataset()
+tokenized_dataset = dataset.map(tokenize_function, batched=True)
+
+# 6. Fine-tune a model using Hugging Face Transformers
+model = AutoModelForSequenceClassification.from_pretrained("distilbert-base-uncased", num_labels=6)
+
+training_args = TrainingArguments(
+    output_dir="./results",
+    num_train_epochs=3,
+    per_device_train_batch_size=16,
+    per_device_eval_batch_size=64,
+    warmup_steps=500,
+    weight_decay=0.01,
+    logging_dir="./logs",
+)
+
+trainer = Trainer(
+    model=model,
+    args=training_args,
+    train_dataset=tokenized_dataset,
+)
+
+trainer.train()
+
+# Save the fine-tuned model
+model.save_pretrained("./fine_tuned_emotion_model")
+tokenizer.save_pretrained("./fine_tuned_emotion_model")
+
+print("Model fine-tuning completed and saved!")
+```
+
+This example showcases:
+1. Downloading a dataset (emotion dataset from Hugging Face)
+2. Creating an Episode with nested subfields
+3. Cleaning and analyzing data using Trajectory
+4. Visualizing the episode and trajectory
+5. Preparing the data for fine-tuning (tokenization)
+6. Fine-tuning a DistilBERT model on the processed data
+
+You can adapt this example to your specific use case by changing the dataset, model, and processing steps as needed.
