@@ -234,3 +234,92 @@ Example
 
 ## API Reference
 
+## API Reference
+
+<details>
+<summary>Episode</summary>
+
+```python
+class Episode(Sample):
+    """A list-like interface for a sequence of observations, actions, and/or other data.
+
+    This class is designed to streamline exploratory data analysis and manipulation of time series data.
+    It provides methods for appending, iterating, concatenating, and analyzing episodes.
+
+    Attributes:
+        steps (list[TimeStep]): A list of TimeStep objects representing the episode's steps.
+        metadata (Sample | Any | None): Additional metadata for the episode.
+        freq_hz (int | None): The frequency of the episode in Hz.
+
+    Example:
+        >>> from embdata.image import Image
+        >>> from embdata.motion import Motion
+        >>> steps = [
+        ...     VisionMotorStep(
+        ...         observation=ImageTask(image=Image((224, 224, 3)), task="grasp"),
+        ...         action=Motion(position=[0.1, 0.2, 0.3], orientation=[0, 0, 0, 1])
+        ...     ),
+        ...     VisionMotorStep(
+        ...         observation=ImageTask(image=Image((224, 224, 3)), task="lift"),
+        ...         action=Motion(position=[0.2, 0.3, 0.4], orientation=[0, 0, 1, 0])
+        ...     )
+        ... ]
+        >>> episode = Episode(steps=steps)
+        >>> len(episode)
+        2
+        >>> for step in episode.iter():
+        ...     print(f"Task: {step.observation.task}, Action: {step.action.position}")
+        Task: grasp, Action: [0.1, 0.2, 0.3]
+        Task: lift, Action: [0.2, 0.3, 0.4]
+
+    To concatenate two episodes, use the `+` operator:
+        >>> episode1 = Episode(steps=steps[:1])
+        >>> episode2 = Episode(steps=steps[1:])
+        >>> combined_episode = episode1 + episode2
+        >>> len(combined_episode)
+        2
+    """
+
+    def trajectory(self, field: str = "action", freq_hz: int = 1) -> Trajectory:
+        """Extract a trajectory from the episode for a specified field.
+
+        This method creates a Trajectory object from the specified field of each step in the episode.
+        The resulting Trajectory object allows for various operations such as frequency analysis,
+        subsampling, super-sampling, and min-max scaling.
+
+        Args:
+            field (str, optional): The field to extract from each step. Defaults to "action".
+            freq_hz (int, optional): The frequency in Hz of the trajectory. Defaults to 1.
+
+        Returns:
+            Trajectory: The trajectory of the specified field.
+
+        Example:
+            >>> from embdata.image import Image
+            >>> from embdata.motion import Motion
+            >>> episode = Episode(
+            ...     steps=[
+            ...         VisionMotorStep(
+            ...             observation=ImageTask(image=Image((224, 224, 3)), task="grasp"),
+            ...             action=Motion(position=[0.1, 0.2, 0.3], orientation=[0, 0, 0, 1])
+            ...         ),
+            ...         VisionMotorStep(
+            ...             observation=ImageTask(image=Image((224, 224, 3)), task="move"),
+            ...             action=Motion(position=[0.2, 0.3, 0.4], orientation=[0, 0, 1, 0])
+            ...         ),
+            ...         VisionMotorStep(
+            ...             observation=ImageTask(image=Image((224, 224, 3)), task="release"),
+            ...             action=Motion(position=[0.3, 0.4, 0.5], orientation=[1, 0, 0, 0])
+            ...         ),
+            ...     ]
+            ... )
+            >>> action_trajectory = episode.trajectory(field="action", freq_hz=10)
+            >>> action_trajectory.mean()
+            array([0.2, 0.3, 0.4, 0.33333333, 0., 0.33333333, 0.33333333])
+            >>> observation_trajectory = episode.trajectory(field="observation")
+            >>> [step.task for step in observation_trajectory]
+            ['grasp', 'move', 'release']
+        """
+```
+
+</details>

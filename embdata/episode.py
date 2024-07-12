@@ -52,27 +52,43 @@ class VisionMotorStep(TimeStep):
 
 
 class Episode(Sample):
-    """A list-like interface for a sequence of observations, actions, and/or other.
+    """A list-like interface for a sequence of observations, actions, and/or other data.
 
-    Meant to streamline exploratory data analysis and manipulation of time series data.
+    This class is designed to streamline exploratory data analysis and manipulation of time series data.
+    It provides methods for appending, iterating, concatenating, and analyzing episodes.
 
-    Just append to an episode like you would a list and you're ready to start training models.
-
-    To iterate over the steps in an episode, use the `iter` method.
+    Attributes:
+        steps (list[TimeStep]): A list of TimeStep objects representing the episode's steps.
+        metadata (Sample | Any | None): Additional metadata for the episode.
+        freq_hz (int | None): The frequency of the episode in Hz.
 
     Example:
-        >>> episode = Episode(steps=[TimeStep(), TimeStep(), TimeStep()])
+        >>> from embdata.image import Image
+        >>> from embdata.motion import Motion
+        >>> steps = [
+        ...     VisionMotorStep(
+        ...         observation=ImageTask(image=Image((224, 224, 3)), task="grasp"),
+        ...         action=Motion(position=[0.1, 0.2, 0.3], orientation=[0, 0, 0, 1])
+        ...     ),
+        ...     VisionMotorStep(
+        ...         observation=ImageTask(image=Image((224, 224, 3)), task="lift"),
+        ...         action=Motion(position=[0.2, 0.3, 0.4], orientation=[0, 0, 1, 0])
+        ...     )
+        ... ]
+        >>> episode = Episode(steps=steps)
+        >>> len(episode)
+        2
         >>> for step in episode.iter():
-        ...     print(step)
+        ...     print(f"Task: {step.observation.task}, Action: {step.action.position}")
+        Task: grasp, Action: [0.1, 0.2, 0.3]
+        Task: lift, Action: [0.2, 0.3, 0.4]
 
-    To concatenate two episodes, use the `+` operator.
-
-    Example:
-        >>> episode1 = Episode(steps=[TimeStep(), TimeStep()])
-        >>> episode2 = Episode(steps=[TimeStep(), TimeStep()])
+    To concatenate two episodes, use the `+` operator:
+        >>> episode1 = Episode(steps=steps[:1])
+        >>> episode2 = Episode(steps=steps[1:])
         >>> combined_episode = episode1 + episode2
         >>> len(combined_episode)
-        4
+        2
     """
 
     steps: list[TimeStep]
@@ -230,9 +246,11 @@ class Episode(Sample):
         
 
     def trajectory(self, field: str = "action", freq_hz: int = 1) -> Trajectory:
-        """Get a numpy array and perform frequency, subsampling, super-sampling, min-max scaling, and more.
+        """Extract a trajectory from the episode for a specified field.
 
-        This method extracts the specified field from each step in the episode and creates a Trajectory object.
+        This method creates a Trajectory object from the specified field of each step in the episode.
+        The resulting Trajectory object allows for various operations such as frequency analysis,
+        subsampling, super-sampling, and min-max scaling.
 
         Args:
             field (str, optional): The field to extract from each step. Defaults to "action".
@@ -242,19 +260,30 @@ class Episode(Sample):
             Trajectory: The trajectory of the specified field.
 
         Example:
+            >>> from embdata.image import Image
+            >>> from embdata.motion import Motion
             >>> episode = Episode(
             ...     steps=[
-            ...         TimeStep(observation=Sample(value=1), action=Sample(value=10)),
-            ...         TimeStep(observation=Sample(value=2), action=Sample(value=20)),
-            ...         TimeStep(observation=Sample(value=3), action=Sample(value=30)),
+            ...         VisionMotorStep(
+            ...             observation=ImageTask(image=Image((224, 224, 3)), task="grasp"),
+            ...             action=Motion(position=[0.1, 0.2, 0.3], orientation=[0, 0, 0, 1])
+            ...         ),
+            ...         VisionMotorStep(
+            ...             observation=ImageTask(image=Image((224, 224, 3)), task="move"),
+            ...             action=Motion(position=[0.2, 0.3, 0.4], orientation=[0, 0, 1, 0])
+            ...         ),
+            ...         VisionMotorStep(
+            ...             observation=ImageTask(image=Image((224, 224, 3)), task="release"),
+            ...             action=Motion(position=[0.3, 0.4, 0.5], orientation=[1, 0, 0, 0])
+            ...         ),
             ...     ]
             ... )
-            >>> action_trajectory = episode.trajectory()
+            >>> action_trajectory = episode.trajectory(field="action", freq_hz=10)
             >>> action_trajectory.mean()
-            array([20.])
+            array([0.2, 0.3, 0.4, 0.33333333, 0., 0.33333333, 0.33333333])
             >>> observation_trajectory = episode.trajectory(field="observation")
-            >>> observation_trajectory.mean()
-            array([2.])
+            >>> [step.task for step in observation_trajectory]
+            ['grasp', 'move', 'release']
         """
         freq_hz = freq_hz or self.freq_hz or 1
         return Trajectory(
