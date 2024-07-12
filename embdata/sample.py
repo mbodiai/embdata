@@ -284,7 +284,7 @@ class Sample(BaseModel):
                 for _ in range(max_items):
                     value, index = unflatten_recursive(schema_part["items"], index)
                     items.append(value)
-                return items, index + len(items)
+                return items, index
             return flat_data[index], index + 1 if index < len(flat_data) else (None, index)
 
         unflattened_dict, _ = unflatten_recursive(schema)
@@ -455,7 +455,7 @@ class Sample(BaseModel):
 
         if to:
             if output_type == "dict":
-                return {key: accumulator[key] for key in sorted(accumulator.keys())}
+                return accumulator
             return [accumulator[key] for key in sorted(accumulator.keys())]
         return accumulator if output_type == "dict" else accumulator
 
