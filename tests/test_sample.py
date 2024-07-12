@@ -323,6 +323,7 @@ def test_flatten_with_to_dict_output():
     assert flattened == expected, f"Expected {expected}, but got {flattened}"
     pytest.main([__file__, "-vv"])
 import pytest
+import torch
 from embdata.sample import Sample
 
 def test_flatten_with_to():
