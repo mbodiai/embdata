@@ -395,7 +395,7 @@ class Sample(BaseModel):
         if output_type in ["np", "pt"]:
             non_numerical = "ignore"
 
-        accumulator = {} if output_type == "dict" and not to_keys else []
+        accumulator = {} if output_type == "dict" or to_keys else []
 
         def ignore_key(k, current_path):
             # Ignore keys starting with underscore by default.
@@ -412,7 +412,7 @@ class Sample(BaseModel):
 
         def add_to_accumulator(key, value):
             if non_numerical != "ignore" or isinstance(value, int | float | bool | Sample | dict):
-                if output_type == "dict":
+                if output_type == "dict" or to_keys:
                     accumulator[key.rstrip(sep)] = value
                 else:
                     accumulator.append(value)
