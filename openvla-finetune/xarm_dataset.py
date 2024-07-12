@@ -15,6 +15,7 @@ from tokenizer import ActionTokenizer
 from embdata.trajectory import Trajectory
 from embdata.episode import Episode, TimeStep
 from embdata.sample import Sample
+from embdata.motion.control import HandControl
 
 IGNORE_INDEX = -100
 
@@ -38,9 +39,9 @@ class XarmDataset(IterableDataset):
         )
         
         # Calculate dataset statistics using Episode and Trajectory
-        episode = Episode(steps=[TimeStep(action=Sample(**sample['action'])) for sample in self.dataset])
-        trajectory = episode.trajectory(field="action")
-        self.dataset_statistics = trajectory.stats()
+        episode = Episode(steps=[TimeStep(action=HandControl(**sample['action'])) for sample in self.dataset])
+        self.action_trajectory = episode.trajectory(field="action")
+        self.dataset_statistics = self.action_trajectory.stats()
         
         self.image_augmentation = image_augmentation
         if self.image_augmentation:
@@ -55,13 +56,9 @@ class XarmDataset(IterableDataset):
             self.transform = transforms.Compose(transform)
 
     def normalize_action(self, action):
-        action_sample = Sample(**action)
-        normalized_action = action_sample.flatten()
-        q01 = self.dataset_statistics.q01()
-        q99 = self.dataset_statistics.q99()
-        normalized_action[:-1] = 2 * (normalized_action[:-1] - q01[:-1]) / (q99[:-1] - q01[:-1] + 1e-8) - 1
-        normalized_action[:-1] = np.clip(normalized_action[:-1], -1, 1)
-        return normalized_action
+        action_control = HandControl(**action)
+        normalized_action = self.action_trajectory.make_minmax(min=-1, max=1).unflatten(action_control.flatten())
+        return normalized_action.flatten()
 
     def __iter__(self):
         for data in self.dataset:
