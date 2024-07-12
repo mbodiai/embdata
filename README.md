@@ -454,6 +454,115 @@ print(quadruped_control.front_left, quadruped_control.back_right)
 
 This example demonstrates how to use embdata to download a dataset, process it, visualize it, and use it to fine-tune a model with Hugging Face Transformers.
 
+```python
+from datasets import load_dataset
+from embdata import Episode, Sample, Trajectory
+from transformers import AutoTokenizer, AutoModelForSequenceClassification, TrainingArguments, Trainer
+import torch
+import numpy as np
+
+# Download the dataset
+dataset = load_dataset("mbodiai/oxe_taco_play")
+
+# Function to process and flatten the data
+def process_data(example):
+    # Extract relevant fields
+    instruction = example['data.pickle']['steps'][0]['observation']['natural_language_instruction']
+    action = example['data.pickle']['steps'][0]['action']['world_vector']
+    image = example['data.pickle']['steps'][0]['observation']['image']['bytes']
+    success = example['data.pickle']['aspects']['success']
+    
+    # Create a Sample
+    sample = Sample(
+        instruction=instruction,
+        action=np.array(action),
+        image=image,
+        success=success
+    )
+    
+    # Flatten the sample
+    flat_sample = sample.flatten()
+    
+    return flat_sample
+
+# Process and flatten the dataset
+flattened_dataset = dataset['train'].map(process_data)
+
+# Create an Episode
+episode = Episode()
+for item in flattened_dataset:
+    episode.append(Sample(**item))
+
+# Clean the data using Trajectory
+action_trajectory = episode.trajectory(field="action", freq_hz=10)
+filtered_trajectory = action_trajectory.low_pass_filter(cutoff_freq=2)
+
+# Visualize the data
+episode.show()
+filtered_trajectory.save("filtered_trajectory.png")
+
+# Prepare data for fine-tuning
+def prepare_data_for_model(example):
+    return {
+        'text': example['instruction'],
+        'label': int(example['success'])
+    }
+
+model_dataset = flattened_dataset.map(prepare_data_for_model)
+
+# Load pre-trained model and tokenizer
+model_name = "distilbert-base-uncased"
+tokenizer = AutoTokenizer.from_pretrained(model_name)
+model = AutoModelForSequenceClassification.from_pretrained(model_name, num_labels=2)
+
+# Tokenize the dataset
+def tokenize_function(examples):
+    return tokenizer(examples["text"], padding="max_length", truncation=True)
+
+tokenized_datasets = model_dataset.map(tokenize_function, batched=True)
+
+# Define training arguments
+training_args = TrainingArguments(
+    output_dir="./results",
+    num_train_epochs=3,
+    per_device_train_batch_size=8,
+    per_device_eval_batch_size=8,
+    warmup_steps=500,
+    weight_decay=0.01,
+    logging_dir="./logs",
+)
+
+# Create Trainer instance
+trainer = Trainer(
+    model=model,
+    args=training_args,
+    train_dataset=tokenized_datasets,
+    tokenizer=tokenizer,
+)
+
+# Fine-tune the model
+trainer.train()
+
+# Save the fine-tuned model
+model.save_pretrained("./fine_tuned_model")
+tokenizer.save_pretrained("./fine_tuned_model")
+```
+
+This example demonstrates how to:
+1. Download the dataset from the specified repository.
+2. Process and flatten the data using `Sample` and `Episode` classes.
+3. Clean the data using `Trajectory` class.
+4. Visualize the data using `episode.show()` and `trajectory.save()`.
+5. Prepare the data for fine-tuning.
+6. Load a pre-trained model and tokenizer.
+7. Tokenize the dataset.
+8. Set up training arguments.
+9. Create a Trainer instance.
+10. Fine-tune the model.
+11. Save the fine-tuned model.
+
+This comprehensive example showcases the integration of embdata with Hugging Face Transformers for a complete data processing and model fine-tuning pipeline.
+
 </details>
 
 ## License
