@@ -23,7 +23,8 @@ classifiers = [
   "Programming Language :: Python :: Implementation :: PyPy",
 ]
 
-dependencies = ["pytest==8.2.2",
+dependencies = [
+"pytest==8.2.2",
  "pydantic==2.7.4",
  "numpy==1.26.4",
  "pydantic_numpy==5.0.2",
@@ -36,11 +37,13 @@ dependencies = ["pytest==8.2.2",
  "rerun-sdk==0.17.0",
  "matplotlib==3.9.1",
  "opencv-python==4.10.0.84",
- "shapely==2.0.4"
+ "shapely==2.0.4",
+ "importlib_resources==6.4.0"
 ]
 [project.optional-dependencies]
 audio = [
 "pyaudio"
+
 ]
 [tool.hatch.metadata]
 allow-direct-references = true

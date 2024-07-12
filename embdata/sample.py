@@ -830,12 +830,12 @@ class Sample(BaseModel):
 
         This can include bounds, shape, and other information.
         """
-        info = None
+        info = {}
         if self.model_extra and key in self.model_extra:
-            info = FieldInfo(annotation=self.model_extra[key]).json_schema_extra
+            info = FieldInfo(annotation=self.model_extra[key]).json_schema_extra or {}
         if key in self.model_fields:
-            info = self.model_fields[key].json_schema_extra
-        return info or {}
+            info = self.model_fields[key].json_schema_extra or {}
+        return info.get("_info", {})
 
     def space(self) -> spaces.Dict:
         """Return the corresponding Gym space for the Sample instance based on its instance attributes.

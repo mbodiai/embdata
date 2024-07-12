@@ -77,17 +77,15 @@ def MotionField(  # noqa
         motion_type: Type of the motion. Can be ['absolute', 'relative', 'velocity', 'torque', 'other'].
     """
     if description is None:
-        description = f"{motion_type} motion"
-    json_schema_extra = {
-        "_motion_type": motion_type,
-        "_shape": shape,
-        "_bounds": bounds,
-        "_reference_frame": reference_frame,
-        "_unit": unit,
-    }
-    kwargs.get("json_schema_extra", {}).update(json_schema_extra)
+        description = f"{motion_type.lower()} motion"
+
     return CoordinateField(
         default=default,
+        bounds=bounds,
+        shape=shape,
+        description=description,
+        reference_frame=reference_frame,
+        unit=unit,
         **kwargs,
     )
 
@@ -188,7 +186,7 @@ def TorqueMotionField(  # noqa
     )
 
 
-def OtherMotionField(  # noqa
+def AnyMotionField(  # noqa
     default: Any = PydanticUndefined,
     bounds: list[float] | None = None,
     shape: tuple[int] | None = None,
@@ -227,15 +225,6 @@ class Motion(Coordinate):
 
     model_config = ConfigDict(arbitrary_types_allowed=True, extra="forbid", populate_by_name=True)
 
-    @model_validator(mode="after")
-    def validate_motion_type(self) -> "Motion":
-        v = self.model_field_info("_motion_type")
-        v = v.get("_motion_type", "unspecified") if v is not None else "unspecified"
-        if v not in ["absolute", "relative", "velocity", "torque", "other", "unspecified"]:
-            raise ValueError(
-                f"Invalid motion type: {v}. Must be one of 'absolute', 'relative', 'velocity', 'torque', 'other'.",
-            )
-        return self
 
     @model_validator(mode="after")
     def validate_shape(self) -> "Motion":
@@ -251,19 +240,6 @@ class Motion(Coordinate):
                             f"{key} value {value} of length {len(value_processed)} at dimension {len(shape_processed)-1}does not have the correct shape {shape}",
                         )
                     value_processed = value_processed[0]
-        return self
-
-    @model_validator(mode="after")
-    def validate_bounds(self) -> "Motion":
-        for key, value in self:
-            bounds = self.model_field_info(key).get("_bounds", "undefined")
-            if bounds != "undefined":
-                if hasattr(value, "shape") or isinstance(value, list | tuple):
-                    for i, v in enumerate(value):
-                        if not bounds[0] <= v <= bounds[1]:
-                            raise ValueError(f"{key} item {i} ({v}) is out of bounds {bounds}")
-                elif not bounds[0] <= value <= bounds[1]:
-                    raise ValueError(f"{key} value {value} is not within bounds {bounds}")
         return self
 
 

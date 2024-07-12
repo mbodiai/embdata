@@ -8,46 +8,47 @@ from typing import Any, Dict
 
 import numpy as np
 from datasets import Dataset
-from rich import print
+from rich import print, table
+from rich.console import Console
 
-# def as_table(ds: Any, sep: str = ".", show=True) -> Dict[str, Any]:
-#     """Render the dictionary as a rich table.
 
-#     This function takes a dataset or dictionary and renders it as a table using the rich library.
-#     It displays the keys and their corresponding values in a visually appealing format.
+def as_table(ds: Any, sep: str = ".", show=True) -> Dict[str, Any]:
+    """Render the dictionary as a rich table.
 
-#     Args:
-#         ds (Any): The dataset or dictionary to be rendered as a table.
-#         sep (str, optional): The separator used for nested keys. Defaults to ".".
-#         show (bool, optional): Whether to print the table. Defaults to True.
+    This function takes a dataset or dictionary and renders it as a table using the rich library.
+    It displays the keys and their corresponding values in a visually appealing format.
 
-#     Returns:
-#         Dict[str, Any]: A dictionary mapping of keys to their fully qualified names.
+    Args:
+        ds (Any): The dataset or dictionary to be rendered as a table.
+        sep (str, optional): The separator used for nested keys. Defaults to ".".
+        show (bool, optional): Whether to print the table. Defaults to True.
 
-#     Example:
-#         >>> data = {"a": 1, "b": {"c": 2, "d": 3}}
-#         >>> as_table(data)
-#         ┏━━━━━━━┳━━━━━━━━┓
-#         ┃ Key   ┃ Value  ┃
-#         ┡━━━━━━━╇━━━━━━━━┩
-#         │ a     │ 1      │
-#         │ b.c   │ 2      │
-#         │ b.d   │ 3      │
-#         └───────┴────────┘
-#         {'a': 'a', 'c': 'b.c', 'd': 'b.d'}
-#     """
-#     keys = describe_keys(ds, sep)
-#     if hasattr(ds, "flatten"):
-#         ds = ds.flatten("dict")
-#     rendered = table.Table(title="Keys")
-#     rendered.add_column("Key", style="cyan")
-#     rendered.add_column("Value", style="magenta")
-#     for key, value in describe(ds, show=False).items():
-#         rendered.add_row(keys.get(key, ""), str(value))
-#     if show:
-#         console = Console()
-#         console.print(rendered)
-#     return keys
+    Returns:
+        Dict[str, Any]: A dictionary mapping of keys to their fully qualified names.
+
+    Example:
+        >>> data = {"a": 1, "b": {"c": 2, "d": 3}}
+        >>> as_table(data)
+        ┏━━━━━━━┳━━━━━━━━┓
+        ┃ Key   ┃ Value  ┃
+        ┡━━━━━━━╇━━━━━━━━┩
+        │ a     │ 1      │
+        │ b.c   │ 2      │
+        │ b.d   │ 3      │
+        └───────┴────────┘
+        {'a': 'a', 'c': 'b.c', 'd': 'b.d'}
+    """
+    if hasattr(ds, "flatten"):
+        ds = ds.flatten("dict")
+    rendered = table.Table(title="Keys")
+    rendered.add_column("Key", style="cyan")
+    rendered.add_column("Value", style="magenta")
+    for key, value in describe(ds, show=False).items():
+        rendered.add_row(key, str(value))
+    if show:
+        console = Console()
+        console.print(rendered)
+    return ds
 
 
 def describe_keys(ds: Any, sep: str = ".", show=False, path="") -> Dict[str, Any]:

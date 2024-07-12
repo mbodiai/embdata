@@ -35,9 +35,11 @@ InfoUndefined = Literal["undefined"]
 
 def CoordinateField(  # noqa
     default=0.0,
+    default_factory=None,
     reference_frame="undefined",
     unit: LinearUnit | AngularUnit | TemporalUnit = "m",
     bounds: tuple | InfoUndefined = "undefined",
+    description: str | None = None,
     **kwargs,
 ):
     """Pydantic Field with extra metadata for coordinates.
@@ -51,14 +53,20 @@ def CoordinateField(  # noqa
     Returns:
         Field: Pydantic Field with extra metadata.
     """
+    json_schema_extra = {
+        "_info": {
+            "reference_frame": reference_frame,
+            "unit": unit,
+             "bounds": bounds,
+            **kwargs,
+        },
+    }
     return Field(
         default=default,
-        json_schema_extra={
-            "_reference_frame": reference_frame,
-            "_unit": unit,
-            "_bounds": bounds,
-        },
-        **kwargs,
+        json_schema_extra=json_schema_extra,
+        description=description,
+        default_factory=default_factory,
+        # **kwargs,
     )
 
 
@@ -149,16 +157,19 @@ class Coordinate(Sample):
     @model_validator(mode="after")
     def validate_bounds(self) -> Any:
         """Validate the bounds of the coordinate."""
-        for key, value in self.dump().items():
-            bounds = self.model_field_info(key)
-            if bounds and bounds["_bounds"] != "undefined":
-                bounds = bounds["_bounds"]
+        for key, value in self:
+            bounds = self.model_field_info(key).get("bounds")
+            if bounds and bounds != "undefined":
                 if len(bounds) != 2 or not all(isinstance(b, int | float) for b in bounds):
                     raise ValueError(f"{key} bounds must be a tuple of two numbers")
-                if not bounds[0] <= value <= bounds[1]:
+
+                if hasattr(value, "shape") or isinstance(value, list | tuple):
+                    for i, v in enumerate(value):
+                        if not bounds[0] <= v <= bounds[1]:
+                            raise ValueError(f"{key} item {i} ({v}) is out of bounds {bounds}")
+                elif not bounds[0] <= value <= bounds[1]:
                     raise ValueError(f"{key} value {value} is not within bounds {bounds}")
         return self
-
 
 class Pose3D(Coordinate):
     """Absolute coordinates for a 3D space representing x, y, and theta."""
@@ -203,10 +214,10 @@ class Pose3D(Coordinate):
         converted_fields = {}
         for key, value in self:
             if key in ["x", "y"]:
-                converted_field = self.convert_linear_unit(value, self.model_field_info(key)["_unit"], unit)
+                converted_field = self.convert_linear_unit(value, self.model_field_info(key)["unit"], unit)
                 converted_fields[key] = (converted_field, CoordinateField(converted_field, unit=unit, **kwargs))
             elif key == "theta":
-                converted_field = self.convert_angular_unit(value, self.model_field_info(key)["_unit"], angular_unit)
+                converted_field = self.convert_angular_unit(value, self.model_field_info(key)["unit"], angular_unit)
                 converted_fields[key] = (converted_field, CoordinateField(converted_field, unit=angular_unit, **kwargs))
             else:
                 converted_fields[key] = self.model_field_info(key)
@@ -283,10 +294,10 @@ class Pose6D(Coordinate):
         converted_fields = {}
         for key, value in self.dict().items():
             if key in ["x", "y", "z"]:
-                converted_field = self.convert_linear_unit(value, self.model_field_info(key)["_unit"], unit)
+                converted_field = self.convert_linear_unit(value, self.model_field_info(key)["unit"], unit)
                 converted_fields[key] = (converted_field, CoordinateField(converted_field, unit=unit, **kwargs))
             elif key in ["roll", "pitch", "yaw"]:
-                converted_field = self.convert_angular_unit(value, self.model_field_info(key)["_unit"], angular_unit)
+                converted_field = self.convert_angular_unit(value, self.model_field_info(key)["unit"], angular_unit)
                 converted_fields[key] = (converted_field, CoordinateField(converted_field, unit=angular_unit, **kwargs))
             else:
                 converted_fields[key] = self.model_field_info(key)

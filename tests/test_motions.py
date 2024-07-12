@@ -142,5 +142,53 @@ def test_unflatten():
     assert unflattened_pose.theta == original_pose.theta
 
 
+
+def test_bounds():
+    class XarmPose6D(Motion):
+        """Movement for a 6D space representing x, y, z, roll, pitch, and yaw."""
+
+        x: float = MotionField(
+            default=0,
+            description="X position in 3D space. +x is forward; -x is backward.",
+            bounds=(-0.3, 0.4),
+        )
+        y: float = MotionField(
+            default=0,
+            description="Y position in 3D space. +y is left; -y is right.",
+            bounds=(-0.4, 0.4),
+        )
+        z: float = MotionField(
+            default=0,
+            description="Z position in 3D space. +z is up; -z is down.",
+            bounds=(-0.175, 0.4),
+        )
+        roll: float = MotionField(
+            default=0,
+            description="Roll about the X-axis in radians. Positive roll is clockwise.",
+            bounds=(-np.pi/2, np.pi/2),
+        )
+        pitch: float = MotionField(
+            default=0,
+            description="Pitch about the Y-axis in radians. Positive pitch is down.",
+            bounds=(-np.pi/2, np.pi/2),
+        )
+        yaw: float = MotionField(
+            default=0,
+            description="Yaw about the Z-axis in radians. Positive yaw is left.",
+            bounds=(-np.pi, np.pi),
+        )
+    class XarmHandControl(HandControl):
+
+        """Action for a 7D space representing x, y, z, roll, pitch, yaw, and oppenness of the hand."""
+
+        pose: XarmPose6D = MotionField(default_factory=XarmPose6D, description="6D pose of the robot hand.")
+        grasp: float = MotionField(
+            default=0,
+            description="Openness of the robot hand. 0 is closed, 1 is open.",
+        )
+    
+    xarm = XarmHandControl()
+    assert xarm.pose.model_field_info("x")["bounds"] == (-0.3, 0.4)
+
 if __name__ == "__main__":
     pytest.main([__file__, "-vv"])

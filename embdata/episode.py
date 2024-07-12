@@ -29,6 +29,7 @@ class TimeStep(Sample):
     def validate_action_class(cls, values) -> Dict[str, Any]:
         return {
             k: Sample(v)
+            # Omit supervision to allow float values.
             if not isinstance(v, Sample) and v is not None and k in ["observation", "action", "state"]
             else v
             for k, v in values.items()
@@ -225,6 +226,8 @@ class Episode(Sample):
             self.stats = self.trajectory().stats()
             stats = str(self.stats).replace("\n ", "\n  ")
         return f"Episode(\n  {stats}\n)"
+
+        
 
     def trajectory(self, field: str = "action", freq_hz: int = 1) -> Trajectory:
         """Get a numpy array and perform frequency, subsampling, super-sampling, min-max scaling, and more.
