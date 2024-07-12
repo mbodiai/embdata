@@ -2,7 +2,8 @@ import pytest
 from unittest.mock import patch, MagicMock
 from datasets import Dataset
 import torch
-from embdata import Episode, Sample, Trajectory, Image
+from embdata import Episode, Sample, Image
+from embdata.trajectory import Trajectory
 
 # Mock the dataset loading
 @pytest.fixture
