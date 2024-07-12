@@ -69,7 +69,7 @@ def create_and_analyze_episode(observations, actions, states) -> Episode:
         >>> print(type(episode))
         <class 'embdata.episode.Episode'>
     """
-    e = Episode(zip(observations, actions, states, strict=False), metadata={"freq_hz": 5})
+    e = Episode(zip(observations, actions, states, strict=False), freq_hz=5)
     describe(e.unpack())
     describe(e)
 

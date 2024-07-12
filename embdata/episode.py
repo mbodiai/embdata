@@ -3,9 +3,12 @@ from threading import Thread
 from typing import Any, Callable, Dict, Iterable, Iterator, List, Literal
 
 import rerun as rr
-from datasets import Dataset
+import torch
+from datasets import Dataset, Features, Sequence, Value
+from datasets import Image as HFImage
 from pydantic import ConfigDict, PrivateAttr, model_validator
 from rerun.archetypes import Image as RRImage
+from torchvision import transforms
 
 from embdata.image import Image
 from embdata.motion import Motion
@@ -13,9 +16,16 @@ from embdata.motion.control import RelativePoseHandControl
 from embdata.sample import Sample
 from embdata.trajectory import Trajectory
 
+try:
+    from lerobot.common.datasets.lerobot_dataset import LeRobotDataset
+    from lerobot.common.datasets.utils import calculate_episode_data_index, hf_transform_to_torch
+except ImportError:
+    logging.warning("lerobot not found. Episode.lerobot() may not work.")
+
 
 class TimeStep(Sample):
     """Time step for a task."""
+
     episode_idx: int = 0
     step_idx: int = 0
     model_config = ConfigDict(arbitrary_types_allowed=True, extra="allow")
@@ -68,12 +78,12 @@ class Episode(Sample):
         >>> steps = [
         ...     VisionMotorStep(
         ...         observation=ImageTask(image=Image((224, 224, 3)), task="grasp"),
-        ...         action=Motion(position=[0.1, 0.2, 0.3], orientation=[0, 0, 0, 1])
+        ...         action=Motion(position=[0.1, 0.2, 0.3], orientation=[0, 0, 0, 1]),
         ...     ),
         ...     VisionMotorStep(
         ...         observation=ImageTask(image=Image((224, 224, 3)), task="lift"),
-        ...         action=Motion(position=[0.2, 0.3, 0.4], orientation=[0, 0, 1, 0])
-        ...     )
+        ...         action=Motion(position=[0.2, 0.3, 0.4], orientation=[0, 0, 1, 0]),
+        ...     ),
         ... ]
         >>> episode = Episode(steps=steps)
         >>> len(episode)
@@ -164,6 +174,7 @@ class Episode(Sample):
         state_key: str | None = None,
         supervision_key: str | None = None,
         metadata: Sample | Any | None = None,
+        freq_hz: int | None = None,
     ) -> None:
         """Create an episode from a list of dicts, samples, time steps or any iterable with at least two items per step.
 
@@ -173,6 +184,8 @@ class Episode(Sample):
             observation_key (str): The key for the observation in each dictionary.
             state_key (str, optional): The key for the state in each dictionary. Defaults to None.
             supervision_key (str, optional): The key for the supervision in each dictionary. Defaults to None.
+            metadata (Sample|Any, optional): Additional metadata for the episode. Defaults to None.
+            freq_hz (int, optional): The frequency of the episode in Hz. Defaults to None.
 
         Returns:
             'Episode': The created episode.
@@ -236,14 +249,13 @@ class Episode(Sample):
             )
         except KeyError as e:
             raise KeyError(f"Missing key: {e}. Did you forget to set the observation_key or action_key?") from e
+        self.freq_hz = freq_hz
 
     def __repr__(self) -> str:
         if not hasattr(self, "stats"):
             self.stats = self.trajectory().stats()
             stats = str(self.stats).replace("\n ", "\n  ")
         return f"Episode(\n  {stats}\n)"
-
-        
 
     def trajectory(self, field: str = "action", freq_hz: int = 1) -> Trajectory:
         """Extract a trajectory from the episode for a specified field.
@@ -266,15 +278,15 @@ class Episode(Sample):
             ...     steps=[
             ...         VisionMotorStep(
             ...             observation=ImageTask(image=Image((224, 224, 3)), task="grasp"),
-            ...             action=Motion(position=[0.1, 0.2, 0.3], orientation=[0, 0, 0, 1])
+            ...             action=Motion(position=[0.1, 0.2, 0.3], orientation=[0, 0, 0, 1]),
             ...         ),
             ...         VisionMotorStep(
             ...             observation=ImageTask(image=Image((224, 224, 3)), task="move"),
-            ...             action=Motion(position=[0.2, 0.3, 0.4], orientation=[0, 0, 1, 0])
+            ...             action=Motion(position=[0.2, 0.3, 0.4], orientation=[0, 0, 1, 0]),
             ...         ),
             ...         VisionMotorStep(
             ...             observation=ImageTask(image=Image((224, 224, 3)), task="release"),
-            ...             action=Motion(position=[0.3, 0.4, 0.5], orientation=[1, 0, 0, 0])
+            ...             action=Motion(position=[0.3, 0.4, 0.5], orientation=[1, 0, 0, 0]),
             ...         ),
             ...     ]
             ... )
@@ -499,6 +511,95 @@ class Episode(Sample):
             raise ValueError(msg)
         data = [step.dict() for step in self.steps]
         return Dataset.from_list(data, features=self.steps[0].features())
+
+    def lerobot(self) -> LeRobotDataset:
+        """Convert the episode to LeRobotDataset compatible format.
+
+        Refer to https://github.com/huggingface/lerobot/blob/main/lerobot/scripts/push_dataset_to_hub.py for more details.
+
+        Args:
+            fps (int, optional): The frames per second for the episode. Defaults to 1.
+
+        Returns:
+            LeRobotDataset: The LeRobotDataset dataset.
+        """
+        data_dict = {
+            "observation.image": [],
+            "observation.state": [],
+            "action": [],
+            "episode_index": [],
+            "frame_index": [],
+            "timestamp": [],
+            "next.done": [],
+        }
+
+        for i, step in enumerate(self.steps):
+            data_dict["observation.image"].append(Image(step.observation.image).pil)
+            data_dict["observation.state"].append(step.state.torch())
+            data_dict["action"].append(step.action.torch())
+            data_dict["episode_index"].append(torch.tensor(step.episode_idx, dtype=torch.int64))
+            data_dict["frame_index"].append(torch.tensor(step.step_idx, dtype=torch.int64))
+            fps = self.freq_hz if self.freq_hz is not None else 1
+            data_dict["timestamp"].append(torch.tensor(i / fps, dtype=torch.float32))
+            data_dict["next.done"].append(torch.tensor(i == len(self.steps) - 1, dtype=torch.bool))
+        data_dict["index"] = torch.arange(0, len(self.steps), 1)
+
+        features = Features(
+            {
+                "observation.image": HFImage(),
+                "observation.state": Sequence(feature=Value(dtype="float32")),
+                "action": Sequence(feature=Value(dtype="float32")),
+                "episode_index": Value(dtype="int64"),
+                "frame_index": Value(dtype="int64"),
+                "timestamp": Value(dtype="float32"),
+                "next.done": Value(dtype="bool"),
+                "index": Value(dtype="int64"),
+            },
+        )
+
+        hf_dataset = Dataset.from_dict(data_dict, features=features)
+        hf_dataset.set_transform(hf_transform_to_torch)
+        episode_data_index = calculate_episode_data_index(hf_dataset)
+        info = {
+            "fps": fps,
+            "video": False,
+        }
+        return LeRobotDataset.from_preloaded(
+            hf_dataset=hf_dataset,
+            episode_data_index=episode_data_index,
+            info=info,
+        )
+
+    @classmethod
+    def from_lerobot(cls, lerobot_dataset: LeRobotDataset) -> "Episode":
+        """Convert a LeRobotDataset compatible dataset back into an Episode.
+
+        Args:
+            lerobot_dataset: The LeRobotDataset dataset to convert.
+
+        Returns:
+            Episode: The reconstructed Episode.
+        """
+        steps = []
+        dataset = lerobot_dataset.hf_dataset
+        for _, data in enumerate(dataset):
+            image = Image(transforms.ToPILImage()(data["observation.image"]))
+            state = Sample(data["observation.state"])
+            action = Sample(data["action"])
+            observation = Sample(image=image, task=None)
+            step = TimeStep(
+                episode_idx=data["episode_index"],
+                step_idx=data["frame_index"],
+                observation=observation,
+                action=action,
+                state=state,
+                supervision=None,
+            )
+            steps.append(step)
+        return cls(
+            steps=steps,
+            freq_hz=lerobot_dataset.fps,
+        )
 
     def rerun(self, mode=Literal["local", "remote"], port=5003, ws_port=5004) -> "Episode":
         """Start a rerun server."""

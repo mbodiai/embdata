@@ -39,7 +39,8 @@ dependencies = [
  "opencv-python==4.10.0.84",
  "shapely==2.0.4",
  "importlib_resources==6.4.0",
- "transformers>=4.42.4"
+ "transformers>=4.42.4",
+ "lerobot@git+https://github.com/huggingface/lerobot",
 ]
 [project.optional-dependencies]
 audio = [
