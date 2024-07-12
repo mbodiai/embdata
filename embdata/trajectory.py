@@ -128,17 +128,46 @@ def plot_trajectory(trajectory: np.ndarray, labels: list[str] | None = None, tim
 
 @dataclass
 class Trajectory:
-    """A trajectory of steps.
+    """A trajectory of steps representing a time series of multidimensional data.
+
+    This class provides methods for analyzing, visualizing, and manipulating trajectory data,
+    such as robot movements, sensor readings, or any other time-series data.
+
+    Attributes:
+        steps (NumpyArray | List[Sample | NumpyArray]): The trajectory data.
+        freq_hz (float | None): The frequency of the trajectory in Hz.
+        time_idxs (NumpyArray | None): The time index of each step in the trajectory.
+        dim_labels (list[str] | None): The labels for each dimension of the trajectory.
+        angular_dims (list[int] | list[str] | None): The dimensions that are angular.
 
     Methods:
-    - plot: Plot the trajectory.
-    - map: Apply a function to each step in the trajectory.
-    - make_relative: Convert the trajectory to relative actions.
-    - resample: Resample the trajectory to a new sample rate.
-    - spectrogram: Plot the spectrogram of the trajectory.
-    - spectrogram_nd: Plot the n-dimensional spectrogram of the trajectory.
-    - low_pass_filter: Apply a low-pass filter to the trajectory.
-    - stats: Compute statistics for the trajectory. Includes mean, variance, skewness, kurtosis, min, and max.
+        plot: Plot the trajectory.
+        map: Apply a function to each step in the trajectory.
+        make_relative: Convert the trajectory to relative actions.
+        resample: Resample the trajectory to a new sample rate.
+        frequencies: Plot the frequency spectrogram of the trajectory.
+        frequencies_nd: Plot the n-dimensional frequency spectrogram of the trajectory.
+        low_pass_filter: Apply a low-pass filter to the trajectory.
+        stats: Compute statistics for the trajectory.
+        transform: Apply a transformation to the trajectory.
+
+    Example:
+        >>> import numpy as np
+        >>> from embdata.trajectory import Trajectory
+        >>> 
+        >>> # Create a simple 2D trajectory
+        >>> steps = np.array([[0, 0], [1, 1], [2, 0], [3, 1], [4, 0]])
+        >>> traj = Trajectory(steps, freq_hz=10, dim_labels=['X', 'Y'])
+        >>> 
+        >>> # Plot the trajectory
+        >>> traj.plot().show()
+        >>> 
+        >>> # Compute and print statistics
+        >>> print(traj.stats())
+        >>> 
+        >>> # Apply a low-pass filter
+        >>> filtered_traj = traj.low_pass_filter(cutoff_freq=2)
+        >>> filtered_traj.plot().show()
     """
 
     steps: NumpyArray | List[Sample | NumpyArray]
