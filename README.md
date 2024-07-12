@@ -1,99 +1,44 @@
 # embodied data
 
-## Data, types, pipes, manipulation for embodied learning.
+Visualize, transform, clean, any type of unstructured multimodal data instantly.
 
 [![PyPI - Version](https://img.shields.io/pypi/v/embdata.svg)](https://pypi.org/project/embdata)
 [![PyPI - Python Version](https://img.shields.io/pypi/pyversions/embdata.svg)](https://pypi.org/project/embdata)
 
 -----
 
-### A good chunk of data wrangling and exploratory data analysis that just works. See [embodied-agents](https://github.com/mbodiai/embodied-agents) for real world usage.
+This library enables the vast majority of data processing, visualization, and analysis to be done in a single line of code with
+minimal dependencies. It is designed to be used in conjunction with [rerun.io](https://rerun.io) for visualizing complex data structures and trajectories and [LeRobot](https://github.com/huggingface/lerobot) for robotics simulations and training.  See [embodied-agents](https://github.com/mbodiai/embodied-agents) for real world usage. 
 
-## Plot, filter and transform your data with ease. On any type of data structure.
+
 
 [![Video Title](https://img.youtube.com/vi/L5JqM2_rIRM/0.jpg)](https://www.youtube.com/watch?v=L5JqM2_rIRM)
 
 ## Table of Contents
 
 - [embodied data](#embodied-data)
-  - [Data, types, pipes, manipulation for embodied learning.](#data-types-pipes-manipulation-for-embodied-learning)
-    - [A good chunk of data wrangling and exploratory data analysis that just works. See embodied-agents for real world usage.](#a-good-chunk-of-data-wrangling-and-exploratory-data-analysis-that-just-works-see-embodied-agents-for-real-world-usage)
-  - [Plot, filter and transform your data with ease. On any type of data structure.](#plot-filter-and-transform-your-data-with-ease-on-any-type-of-data-structure)
   - [Table of Contents](#table-of-contents)
   - [Installation](#installation)
   - [Usage](#usage)
-    - [Key Features](#key-features)
-    - [Usage Example](#usage-example)
-    - [Methods](#methods)
-    - [Key Features](#key-features-1)
-    - [Usage Example](#usage-example-1)
-    - [Methods](#methods-1)
-    - [Properties](#properties)
-    - [Class Methods](#class-methods)
-    - [Key Features](#key-features-2)
-    - [Usage Example](#usage-example-2)
-    - [Methods](#methods-2)
-    - [Key Features](#key-features-3)
-    - [Usage Example](#usage-example-3)
-    - [Methods](#methods-3)
-    - [Properties](#properties-1)
-    - [Key Features](#key-features-4)
-    - [Usage Example](#usage-example-4)
-    - [Methods](#methods-4)
-    - [Key Features](#key-features-5)
-    - [Usage Example](#usage-example-5)
-    - [Attributes](#attributes)
   - [License](#license)
   - [Design Decisions](#design-decisions)
   - [Classes](#classes)
     - [Episode](#episode)
-      - [Key Features](#key-features-6)
-      - [Usage Example](#usage-example-6)
-      - [Methods](#methods-5)
-      - [Properties](#properties-2)
     - [Image](#image)
-      - [Key Features](#key-features-7)
-      - [Usage Example](#usage-example-7)
-      - [Methods](#methods-6)
-      - [Properties](#properties-3)
     - [Sample](#sample)
-      - [Key Features](#key-features-8)
-      - [Usage Example](#usage-example-8)
-      - [Methods](#methods-7)
     - [Trajectory](#trajectory)
-      - [Key Features](#key-features-9)
-      - [Usage Example](#usage-example-9)
-      - [Methods](#methods-8)
-      - [Properties](#properties-4)
     - [Motion](#motion)
-      - [Key Features](#key-features-10)
-      - [Usage Example](#usage-example-10)
-      - [Methods](#methods-9)
-      - [Fields](#fields)
       - [Key Concepts](#key-concepts)
     - [AnyMotionControl](#anymotioncontrol)
-      - [Key Features](#key-features-11)
-      - [Usage Example](#usage-example-11)
-      - [Methods](#methods-10)
-      - [Fields](#fields-1)
     - [HandControl](#handcontrol)
-      - [Key Features](#key-features-12)
-      - [Usage Example](#usage-example-12)
-      - [Attributes](#attributes-1)
     - [AbsoluteHandControl](#absolutehandcontrol)
-      - [Attributes](#attributes-2)
     - [RelativePoseHandControl](#relativeposehandcontrol)
-      - [Attributes](#attributes-3)
     - [HeadControl](#headcontrol)
-      - [Attributes](#attributes-4)
     - [MobileSingleHandControl](#mobilesinglehandcontrol)
-      - [Attributes](#attributes-5)
     - [MobileSingleArmControl](#mobilesinglearmcontrol)
-      - [Attributes](#attributes-6)
     - [MobileBimanualArmControl](#mobilebimanualarmcontrol)
-      - [Attributes](#attributes-7)
     - [HumanoidControl](#humanoidcontrol)
-      - [Attributes](#attributes-8)
+
 
 ## Installation
 
@@ -108,13 +53,13 @@ pip install embdata
 
 The `Sample` class is a flexible base model for serializing, recording, and manipulating arbitrary data.
 
-### Key Features
+**Key Features**
 - Serialization and deserialization of complex data structures
 - Flattening and unflattening of nested structures
 - Conversion between different formats (e.g., dict, numpy arrays, torch tensors)
 - Integration with machine learning frameworks and gym spaces
 
-### Usage Example
+**Usage Example**
 ```python
 from embdata import Sample
 
@@ -161,7 +106,7 @@ dataset = sample.dataset()
 features = sample.features()
 ```
 
-### Methods
+**Methods**
 - `flatten()`: Flattens the nested structure into a 1D representation
 - `unflatten()`: Reconstructs the original nested structure from a flattened representation
 - `to(format)`: Converts the sample to different formats (dict, numpy, torch, etc.)
@@ -194,13 +139,13 @@ The `Sample` class provides a wide range of functionality for data manipulation,
 
 The `Image` class represents image data and provides methods for manipulation and conversion.
 
-### Key Features
+**Key Features**
 - Multiple representation formats (NumPy array, base64, file path, PIL Image, URL)
 - Easy conversion between different image formats
 - Resizing and encoding capabilities
 - Integration with other data processing pipelines
 
-### Usage Example
+**Usage Example**
 ```python
 from embdata import Image
 import numpy as np
@@ -228,7 +173,7 @@ img_from_url = Image("https://example.com/image.jpg")
 img_from_base64 = Image.from_base64(base64_str, encoding="png")
 ```
 
-### Methods
+**Methods**
 - `open(path)`: Opens an image from a file path
 - `save(path, encoding, quality)`: Saves the image to a file
 - `show()`: Displays the image using matplotlib
@@ -239,7 +184,7 @@ img_from_base64 = Image.from_base64(base64_str, encoding="png")
 - `dump(*args, as_field, **kwargs)`: Returns a dict or a field of the image
 - `infer_features_dict()`: Infers features of the image
 
-### Properties
+**Properties**
 - `array`: The image as a NumPy array
 - `base64`: The image as a base64 encoded string
 - `path`: The file path of the image
@@ -248,7 +193,7 @@ img_from_base64 = Image.from_base64(base64_str, encoding="png")
 - `size`: The size of the image as a (width, height) tuple
 - `encoding`: The encoding format of the image
 
-### Class Methods
+**Class Methods**
 - `supports(arg)`: Checks if the argument is supported by the Image class
 - `pil_to_data(image, encoding, size, make_rgb)`: Creates an Image instance from a PIL image
 - `bytes_to_data(bytes_data, encoding, size, make_rgb)`: Creates an Image instance from a bytes object
@@ -262,13 +207,13 @@ The `Image` class provides a convenient interface for working with image data in
 
 The `Trajectory` class represents a time series of multidimensional data, such as robot movements or sensor readings.
 
-### Key Features
+**Key Features**
 - Representation of time series data with optional frequency information
 - Methods for statistical analysis, visualization, and manipulation
 - Support for resampling and filtering operations
 - Support for minmax, standard, and PCA transformations
 
-### Usage Example
+**Usage Example**
 ```python
 from embdata import Trajectory
 import numpy as np
@@ -294,7 +239,7 @@ filtered_traj = traj.low_pass_filter(cutoff_freq=2)
 traj.save("trajectory_plot.png")
 ```
 
-### Methods
+**Methods**
 - `stats()`: Computes statistics for the trajectory
 - `plot()`: Plots the trajectory
 - `resample(target_hz)`: Resamples the trajectory to a new frequency
@@ -312,13 +257,13 @@ The `Trajectory` class offers methods for analyzing, visualizing, and manipulati
 
 The `Episode` class provides a list-like interface for a sequence of observations, actions, and other data, particularly useful for reinforcement learning scenarios.
 
-### Key Features
+**Key Features**
 - List-like interface for managing sequences of data
 - Methods for appending, iterating, and splitting episodes
 - Support for metadata and frequency information
 - Integration with reinforcement learning workflows
 
-### Usage Example
+**Usage Example**
 ```python
 from embdata import Episode, Sample
 
@@ -352,14 +297,14 @@ print(episode.freq_hz)
 ```
 
 
-### Methods
+**Methods**
 - `append(step)`: Adds a new step to the episode
 - `iter()`: Returns an iterator over the steps in the episode
 - `split(condition)`: Splits the episode based on a given condition
 - `trajectory(field, freq_hz)`: Extracts a trajectory from the episode for a specified field
 - `filter(condition)`: Filters the episode based on a given condition
 
-### Properties
+**Properties**
 - `metadata`: Additional metadata for the episode
 - `freq_hz`: The frequency of the episode in Hz
 
@@ -368,16 +313,16 @@ The `Episode` class simplifies the process of working with sequential data in re
 </details>
 
 <details>
-<summary><strong>Pose3D</strong></summary>
+<summary><strong>Pose6D</strong></summary>
 
 The `Pose6D` class represents absolute coordinates for a 6D pose in 3D space, including position and orientation.
 
-### Key Features
+**Key Features**
 - Representation of 3D pose with position (x, y) and orientation (theta)
 - Conversion between different units (meters, centimeters, radians, degrees)
 - Conversion to different formats (list, dict)
 
-### Usage Example
+**Usage Example**
 ```python
 from embdata.geometry import Pose6D
 import math
@@ -407,7 +352,7 @@ pose.to("rotation_matrix")
 print(pose.rotation_matrix())  # array([[ 0.8660254, -0.25, 0.4330127], [0.4330127, 0.75, -0.5], [-0.25, 0.61237244, 0.75]]
 ```
 
-### Methods
+**Methods**
 - `to(container_or_unit, unit, angular_unit)`: Converts the pose to different units or formats
 
 The `Pose3D` class provides methods for converting between different units and representations of 3D poses, making it easier to work with spatial data in various contexts.
@@ -419,12 +364,12 @@ The `Pose3D` class provides methods for converting between different units and r
 
 The `HandControl` class represents an action for a 7D space, including the pose of a robot hand and its grasp state.
 
-### Key Features
+**Key Features**
 - Representation of robot hand pose and grasp state
 - Integration with other motion control classes
 - Support for complex nested structures
 
-### Usage Example
+**Usage Example**
 ```python
 from embdata.geometry import Pose
 from embdata.motion.control import HandControl
@@ -460,154 +405,16 @@ print(robot_control.hand.pose.position)  # [0.1, 0.2, 0.3]
 print(robot_control.velocity)  # 0.3
 ```
 
-### Attributes
+<strong>Attributes</strong>
 - `pose`: The pose of the robot hand (Pose object)
 - `grasp`: The openness of the robot hand (float, 0 to 1)
 
 The `HandControl` class allows for easy manipulation and representation of robot hand controls in a 7D space, making it useful for robotics and motion control applications.
 
 </details>
+
 <details>
 <summary><strong>Full Example: Finetuning OpenVLA with Robotics Data</strong></summary>
-
-This example demonstrates how to use embdata to download a dataset, process it, visualize it, and use it to fine-tune a model with OpenVLA (Open Visual Language and Action Model).
-
-```python
-import numpy as np
-import torch
-from datasets import load_dataset
-from transformers import AutoTokenizer, AutoModelForVision2Seq, Trainer, TrainingArguments, AutoFeatureExtractor
-from embdata import Sample, Episode, Trajectory, VisionMotorStep, ImageTask, Motion
-from embdata.motion.control import HandControl
-
-# Define custom Sample subclasses
-class RobotState(Sample):
-    end_effector_pose: Pose = AbsoluteMotionField(
-        default_factory=Pose,
-        description="Absolute End Effector pose of the robot.",
-    )
-    is_first: int
-    is_last: int
-    is_terminal: int
-
-# Download and prepare the dataset
-dataset = load_dataset("mbodiai/oxe_bridge_v2", split="train")
-
-# Process the data
-def process_data(example):
-    observation = RobotState(
-        position=np.array(example['observation']['pose'][:3]),
-        velocity=np.array(example['observation']['pose'][3:6]),
-        gripper_state=example['observation']['gripper']
-    )
-    action = RobotAction(
-        pose=np.array(list(example['action']['pose'].values())),
-        grasp=example['action']['grasp']
-    )
-    image_task = ImageTask(
-        image=example['observation']['image'],
-        task=example['observation']['instruction']
-    )
-    return VisionMotorStep(observation=observation, action=action, image=image_task)
-
-processed_data = [process_data(example) for example in dataset]
-
-# Create an episode
-episode = Episode(steps=processed_data)
-
-# Data flattening and cleaning
-def flatten_and_clean(step):
-    flat_step = step.flatten(output_type="dict", non_numerical="ignore")
-    return {k: float(v) if isinstance(v, (int, float)) else v for k, v in flat_step.items() if v is not None}
-
-flattened_data = [flatten_and_clean(step) for step in episode]
-
-# Data filtering
-filtered_episode = episode.filter(lambda step: step.observation.gripper_state > 0.5)
-
-# Create a trajectory
-action_trajectory = episode.trajectory(field="action")
-
-# Visualize the data
-episode.show()
-
-# Extract and visualize action trajectories
-pose_trajectory = Trajectory(steps=[step.action.pose for step in episode], freq_hz=10)
-pose_trajectory.plot()
-
-# Apply a low-pass filter to the trajectory
-filtered_trajectory = pose_trajectory.low_pass_filter(cutoff_freq=2)
-filtered_trajectory.plot()
-
-# Prepare data for finetuning
-def prepare_for_finetuning(step):
-    return {
-        "image": step.image.image,
-        "instruction": step.image.task,
-        "action": HandControl(pose=step.action.pose, grasp=step.action.grasp).numpy()
-    }
-
-finetuning_data = [prepare_for_finetuning(step) for step in filtered_episode]
-
-# Load pre-trained models and processors
-model_name = "openvla/openvla-7b"
-tokenizer = AutoTokenizer.from_pretrained(model_name)
-model = AutoModelForVision2Seq.from_pretrained(model_name)
-image_processor = AutoFeatureExtractor.from_pretrained(model_name)
-
-# Tokenize and process the dataset
-def preprocess_function(examples):
-    inputs = tokenizer(examples["instruction"], truncation=True, padding="max_length")
-    inputs["pixel_values"] = image_processor(examples["image"], return_tensors="pt").pixel_values
-    inputs["labels"] = torch.tensor(examples["action"])
-    return inputs
-
-tokenized_dataset = Dataset.from_list(finetuning_data).map(preprocess_function, batched=True)
-
-# Set up training arguments
-training_args = TrainingArguments(
-    output_dir="./results",
-    num_train_epochs=3,
-    per_device_train_batch_size=8,
-    per_device_eval_batch_size=8,
-    warmup_steps=500,
-    weight_decay=0.01,
-    logging_dir="./logs",
-)
-
-# Create Trainer instance
-trainer = Trainer(
-    model=model,
-    args=training_args,
-    train_dataset=tokenized_dataset,
-)
-
-# Finetune the model
-trainer.train()
-
-# Save the finetuned model
-model.save_pretrained("./finetuned_openvla")
-tokenizer.save_pretrained("./finetuned_openvla")
-image_processor.save_pretrained("./finetuned_openvla")
-
-print("Finetuning complete. Model saved to ./finetuned_openvla")
-```
-
-This example showcases:
-1. Downloading the dataset from the specified repository
-2. Processing the data using `VisionMotorStep`, `ImageTask`, and `Motion` classes from embdata
-3. Creating an `Episode` from the processed data
-4. Visualizing the data using `episode.show()`
-5. Extracting and visualizing action trajectories using the `Trajectory` class, and applying a low-pass filter
-6. Preparing the data for finetuning a robotics transformer
-7. Loading pre-trained models and processors for image and text inputs
-8. Tokenizing and processing the dataset for the model
-9. Setting up training arguments
-10. Creating a Trainer instance
-11. Finetuning the model
-12. Saving the finetuned model, tokenizer, and feature extractor
-
-This example provides a comprehensive demonstration of using embdata for finetuning a robotics transformer model.
 
 </details>
 
@@ -629,13 +436,13 @@ This example provides a comprehensive demonstration of using embdata for finetun
 
 The `Episode` class provides a list-like interface for a sequence of observations, actions, and/or other data. It's designed to streamline exploratory data analysis and manipulation of time series data.
 
-#### Key Features
+#**Key Features**
 - List-like interface for managing sequences of data
 - Methods for appending, iterating, and splitting episodes
 - Support for metadata and frequency information
 - Integration with reinforcement learning workflows
 
-#### Usage Example
+<strong>Usage Example</strong>
 
 ```python
 from embdata import Episode, Sample
@@ -666,14 +473,14 @@ print(episode.metadata)
 print(episode.freq_hz)
 ```
 
-#### Methods
+#**Methods**
 - `append(step)`: Adds a new step to the episode
 - `iter()`: Returns an iterator over the steps in the episode
 - `split(condition)`: Splits the episode based on a given condition
 - `trajectory(field, freq_hz)`: Extracts a trajectory from the episode for a specified field
 - `filter(condition)`: Filters the episode based on a given condition
 
-#### Properties
+#**Properties**
 - `metadata`: Additional metadata for the episode
 - `freq_hz`: The frequency of the episode in Hz
 
@@ -688,13 +495,13 @@ The `Episode` class simplifies the process of working with sequential data in re
 
 The `Image` class represents an image sample that can be represented in various formats, including NumPy arrays, base64 encoded strings, file paths, PIL Images, or URLs.
 
-#### Key Features
+#**Key Features**
 - Multiple representation formats (NumPy array, base64, file path, PIL Image, URL)
 - Easy conversion between different image formats
 - Resizing and encoding capabilities
 - Integration with other data processing pipelines
 
-#### Usage Example
+#**Usage Example**
 
 ```python
 from embdata import Image
@@ -733,13 +540,13 @@ print(nested_data["image"].size)  # Output: (1, 1)
 print(nested_data["metadata"]["text"])  # Output: A small red square
 ```
 
-#### Methods
+#**Methods**
 - `open(path)`: Opens an image from a file path
 - `save(path, encoding, quality)`: Saves the image to a file
 - `show()`: Displays the image using matplotlib
 - `from_base64(base64_str, encoding, size, make_rgb)`: Creates an Image instance from a base64 string
 
-#### Properties
+#**Properties**
 - `array`: The image as a NumPy array
 - `base64`: The image as a base64 encoded string
 - `path`: The file path of the image
@@ -759,13 +566,13 @@ The `Image` class provides a convenient interface for working with image data in
 
 The `Sample` class is a base model for serializing, recording, and manipulating arbitrary data. It provides a flexible and extensible way to handle complex data structures, including nested objects, arrays, and various data types.
 
-#### Key Features
+#**Key Features**
 - Serialization and deserialization of complex data structures
 - Flattening and unflattening of nested structures
 - Conversion between different formats (e.g., dict, numpy arrays, torch tensors)
 - Integration with machine learning frameworks and gym spaces
 
-#### Usage Example
+#**Usage Example**
 
 ```python
 from embdata import Sample
@@ -805,7 +612,7 @@ nested_schema = nested_sample.schema()
 print(nested_schema)
 ```
 
-#### Methods
+#**Methods**
 - `flatten(output_type="list", non_numerical="allow", ignore=None, sep=".", to=None)`: Flattens the Sample instance into a one-dimensional structure
 - `unflatten(one_d_array_or_dict, schema=None)`: Unflattens a one-dimensional array or dictionary into a Sample instance
 - `to(container)`: Converts the Sample instance to a different container type
@@ -824,13 +631,13 @@ The `Sample` class provides a wide range of functionality for data manipulation,
 
 The `Trajectory` class represents a trajectory of steps, typically used for time series of multidimensional data such as robot movements or sensor readings.
 
-#### Key Features
+#**Key Features**
 - Representation of time series data with optional frequency information
 - Methods for statistical analysis, visualization, and manipulation
 - Support for resampling and filtering operations
 - Transformation and normalization capabilities
 
-#### Usage Example
+#**Usage Example**
 
 ```python
 import numpy as np
@@ -871,7 +678,7 @@ normalized_traj = traj.transform('minmax')
 normalized_traj.plot().show()
 ```
 
-#### Methods
+#**Methods**
 - `plot()`: Plot the trajectory
 - `stats()`: Compute statistics for the trajectory
 - `low_pass_filter(cutoff_freq)`: Apply a low-pass filter to the trajectory
@@ -892,7 +699,7 @@ normalized_traj.plot().show()
 - `lower_quartile()`, `median()`, `upper_quartile()`: Quartile values
 - `non_zero_count()`, `zero_count()`: Count non-zero and zero values
 
-#### Properties
+#**Properties**
 - `array`: The trajectory data as a NumPy array
 - `freq_hz`: The frequency of the trajectory in Hz
 - `time_idxs`: The time index of each step in the trajectory
@@ -909,12 +716,12 @@ The `Trajectory` class offers comprehensive methods for analyzing, visualizing, 
 
 The `Motion` class is a base class for defining motion-related data structures. It extends the `Coordinate` class and provides a foundation for creating motion-specific data models.
 
-#### Key Features
+#**Key Features**
 - Base class for motion-specific data models
 - Integration with MotionField and its variants for proper validation and type checking
 - Support for defining bounds and motion types
 
-#### Usage Example
+#**Usage Example**
 
 ```python
 from embdata.motion import Motion
@@ -955,10 +762,10 @@ print(robot_motion)
 # Output: RobotMotion(twist=Twist(x=0.2, y=0.1, z=0.0, roll=0.0, pitch=0.0, yaw=0.1), gripper=0.5)
 ```
 
-#### Methods
+#**Methods**
 - `validate_shape()`: Validates the shape of the motion data
 
-#### Fields
+#**Fields**
 - `MotionField`: Creates a field for a motion with specified properties
 - `AbsoluteMotionField`: Field for an absolute motion
 - `RelativeMotionField`: Field for a relative motion
@@ -982,12 +789,12 @@ The `Motion` class provides a flexible foundation for creating motion-specific d
 
 The `AnyMotionControl` class is a subclass of `Motion` that allows for arbitrary fields with minimal validation. It's designed for motion control with flexible structure.
 
-#### Key Features
+#**Key Features**
 - Allows arbitrary fields
 - Minimal validation compared to `Motion`
 - Includes optional `names` and `joints` fields
 
-#### Usage Example
+#**Usage Example**
 
 ```python
 from embdata.motion import AnyMotionControl
@@ -1007,10 +814,10 @@ except ValueError as e:
     print(f"Validation error: {e}")
 ```
 
-#### Methods
+#**Methods**
 - `validate_joints()`: Validates that the number of joints matches the number of names and that all joints are numbers
 
-#### Fields
+#**Fields**
 - `names`: Optional list of joint names
 - `joints`: Optional list of joint values
 
@@ -1025,12 +832,12 @@ The `AnyMotionControl` class provides a flexible structure for motion control da
 
 The `HandControl` class represents an action for a 7D space, including the pose of a robot hand and its grasp state.
 
-#### Key Features
+#**Key Features**
 - Representation of robot hand pose and grasp state
 - Integration with other motion control classes
 - Support for complex nested structures
 
-#### Usage Example
+#**Usage Example**
 
 ```python
 from embdata.geometry import Pose
@@ -1067,7 +874,7 @@ print(robot_control.hand.pose.position)  # Output: [0.1, 0.2, 0.3]
 print(robot_control.velocity)  # Output: 0.3
 ```
 
-#### Attributes
+#**Attributes**
 - `pose` (Pose): The pose of the robot hand, including position and orientation.
 - `grasp` (float): The openness of the robot hand, ranging from 0 (closed) to 1 (open).
 
@@ -1082,7 +889,7 @@ The `HandControl` class allows for easy manipulation and representation of robot
 
 The `AbsoluteHandControl` class represents an action for a 7D space with absolute positioning, including the pose of a robot hand and its grasp state.
 
-#### Attributes
+#**Attributes**
 - `pose` (Pose): The absolute pose of the robot hand, including position and orientation.
 - `grasp` (float): The openness of the robot hand, ranging from -1 (closed) to 1 (open).
 
@@ -1095,7 +902,7 @@ The `AbsoluteHandControl` class represents an action for a 7D space with absolut
 
 The `RelativePoseHandControl` class represents an action for a 7D space with relative positioning for the pose and absolute positioning for the grasp.
 
-#### Attributes
+#**Attributes**
 - `pose` (Pose): The relative pose of the robot hand, including position and orientation.
 - `grasp` (float): The openness of the robot hand, ranging from -1 (closed) to 1 (open).
 
@@ -1108,7 +915,7 @@ The `RelativePoseHandControl` class represents an action for a 7D space with rel
 
 The `HeadControl` class represents the control for a robot's head movement.
 
-#### Attributes
+#**Attributes**
 - `tilt` (float): Tilt of the robot head in radians (down is negative).
 - `pan` (float): Pan of the robot head in radians (left is negative).
 
@@ -1121,7 +928,7 @@ The `HeadControl` class represents the control for a robot's head movement.
 
 The `MobileSingleHandControl` class represents control for a robot that can move its base in 2D space with a 6D EEF control and grasp.
 
-#### Attributes
+#**Attributes**
 - `base` (PlanarPose | None): Location of the robot on the ground.
 - `hand` (HandControl | None): Control for the robot hand.
 - `head` (HeadControl | None): Control for the robot head.
@@ -1135,7 +942,7 @@ The `MobileSingleHandControl` class represents control for a robot that can move
 
 The `MobileSingleArmControl` class represents control for a robot that can move in 2D space with a single arm.
 
-#### Attributes
+#**Attributes**
 - `base` (PlanarPose | None): Location of the robot on the ground.
 - `arm` (NumpyArray | None): Control for the robot arm.
 - `head` (HeadControl | None): Control for the robot head.
@@ -1149,7 +956,7 @@ The `MobileSingleArmControl` class represents control for a robot that can move 
 
 The `MobileBimanualArmControl` class represents control for a robot that can move in 2D space with two arms.
 
-#### Attributes
+#**Attributes**
 - `base` (PlanarPose | None): Location of the robot on the ground.
 - `left_arm` (NumpyArray | None): Control for the left robot arm.
 - `right_arm` (NumpyArray | None): Control for the right robot arm.
@@ -1164,7 +971,7 @@ The `MobileBimanualArmControl` class represents control for a robot that can mov
 
 The `HumanoidControl` class represents control for a humanoid robot.
 
-#### Attributes
+#**Attributes**
 - `left_arm` (NumpyArray | None): Control for the left robot arm.
 - `right_arm` (NumpyArray | None): Control for the right robot arm.
 - `left_leg` (NumpyArray | None): Control for the left robot leg.
