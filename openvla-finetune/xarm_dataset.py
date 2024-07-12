@@ -55,23 +55,17 @@ class XarmDataset(IterableDataset):
             transform.append(transforms.RandomErasing(p=0.5, scale=(0.02, 0.2), ratio=(0.2, 2.0), value=0, inplace=False))
             self.transform = transforms.Compose(transform)
 
-    def normalize_action(self, action):
-        action_control = HandControl(**action)
-        normalized_action = self.action_trajectory.make_minmax(min=-1, max=1).unflatten(action_control.flatten())
-        return normalized_action.flatten()
-
     def __iter__(self):
-        for data in self.dataset:
+        episode = Episode(self.dataset)
+        normalized_trajectory = episode.trajectory().transform("minmax", min=-1, max=1)
+        
+        for data, normalized_action in zip(self.dataset, normalized_trajectory, strict=True):
             image = data["observation"]["image"]
             if self.image_augmentation:
                 image = self.transform(image)
                 image = transforms.ToPILImage()(image)
             instruction = data["observation"]["instruction"]
-            action = data["action"]
             
-            # Normalize the action
-            normalized_action = self.normalize_action(action)
-
             prompt_builder = self.prompt_builder_fn("openvla")
             conversation = [
                 {
