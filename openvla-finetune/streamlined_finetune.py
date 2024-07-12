@@ -55,9 +55,6 @@ class StreamlinedDataset(Episode):
         self.action_trajectory = self.trajectory(field="action")
         self.dataset_statistics = self.action_trajectory.stats()
 
-    def normalize_action(self, action: np.ndarray) -> np.ndarray:
-        return self.action_trajectory.transform("minmax", min=-1, max=1).numpy()
-
     def process_sample(self, data: Dict[str, Any]) -> VisionMotorStep:
         image = data["observation"]["image"]
         if self.image_augmentation:
@@ -67,20 +64,8 @@ class StreamlinedDataset(Episode):
             image=image,
             task=data["observation"]["instruction"]
         )
-        action = np.array([
-            data["action"]["pose"]["x"],
-            data["action"]["pose"]["y"],
-            data["action"]["pose"]["z"],
-            data["action"]["pose"]["roll"],
-            data["action"]["pose"]["pitch"],
-            data["action"]["pose"]["yaw"],
-            data["action"]["grasp"],
-        ])
-        normalized_action = self.normalize_action(action)
-        action = HandControl(
-            pose=normalized_action[:6],
-            grasp=normalized_action[6]
-        )
+        action = HandControl(data["action"])
+        action = self.action_trajectory.transform("minmax", min=-1, max=1)
         return VisionMotorStep(observation=observation, action=action)
 
     def __iter__(self):
