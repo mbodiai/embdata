@@ -3,10 +3,12 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, List, Dict
 import torch
+import numpy as np
 from transformers import AutoModelForVision2Seq, AutoProcessor, TrainingArguments, Trainer
 from peft import LoraConfig, get_peft_model, prepare_model_for_kbit_training
 import wandb
 from datasets import load_dataset
+from torchvision import transforms
 
 from embdata.sample import Sample
 from embdata.episode import Episode, VisionMotorStep, ImageTask
@@ -35,17 +37,58 @@ class FinetuneConfig:
     lr_scheduler_type: str = "constant"
 
 class StreamlinedDataset(Episode):
-    def __init__(self, dataset_name: str, split: str):
+    def __init__(self, dataset_name: str, split: str, image_augmentation: bool = False):
         super().__init__(load_dataset(dataset_name, split=split, streaming=True))
+        self.image_augmentation = image_augmentation
+        if self.image_augmentation:
+            self.transform = transforms.Compose([
+                transforms.ToTensor(),
+                transforms.RandomApply([
+                    transforms.RandomResizedCrop(224, scale=(0.8, 1.0)),
+                    transforms.ColorJitter(brightness=0.1, contrast=0.1, saturation=0.1, hue=0.05),
+                ]),
+                transforms.RandomErasing(p=0.5, scale=(0.02, 0.2), ratio=(0.2, 2.0), value=0, inplace=False),
+                transforms.ToPILImage()
+            ])
+        
+        # Define dataset statistics for normalization
+        self.dataset_statistics = {
+            "min": np.array([-0.07074, -0.10867, -0.08653, -6.28318977, -0.33160999, -0.33950999, 0.0]),
+            "max": np.array([0.10836, 0.10925, 0.10709, 6.28318977, 0.14999001, 0.33197999, 1.0]),
+            "q01": np.array([-0.0504155, -0.1054613, -0.08275, -6.28318977, -0.0226686, -0.33344679, 0.0]),
+            "q99": np.array([0.0992138, 0.1063098, 0.0832235, 6.28318977, 0.0, 0.2959943, 1.0]),
+        }
+
+    def normalize_action(self, action: np.ndarray) -> np.ndarray:
+        q01 = self.dataset_statistics['q01'][:-1]
+        q99 = self.dataset_statistics['q99'][:-1]
+        normalized_action = 2 * (action[:-1] - q01) / (q99 - q01 + 1e-8) - 1
+        normalized_action = np.clip(normalized_action, -1, 1)
+        normalized_action = np.append(normalized_action, action[-1])
+        return normalized_action
 
     def process_sample(self, data: Dict[str, Any]) -> VisionMotorStep:
+        image = data["observation"]["image"]
+        if self.image_augmentation:
+            image = self.transform(image)
+        
         observation = ImageTask(
-            image=data["observation"]["image"],
+            image=image,
             task=data["observation"]["instruction"]
         )
+        action = np.array([
+            data["action"]["pose"]["x"],
+            data["action"]["pose"]["y"],
+            data["action"]["pose"]["z"],
+            data["action"]["pose"]["roll"],
+            data["action"]["pose"]["pitch"],
+            data["action"]["pose"]["yaw"],
+            data["action"]["grasp"],
+        ])
+        normalized_action = self.normalize_action(action)
         action = HandControl(
-            pose=data["action"]["pose"],
-            grasp=data["action"]["grasp"]
+            pose=normalized_action[:6],
+            grasp=normalized_action[6]
         )
         return VisionMotorStep(observation=observation, action=action)
 
@@ -111,7 +154,7 @@ def main(cfg: FinetuneConfig):
         vla.print_trainable_parameters()
 
     action_tokenizer = ActionTokenizer(processor.tokenizer)
-    dataset = StreamlinedDataset(cfg.dataset_name, cfg.split)
+    dataset = StreamlinedDataset(cfg.dataset_name, cfg.split, image_augmentation=cfg.image_augmentation)
 
     training_args = TrainingArguments(
         output_dir=cfg.run_root_dir,
