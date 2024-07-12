@@ -726,3 +726,38 @@ class Motion(Coordinate):
 ```
 
 </details>
+## Classes
+
+<details>
+<summary>HandControl</summary>
+
+```python
+class HandControl(Motion):
+    """Action for a 7D space representing x, y, z, roll, pitch, yaw, and openness of the hand.
+
+    This class represents the control for a robot hand, including its pose and grasp state.
+
+    Attributes:
+        pose (Pose): The pose of the robot hand, including position and orientation.
+        grasp (float): The openness of the robot hand, ranging from 0 (closed) to 1 (open).
+
+    Example:
+        ```python
+        from embdata.geometry import Pose
+        from embdata.motion.control import HandControl
+
+        # Create a HandControl instance
+        hand_control = HandControl(
+            pose=Pose(position=[0.1, 0.2, 0.3], orientation=[0, 0, 0, 1]),
+            grasp=0.5
+        )
+
+        # Access and modify the hand control
+        print(hand_control.pose.position)  # Output: [0.1, 0.2, 0.3]
+        hand_control.grasp = 0.8
+        print(hand_control.grasp)  # Output: 0.8
+        ```
+    """
+```
+
+</details>
