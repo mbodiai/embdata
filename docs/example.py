@@ -16,13 +16,16 @@ def process_example(example):
             "data.pickle.steps.is_terminal"
         ]
     )
-    return {
+    print("Flattened output:", flattened)
+    result = {
         "image": flattened[0]["data.pickle.steps.observation.image.bytes"],
         "instruction": flattened[0]["data.pickle.steps.observation.natural_language_instruction"],
         "action": flattened[0]["data.pickle.steps.action"],
         "reward": flattened[0]["data.pickle.steps.reward"],
         "is_terminal": flattened[0]["data.pickle.steps.is_terminal"]
     }
+    print("Processed example result:", result)
+    return result
 
 class GPT2CLIP(nn.Module):
     def __init__(self, num_actions):
