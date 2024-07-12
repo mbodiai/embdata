@@ -836,3 +836,66 @@ print(rotation_matrix)
 #  [ 1.  0.  0.]
 #  [ 0.  0.  1.]]
 ```
+## Geometry Module
+
+The `embdata.geometry` module provides classes for representing geometric data in cartesian and polar coordinates.
+
+### Classes
+
+#### CoordinateField
+
+A function to create a Pydantic Field with extra metadata for coordinates.
+
+#### Coordinate
+
+A base class for representing coordinates in an arbitrary space.
+
+Methods:
+- `convert_linear_unit(value: float, from_unit: str, to_unit: str) -> float`
+- `convert_angular_unit(value: float, from_unit: str, to_unit: str) -> float`
+- `validate_bounds()`
+
+#### Pose3D
+
+Represents absolute coordinates for a 3D space (x, y, theta).
+
+Methods:
+- `to(container_or_unit=None, unit="m", angular_unit="rad", **kwargs) -> Any`
+
+#### Pose6D
+
+Represents absolute coordinates for a 6D space (x, y, z, roll, pitch, yaw).
+
+Methods:
+- `to(container_or_unit=None, sequence="zyx", unit="m", angular_unit="rad", **kwargs) -> Any`
+- `get_quaternion(sequence="zyx") -> np.ndarray`
+- `get_rotation_matrix(sequence="zyx") -> np.ndarray`
+
+### Usage
+
+```python
+import math
+from embdata.geometry import Pose3D, Pose6D
+
+# Create a 3D pose
+pose_3d = Pose3D(x=1, y=2, theta=math.pi / 2)
+print(pose_3d)  # Pose3D(x=1.0, y=2.0, theta=1.5707963267948966)
+
+# Convert to centimeters
+pose_3d_cm = pose_3d.to("cm")
+print(pose_3d_cm)  # Pose3D(x=100.0, y=200.0, theta=1.5707963267948966)
+
+# Create a 6D pose
+pose_6d = Pose6D(x=1, y=2, z=3, roll=0, pitch=0, yaw=math.pi / 2)
+
+# Get quaternion representation
+quaternion = pose_6d.get_quaternion()
+print(quaternion)  # [0. 0. 0.70710678 0.70710678]
+
+# Get rotation matrix
+rotation_matrix = pose_6d.get_rotation_matrix()
+print(rotation_matrix)
+# [[ 0. -1.  0.]
+#  [ 1.  0.  0.]
+#  [ 0.  0.  1.]]
+```
