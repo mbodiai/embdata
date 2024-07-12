@@ -374,7 +374,6 @@ filtered_traj.plot().show()
 ```
 
 </details>
-## Classes
 
 <details>
 <summary><strong>Pose3D</strong></summary>
@@ -421,7 +420,6 @@ print(pose_dict)  # Output: {'x': 1.0, 'y': 2.0, 'theta': 1.5707963267948966}
 ```
 
 </details>
-## Classes
 
 <details>
 <summary><strong>Sample</strong></summary>
@@ -487,89 +485,6 @@ print(nested_schema)
 ```
 
 </details>
-## API Reference
-
-<details>
-<summary>to_features_dict</summary>
-
-```python
-def to_features_dict(indict: Any, exclude_keys: set | None = None) -> Dict[str, Any]:
-    """
-    Convert a dictionary to a Datasets Features object.
-
-    This function recursively converts a nested dictionary into a format compatible with
-    Hugging Face Datasets' Features. It handles various data types including strings,
-    integers, floats, lists, and PIL Images.
-
-    Args:
-        indict: The input to convert. Can be a dictionary, string, int, float, list, tuple, numpy array, or PIL Image.
-        exclude_keys: A set of keys to exclude from the conversion. Defaults to None.
-
-    Returns:
-        A dictionary representation of the Features object for Hugging Face Datasets.
-
-    Raises:
-        ValueError: If an empty list is provided or if the input type is not supported.
-
-    Examples:
-        Simple dictionary conversion:
-        >>> to_features_dict({"name": "Alice", "age": 30})
-        {'name': Value(dtype='string', id=None), 'age': Value(dtype='int64', id=None)}
-
-        List conversion:
-        >>> to_features_dict({"scores": [85, 90, 95]})
-        {'scores': [Value(dtype='int64', id=None)]}
-
-        Numpy array conversion:
-        >>> import numpy as np
-        >>> to_features_dict({"data": np.array([1, 2, 3])})
-        {'data': [Value(dtype='int64', id=None)]}
-
-        PIL Image conversion:
-        >>> from PIL import Image
-        >>> img = Image.new("RGB", (60, 30), color="red")
-        >>> to_features_dict({"image": img})
-        {'image': Image(decode=True, id=None)}
-
-        Nested structure with image and text:
-        >>> complex_data = {
-        ...     "user_info": {
-        ...         "name": "John Doe",
-        ...         "age": 28
-        ...     },
-        ...     "posts": [
-        ...         {
-        ...             "text": "Hello, world!",
-        ...             "image": Image.new("RGB", (100, 100), color="blue"),
-        ...             "likes": 42
-        ...         },
-        ...         {
-        ...             "text": "Another post",
-        ...             "image": Image.new("RGB", (200, 150), color="green"),
-        ...             "likes": 17
-        ...         }
-        ...     ]
-        ... }
-        >>> features = to_features_dict(complex_data)
-        >>> features
-        {
-            'user_info': {
-                'name': Value(dtype='string', id=None),
-                'age': Value(dtype='int64', id=None)
-            },
-            'posts': [
-                {
-                    'text': Value(dtype='string', id=None),
-                    'image': Image(decode=True, id=None),
-                    'likes': Value(dtype='int64', id=None)
-                }
-            ]
-        }
-    """
-```
-
-</details>
-## Classes
 
 <details>
 <summary><strong>Image</strong></summary>
@@ -636,7 +551,6 @@ print(nested_data["metadata"]["text"])  # Output: A small red square
 ```
 
 </details>
-## Classes
 
 <details>
 <summary><strong>Motion</strong></summary>
@@ -698,6 +612,138 @@ print(robot_motion)
 Note: The Motion class is designed to work with complex nested structures.
 It can handle various types of motion data, including images and text,
 as long as they are properly defined using the appropriate MotionFields.
+
+</details>
+
+<details>
+<summary><strong>HandControl</strong></summary>
+
+### HandControl
+
+Action for a 7D space representing x, y, z, roll, pitch, yaw, and openness of the hand.
+
+This class represents the control for a robot hand, including its pose and grasp state.
+
+#### Attributes:
+- `pose` (Pose): The pose of the robot hand, including position and orientation.
+- `grasp` (float): The openness of the robot hand, ranging from 0 (closed) to 1 (open).
+
+#### Example:
+```python
+from embdata.geometry import Pose
+from embdata.motion.control import HandControl
+
+# Create a HandControl instance
+hand_control = HandControl(
+    pose=Pose(position=[0.1, 0.2, 0.3], orientation=[0, 0, 0, 1]),
+    grasp=0.5
+)
+
+# Access and modify the hand control
+print(hand_control.pose.position)  # Output: [0.1, 0.2, 0.3]
+hand_control.grasp = 0.8
+print(hand_control.grasp)  # Output: 0.8
+
+# Example with complex nested structure
+from embdata.motion import Motion
+from embdata.motion.fields import VelocityMotionField
+
+class RobotControl(Motion):
+    hand: HandControl
+    velocity: float = VelocityMotionField(default=0.0, bounds=[0.0, 1.0])
+
+robot_control = RobotControl(
+    hand=HandControl(
+        pose=Pose(position=[0.1, 0.2, 0.3], orientation=[0, 0, 0, 1]),
+        grasp=0.5
+    ),
+    velocity=0.3
+)
+
+print(robot_control.hand.pose.position)  # Output: [0.1, 0.2, 0.3]
+print(robot_control.velocity)  # Output: 0.3
+```
+
+</details>
+
+<details>
+<summary><strong>to_features_dict</strong></summary>
+
+### to_features_dict
+
+Convert a dictionary to a Datasets Features object.
+
+This function recursively converts a nested dictionary into a format compatible with
+Hugging Face Datasets' Features. It handles various data types including strings,
+integers, floats, lists, and PIL Images.
+
+#### Arguments:
+- `indict`: The input to convert. Can be a dictionary, string, int, float, list, tuple, numpy array, or PIL Image.
+- `exclude_keys`: A set of keys to exclude from the conversion. Defaults to None.
+
+#### Returns:
+A dictionary representation of the Features object for Hugging Face Datasets.
+
+#### Raises:
+ValueError: If an empty list is provided or if the input type is not supported.
+
+#### Examples:
+```python
+# Simple dictionary conversion
+to_features_dict({"name": "Alice", "age": 30})
+# Output: {'name': Value(dtype='string', id=None), 'age': Value(dtype='int64', id=None)}
+
+# List conversion
+to_features_dict({"scores": [85, 90, 95]})
+# Output: {'scores': [Value(dtype='int64', id=None)]}
+
+# Numpy array conversion
+import numpy as np
+to_features_dict({"data": np.array([1, 2, 3])})
+# Output: {'data': [Value(dtype='int64', id=None)]}
+
+# PIL Image conversion
+from PIL import Image
+img = Image.new("RGB", (60, 30), color="red")
+to_features_dict({"image": img})
+# Output: {'image': Image(decode=True, id=None)}
+
+# Nested structure with image and text
+complex_data = {
+    "user_info": {
+        "name": "John Doe",
+        "age": 28
+    },
+    "posts": [
+        {
+            "text": "Hello, world!",
+            "image": Image.new("RGB", (100, 100), color="blue"),
+            "likes": 42
+        },
+        {
+            "text": "Another post",
+            "image": Image.new("RGB", (200, 150), color="green"),
+            "likes": 17
+        }
+    ]
+}
+features = to_features_dict(complex_data)
+print(features)
+# Output:
+# {
+#     'user_info': {
+#         'name': Value(dtype='string', id=None),
+#         'age': Value(dtype='int64', id=None)
+#     },
+#     'posts': [
+#         {
+#             'text': Value(dtype='string', id=None),
+#             'image': Image(decode=True, id=None),
+#             'likes': Value(dtype='int64', id=None)
+#         }
+#     ]
+# }
+```
 
 </details>
 ## Classes
