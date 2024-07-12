@@ -10,21 +10,11 @@ from typing import Callable, Dict, Sequence, Tuple
 import torch
 from torch.nn.utils.rnn import pad_sequence
 
+from embdata.sample import Sample
+from embdata.trajectory import Trajectory
+
 # HuggingFace Default / LLaMa-2 IGNORE_INDEX (for labels)
 IGNORE_INDEX = -100
-
-
-def tree_map(fn: Callable, tree: dict) -> dict:
-    """Maps a function over a nested dictionary."""
-    return {k: tree_map(fn, v) if isinstance(v, dict) else fn(v) for k, v in tree.items()}
-
-
-def tree_map_with_key(fn: Callable, tree: dict, keys: Sequence = ()) -> dict:
-    """Maps a function over a nested dictionary."""
-    return {
-        k: tree_map_with_key(fn, v, (*keys, k)) if isinstance(v, dict) else fn((*keys, k), v) for k, v in tree.items()
-    }
-
 
 @dataclass
 class PaddedCollatorForLanguageModeling:

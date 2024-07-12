@@ -12,25 +12,11 @@ from torchvision import transforms
 
 from prompter import PromptBuilder, PurePromptBuilder
 from tokenizer import ActionTokenizer
+from embdata.trajectory import Trajectory
+from embdata.episode import Episode, TimeStep
+from embdata.sample import Sample
 
 IGNORE_INDEX = -100
-
-# def calculate_dataset_statistics(dataset):
-#     # TODO: Use mbodied_data
-#     episode = Episode(steps=[])
-#     for data in dataset:
-#         episode.append(TimeStep(observation=data["observation"], action=data["action"]))
-#     traj = episode.trajectory()
-#     return{
-#         "min": traj.min().to("np"),
-#         "max": traj.max().to("np"),
-#         "mean": traj.mean().to("np"),
-#         "q01": traj.q01().to("np"),
-#         "q99": traj.q99().to("np"),
-#         "std": traj.std().to("np"),
-#     }
-
-from embdata.trajectory import Trajectory
 
 class XarmDataset(IterableDataset):
     def __init__(
@@ -51,9 +37,9 @@ class XarmDataset(IterableDataset):
             dataset_name, split=split, streaming=True, trust_remote_code=True
         )
         
-        # Calculate dataset statistics using Trajectory
-        actions = [np.array(list(sample['action']['pose'].values()) + [sample['action']['grasp']]) for sample in self.dataset]
-        trajectory = Trajectory(actions)
+        # Calculate dataset statistics using Episode and Trajectory
+        episode = Episode(steps=[TimeStep(action=Sample(**sample['action'])) for sample in self.dataset])
+        trajectory = episode.trajectory(field="action")
         self.dataset_statistics = trajectory.stats()
         
         self.image_augmentation = image_augmentation
@@ -63,19 +49,18 @@ class XarmDataset(IterableDataset):
                 transforms.RandomApply([
                     transforms.RandomResizedCrop(224, scale=(0.8, 1.0)),
                     transforms.ColorJitter(brightness=0.1, contrast=0.1, saturation=0.1, hue=0.05),
-                    # transforms.RandomPerspective(distortion_scale=0.5, p=0.5),
                 ])
             ]
             transform.append(transforms.RandomErasing(p=0.5, scale=(0.02, 0.2), ratio=(0.2, 2.0), value=0, inplace=False))
             self.transform = transforms.Compose(transform)
 
     def normalize_action(self, action):
-        q01 = self.dataset_statistics.q01()[:-1]
-        q99 = self.dataset_statistics.q99()[:-1]
-        normalized_action = 2 * (action[:-1] - q01) / (q99 - q01 + 1e-8) - 1
-        normalized_action = np.clip(normalized_action, -1, 1)
-        # Append the grasp value without normalization
-        normalized_action = np.append(normalized_action, action[-1])
+        action_sample = Sample(**action)
+        normalized_action = action_sample.flatten()
+        q01 = self.dataset_statistics.q01()
+        q99 = self.dataset_statistics.q99()
+        normalized_action[:-1] = 2 * (normalized_action[:-1] - q01[:-1]) / (q99[:-1] - q01[:-1] + 1e-8) - 1
+        normalized_action[:-1] = np.clip(normalized_action[:-1], -1, 1)
         return normalized_action
 
     def __iter__(self):
@@ -85,17 +70,8 @@ class XarmDataset(IterableDataset):
                 image = self.transform(image)
                 image = transforms.ToPILImage()(image)
             instruction = data["observation"]["instruction"]
-            action = np.array(
-                [
-                    data["action"]["pose"]["x"],
-                    data["action"]["pose"]["y"],
-                    data["action"]["pose"]["z"],
-                    data["action"]["pose"]["roll"],
-                    data["action"]["pose"]["pitch"],
-                    data["action"]["pose"]["yaw"],
-                    data["action"]["grasp"],
-                ]
-            )
+            action = data["action"]
+            
             # Normalize the action
             normalized_action = self.normalize_action(action)
 
