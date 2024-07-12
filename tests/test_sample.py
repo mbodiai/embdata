@@ -248,7 +248,45 @@ def test_dict_shallow():
     assert sample.dict(recurse=False) == {"x": 1, "y": 2, "z": Sample({"a": 3, "b": 4}), "extra_field": 5}
 
 
-if __name__ == "__main__":
+def test_flatten_with_to_multiple_keys():
+    sample = Sample(
+        a=1,
+        b={"c": 2, "d": [3, 4]},
+        e=Sample(f=5, g={"h": 6, "i": 7})
+    )
+    flattened = sample.flatten(to={"a", "b.c", "b.d", "e.g.h"})
+    expected = [1, 2, 3, 4, 6]
+    assert flattened == expected, f"Expected {expected}, but got {flattened}"
+
+def test_flatten_with_to_np_output():
+    sample = Sample(
+        a=1,
+        b={"c": 2, "d": [3, 4]},
+        e=Sample(f=5, g={"h": 6, "i": 7})
+    )
+    flattened = sample.flatten(output_type="np", to={"a", "b.c", "e.g.h"})
+    expected = np.array([1, 2, 6])
+    assert np.array_equal(flattened, expected), f"Expected {expected}, but got {flattened}"
+
+def test_flatten_with_to_pt_output():
+    sample = Sample(
+        a=1,
+        b={"c": 2, "d": [3, 4]},
+        e=Sample(f=5, g={"h": 6, "i": 7})
+    )
+    flattened = sample.flatten(output_type="pt", to={"a", "b.c", "e.g.h"})
+    expected = torch.tensor([1, 2, 6])
+    assert torch.equal(flattened, expected), f"Expected {expected}, but got {flattened}"
+
+def test_flatten_with_to_dict_output():
+    sample = Sample(
+        a=1,
+        b={"c": 2, "d": [3, 4]},
+        e=Sample(f=5, g={"h": 6, "i": 7})
+    )
+    flattened = sample.flatten(output_type="dict", to={"a", "b.c", "e.g.h"})
+    expected = [{"a": 1, "b.c": 2, "e.g.h": 6}]
+    assert flattened == expected, f"Expected {expected}, but got {flattened}"
     pytest.main([__file__, "-vv"])
 import pytest
 from embdata.sample import Sample
