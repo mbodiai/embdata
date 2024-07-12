@@ -30,6 +30,8 @@ IGNORE_INDEX = -100
 #         "std": traj.std().to("np"),
 #     }
 
+from embdata.trajectory import Trajectory
+
 class XarmDataset(IterableDataset):
     def __init__(
         self,
@@ -48,16 +50,12 @@ class XarmDataset(IterableDataset):
         self.dataset = load_dataset(
             dataset_name, split=split, streaming=True, trust_remote_code=True
         )
-        # [X,Y,Z,R,P,Y,Grasp]
-        # self.dataset_statistics = calculate_dataset_statistics(self.dataset)
-        self.dataset_statistics = {
-            "min": np.array([-0.07074, -0.10867, -0.08653, -6.28318977, -0.33160999, -0.33950999, 0.0]),
-            "max": np.array([0.10836, 0.10925, 0.10709, 6.28318977, 0.14999001, 0.33197999, 1.0]),
-            "mean": np.array([7.04869162e-03, -4.47613717e-03, -5.16619937e-03, -2.72256749e-05, -2.37738316e-03, -4.07056037e-04, 6.07476636e-01]),
-            "q01": np.array([-0.0504155, -0.1054613, -0.08275, -6.28318977, -0.0226686, -0.33344679, 0.0]),
-            "q99": np.array([0.0992138, 0.1063098, 0.0832235, 6.28318977, 0.0, 0.2959943, 1.0]),
-            "std": np.array([0.02512313, 0.03886214, 0.03429312, 2.80552305, 0.02847977, 0.07015477, 0.48831217]),
-        }
+        
+        # Calculate dataset statistics using Trajectory
+        actions = [np.array(list(sample['action']['pose'].values()) + [sample['action']['grasp']]) for sample in self.dataset]
+        trajectory = Trajectory(actions)
+        self.dataset_statistics = trajectory.stats()
+        
         self.image_augmentation = image_augmentation
         if self.image_augmentation:
             transform = [
@@ -71,10 +69,9 @@ class XarmDataset(IterableDataset):
             transform.append(transforms.RandomErasing(p=0.5, scale=(0.02, 0.2), ratio=(0.2, 2.0), value=0, inplace=False))
             self.transform = transforms.Compose(transform)
 
-
     def normalize_action(self, action):
-        q01 = self.dataset_statistics['q01'][:-1]
-        q99 = self.dataset_statistics['q99'][:-1]
+        q01 = self.dataset_statistics.q01()[:-1]
+        q99 = self.dataset_statistics.q99()[:-1]
         normalized_action = 2 * (action[:-1] - q01) / (q99 - q01 + 1e-8) - 1
         normalized_action = np.clip(normalized_action, -1, 1)
         # Append the grasp value without normalization
