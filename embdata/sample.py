@@ -340,6 +340,10 @@ class Sample(BaseModel):
         creating a flattened representation based on the specified parameters.
 
         Note: If 'pt' or 'np' is specified as the 'output_type', non-numerical values are excluded.
+        
+        When 'to' is provided, the method always returns a list or Dataset, regardless of 'output_type'.
+        If multiple `to` keys are passed, the output list is concatenated in the order of occurrence.
+        The order of elements in the flattened output is guaranteed to be consistent across calls.
 
         Parameters:
         -----------
