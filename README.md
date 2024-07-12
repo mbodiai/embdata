@@ -546,6 +546,7 @@ The `Trajectory` class represents a trajectory of steps, typically used for time
 - Representation of time series data with optional frequency information
 - Methods for statistical analysis, visualization, and manipulation
 - Support for resampling and filtering operations
+- Transformation and normalization capabilities
 
 #### Usage Example
 
@@ -581,6 +582,10 @@ print(stats.std)   # Output: [1.41421356 0.48989795]
 # Slice the trajectory
 sliced_traj = traj[1:4]
 print(sliced_traj.array)  # Output: [[1 1] [2 0] [3 1]]
+
+# Transform the trajectory
+normalized_traj = traj.transform('minmax')
+normalized_traj.plot().show()
 ```
 
 #### Methods
@@ -589,9 +594,20 @@ print(sliced_traj.array)  # Output: [[1 1] [2 0] [3 1]]
 - `low_pass_filter(cutoff_freq)`: Apply a low-pass filter to the trajectory
 - `resample(target_hz)`: Resample the trajectory to a new frequency
 - `make_relative()`: Convert the trajectory to relative actions
+- `make_absolute(initial_state)`: Convert relative actions to absolute actions
 - `frequencies()`: Plot the frequency spectrogram of the trajectory
 - `frequencies_nd()`: Plot the n-dimensional frequency spectrogram of the trajectory
-- `transform(func)`: Apply a transformation to the trajectory
+- `transform(operation, **kwargs)`: Apply a transformation to the trajectory
+- `make_minmax(min, max)`: Apply min-max normalization
+- `make_pca(whiten)`: Apply PCA transformation
+- `make_standard()`: Apply standard normalization
+- `make_unminmax(orig_min, orig_max)`: Reverse min-max normalization
+- `make_unstandard(mean, std)`: Reverse standard normalization
+- `q01()`, `q99()`: Get 1st and 99th percentiles
+- `mean()`, `variance()`, `std()`, `skewness()`, `kurtosis()`: Statistical measures
+- `min()`, `max()`: Minimum and maximum values
+- `lower_quartile()`, `median()`, `upper_quartile()`: Quartile values
+- `non_zero_count()`, `zero_count()`: Count non-zero and zero values
 
 #### Properties
 - `array`: The trajectory data as a NumPy array
@@ -599,7 +615,7 @@ print(sliced_traj.array)  # Output: [[1 1] [2 0] [3 1]]
 - `time_idxs`: The time index of each step in the trajectory
 - `dim_labels`: The labels for each dimension of the trajectory
 
-The `Trajectory` class offers methods for analyzing, visualizing, and manipulating trajectory data, making it easier to work with time series data in robotics and other applications.
+The `Trajectory` class offers comprehensive methods for analyzing, visualizing, manipulating, and transforming trajectory data, making it easier to work with time series data in robotics and other applications.
 
 </details>
 
