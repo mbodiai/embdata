@@ -87,6 +87,7 @@ target-version = "py311"
 
 [tool.ruff.lint]
 extend-unsafe-fixes = ["ALL"]
+extend-select = ["ALL"]
 # List of rules: https://docs.astral.sh/ruff/rules
 select = [
   # flake8-builtins
