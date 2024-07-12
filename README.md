@@ -7,13 +7,9 @@
 
 -----
 
-
-
 ### A good chunk of data wrangling and exploratory data analysis that just works. See [embodied-agents](https://github.com/mbodiai/embodied-agents) for real world usage.
 
-
 ## Plot, filter and transform your data with ease. On any type of data structure.
-
 
 [![Video Title](https://img.youtube.com/vi/L5JqM2_rIRM/0.jpg)](https://www.youtube.com/watch?v=L5JqM2_rIRM)
 
@@ -21,19 +17,10 @@
 
 - [embodied data](#embodied-data)
   - [Data, types, pipes, manipulation for embodied learning.](#data-types-pipes-manipulation-for-embodied-learning)
-    - [A good chunk of data wrangling and exploratory data analysis that just works. See embodied-agents for real world usage.](#a-good-chunk-of-data-wrangling-and-exploratory-data-analysis-that-just-works-see-embodied-agents-for-real-world-usage)
   - [Plot, filter and transform your data with ease. On any type of data structure.](#plot-filter-and-transform-your-data-with-ease-on-any-type-of-data-structure)
   - [Table of Contents](#table-of-contents)
   - [Installation](#installation)
-  - [Classes](#classes)
-    - [Coordinate](#coordinate)
-      - [Pose](#pose)
-    - [Episode](#episode)
-    - [Exploratory data analysis for common minmax and standardization normalization methods.](#exploratory-data-analysis-for-common-minmax-and-standardization-normalization-methods)
-    - [Upsample and downsample the trajectory to a target frequency.](#upsample-and-downsample-the-trajectory-to-a-target-frequency)
-    - [Make actions relative or absolute](#make-actions-relative-or-absolute)
-  - [Applications](#applications)
-    - [What are the grasping positions in the world frame?](#what-are-the-grasping-positions-in-the-world-frame)
+  - [Usage](#usage)
   - [License](#license)
   - [Design Decisions](#design-decisions)
   - [API Reference](#api-reference)
@@ -44,335 +31,172 @@
 pip install embdata
 ```
 
-## Classes
-
-<details>
-<summary><strong>Coordinate</strong></summary>
-
-### Coordinate
-
-A base class for representing geometric data in cartesian and polar coordinates.
-
-#### Attributes:
-- Defined by subclasses
-
-#### Methods:
-- `convert_linear_unit(value: float, from_unit: str, to_unit: str) -> float`: Convert a value from one linear unit to another.
-- `convert_angular_unit(value: float, from_unit: str, to_unit: str) -> float`: Convert a value from one angular unit to another.
-- `validate_bounds()`: Validate the bounds of the coordinate.
-
-#### Example:
-```python
-from embdata.geometry import Coordinate
-
-# This is an abstract base class, so we'll use it through its subclasses like Pose3D or Pose6D
-```
-
-</details>
-
-<details>
-<summary><strong>Pose3D</strong></summary>
-
-### Pose3D
-
-Absolute coordinates for a 3D space representing x, y, and theta.
-
-#### Attributes:
-- `x` (float): X-coordinate in meters.
-- `y` (float): Y-coordinate in meters.
-- `theta` (float): Orientation angle in radians.
-
-#### Methods:
-- `to(container_or_unit=None, unit="m", angular_unit="rad", **kwargs) -> Any`: Convert the pose to a different unit or container.
-
-#### Example:
-```python
-import math
-from embdata.geometry import Pose3D
-
-# Create a Pose3D instance
-pose = Pose3D(x=1, y=2, theta=math.pi/2)
-print(pose)  # Output: Pose3D(x=1.0, y=2.0, theta=1.5707963267948966)
-
-# Convert to centimeters
-pose_cm = pose.to("cm")
-print(pose_cm)  # Output: Pose3D(x=100.0, y=200.0, theta=1.5707963267948966)
-
-# Convert theta to degrees
-pose_deg = pose.to(angular_unit="deg")
-print(pose_deg)  # Output: Pose3D(x=1.0, y=2.0, theta=90.0)
-
-# Convert to a list
-pose_list = pose.to("list")
-print(pose_list)  # Output: [1.0, 2.0, 1.5707963267948966]
-
-# Convert to a dictionary
-pose_dict = pose.to("dict")
-print(pose_dict)  # Output: {'x': 1.0, 'y': 2.0, 'theta': 1.5707963267948966}
-```
-
-</details>
-
-<details>
-<summary><strong>Pose6D</strong></summary>
-
-### Pose6D
-
-Absolute coordinates for a 6D space representing x, y, z, roll, pitch, and yaw.
-
-#### Attributes:
-- `x` (float): X-coordinate in meters.
-- `y` (float): Y-coordinate in meters.
-- `z` (float): Z-coordinate in meters.
-- `roll` (float): Roll angle in radians.
-- `pitch` (float): Pitch angle in radians.
-- `yaw` (float): Yaw angle in radians.
-
-#### Methods:
-- `to(container_or_unit=None, sequence="zyx", unit="m", angular_unit="rad", **kwargs) -> Any`: Convert the pose to a different unit, container, or representation.
-- `get_quaternion(sequence="zyx") -> np.ndarray`: Convert roll, pitch, yaw to a quaternion.
-- `get_rotation_matrix(sequence="zyx") -> np.ndarray`: Convert roll, pitch, yaw to a rotation matrix.
-
-#### Example:
-```python
-import numpy as np
-from embdata.geometry import Pose6D
-
-# Create a Pose6D instance
-pose = Pose6D(x=1, y=2, z=3, roll=0, pitch=0, yaw=np.pi/2)
-print(pose)  # Output: Pose6D(x=1.0, y=2.0, z=3.0, roll=0.0, pitch=0.0, yaw=1.5707963267948966)
-
-# Convert to centimeters
-pose_cm = pose.to("cm")
-print(pose_cm)  # Output: Pose6D(x=100.0, y=200.0, z=300.0, roll=0.0, pitch=0.0, yaw=1.5707963267948966)
-
-# Get quaternion representation
-quat = pose.get_quaternion()
-print(np.round(quat, 3))  # Output: [0.   0.   0.707 0.707]
-
-# Get rotation matrix
-rot_matrix = pose.get_rotation_matrix()
-print(np.round(rot_matrix, 3))
-# Output:
-# [[ 0. -1.  0.]
-#  [ 1.  0.  0.]
-#  [ 0.  0.  1.]]
-```
-
-</details>
-
-<details>
-<summary><strong>Episode</strong></summary>
-
-### Episode
-
-A list-like interface for a sequence of observations, actions, and/or other data.
-
-#### Attributes:
-- `steps` (list[TimeStep]): A list of TimeStep objects representing the episode's steps.
-- `metadata` (Sample | Any | None): Additional metadata for the episode.
-- `freq_hz` (int | None): The frequency of the episode in Hz.
-
-#### Methods:
-- `__init__(self, steps: List[Dict | Sample] | Iterable, observation_key: str = "observation", action_key: str = "action", state_key: str|None=None, supervision_key: str | None = None, metadata: Sample | Any | None = None) -> None`: Initialize an Episode instance.
-- `trajectory(self, field: str = "action", freq_hz: int = 1) -> Trajectory`: Extract a trajectory from the episode for a specified field.
-
-#### Example:
-```python
-from embdata import Episode, TimeStep
-
-# Create an Episode instance
-steps = [TimeStep(), TimeStep(), TimeStep()]
-episode = Episode(steps=steps)
-
-# Iterate over the steps
-for step in episode.iter():
-    print(step)
-
-# Concatenate two episodes
-episode1 = Episode(steps=[TimeStep(), TimeStep()])
-episode2 = Episode(steps=[TimeStep(), TimeStep()])
-combined_episode = episode1 + episode2
-print(len(combined_episode))  # Output: 4
-
-# Extract a trajectory
-action_trajectory = episode.trajectory(field="action", freq_hz=10)
-print(action_trajectory.mean())
-```
-
-</details>
+## Usage
 
 <details>
 <summary><strong>Sample</strong></summary>
 
-### Sample
+The `Sample` class is a flexible base model for serializing, recording, and manipulating arbitrary data.
 
-A base model class for serializing, recording, and manipulating arbitrary data.
-
-#### Attributes:
-- `model_config` (ConfigDict): Configuration for the model, including settings for validation, extra fields, and arbitrary types.
-
-#### Methods:
-- `__init__(self, item=None, **data)`: Initialize a Sample instance.
-- `schema(self, include_descriptions=False)`: Get a simplified JSON schema of the data.
-- `to(self, container)`: Convert the Sample instance to a different container type.
-- `flatten(self, output_type="list", non_numerical="allow", ignore=None, sep=".", to=None)`: Flatten the Sample instance into a one-dimensional structure.
-- `unflatten(cls, one_d_array_or_dict, schema=None)`: Unflatten a one-dimensional array or dictionary into a Sample instance.
-- `space(self)`: Return the corresponding Gym space for the Sample instance.
-- `random_sample(self)`: Generate a random Sample instance based on its attributes.
-
-#### Example:
 ```python
 from embdata import Sample
-import numpy as np
 
-# Create a simple Sample instance
+# Create a simple Sample
 sample = Sample(x=1, y=2, z={"a": 3, "b": 4})
 
 # Flatten the sample
 flat_sample = sample.flatten()
-print(flat_sample)  # Output: [1, 2, 3, 4]
+print(flat_sample)  # [1, 2, 3, 4]
 
-# Get the schema
-schema = sample.schema()
-print(schema)
+# Convert to different formats
+as_dict = sample.to("dict")
+as_numpy = sample.to("np")
+as_torch = sample.to("pt")
 
-# Unflatten a list back to a Sample instance
-unflattened_sample = Sample.unflatten(flat_sample, schema)
-print(unflattened_sample)  # Output: Sample(x=1, y=2, z={'a': 3, 'b': 4})
+# Create a random sample based on the structure
+random_sample = sample.random_sample()
 
-# Create a complex nested structure
-nested_sample = Sample(
-    image=Sample(
-        data=np.random.rand(32, 32, 3),
-        metadata={"format": "RGB", "size": (32, 32)}
-    ),
-    text=Sample(
-        content="Hello, world!",
-        tokens=["Hello", ",", "world", "!"],
-        embeddings=np.random.rand(4, 128)
-    ),
-    labels=["greeting", "example"]
-)
-
-# Get the schema of the nested structure
-nested_schema = nested_sample.schema()
-print(nested_schema)
+# Get the corresponding Gym space
+space = sample.space()
 ```
 
-</details>
-
-<details>
-<summary><strong>Trajectory</strong></summary>
-
-### Trajectory
-
-A trajectory of steps representing a time series of multidimensional data.
-
-#### Attributes:
-- `steps` (NumpyArray | List[Sample | NumpyArray]): The trajectory data.
-- `freq_hz` (float | None): The frequency of the trajectory in Hz.
-- `time_idxs` (NumpyArray | None): The time index of each step in the trajectory.
-- `dim_labels` (list[str] | None): The labels for each dimension of the trajectory.
-- `angular_dims` (list[int] | list[str] | None): The dimensions that are angular.
-
-#### Methods:
-- `plot`: Plot the trajectory.
-- `map`: Apply a function to each step in the trajectory.
-- `make_relative`: Convert the trajectory to relative actions.
-- `resample`: Resample the trajectory to a new sample rate.
-- `frequencies`: Plot the frequency spectrogram of the trajectory.
-- `frequencies_nd`: Plot the n-dimensional frequency spectrogram of the trajectory.
-- `low_pass_filter`: Apply a low-pass filter to the trajectory.
-- `stats`: Compute statistics for the trajectory.
-- `transform`: Apply a transformation to the trajectory.
-
-#### Example:
-```python
-import numpy as np
-from embdata.trajectory import Trajectory
-
-# Create a simple 2D trajectory
-steps = np.array([[0, 0], [1, 1], [2, 0], [3, 1], [4, 0]])
-traj = Trajectory(steps, freq_hz=10, dim_labels=['X', 'Y'])
-
-# Plot the trajectory
-traj.plot().show()
-
-# Compute and print statistics
-print(traj.stats())
-
-# Apply a low-pass filter
-filtered_traj = traj.low_pass_filter(cutoff_freq=2)
-filtered_traj.plot().show()
-```
+The `Sample` class provides a wide range of functionality for data manipulation, conversion, and integration with various libraries and frameworks.
 
 </details>
 
 <details>
 <summary><strong>Image</strong></summary>
 
-### Image
+The `Image` class represents image data and provides methods for manipulation and conversion.
 
-An image sample that can be represented in various formats.
-
-#### Attributes:
-- `array` (Optional[np.ndarray]): The image represented as a NumPy array.
-- `base64` (Optional[Base64Str]): The base64 encoded string of the image.
-- `path` (Optional[FilePath]): The file path of the image.
-- `pil` (Optional[PILImage]): The image represented as a PIL Image object.
-- `url` (Optional[AnyUrl]): The URL of the image.
-- `size` (Optional[tuple[int, int]]): The size of the image as a (width, height) tuple.
-- `encoding` (Optional[Literal["png", "jpeg", "jpg", "bmp", "gif"]]): The encoding of the image.
-
-#### Methods:
-- `from_base64(base64_str: str, encoding: str, size=None, make_rgb=False) -> "Image"`: Decodes a base64 string to create an Image instance.
-- `open(path: str, encoding: str = "jpeg", size=None) -> "Image"`: Open an image from a file path.
-- `save(path: str, encoding: str | None = None, quality: int = 10) -> None`: Save the image to a file.
-
-#### Example:
 ```python
 from embdata import Image
+import numpy as np
 
-# Create an Image instance from a URL
-image_url = Image("https://example.com/image.jpg")
+# Create an Image from a numpy array
+array_data = np.random.rand(100, 100, 3)
+img = Image(array=array_data)
 
-# Create an Image instance from a file path
-image_file = Image("/path/to/image.jpg")
+# Convert to base64
+base64_str = img.to_base64()
 
-# Create an Image instance from a base64 string
-base64_str = "data:image/jpeg;base64,/9j/4AAQSkZJRgABAQEAYABgAAD/4Q3zaHR0cDovL25zLmFkb2JlLmNvbS94YXAvMS4wLwA"
-image_base64 = Image(base64_str)
+# Open an image from a file
+img_from_file = Image.open("path/to/image.jpg")
 
-# Convert PNG to JPEG
-jpeg_from_png = Image("path/to/image.png", encoding="jpeg")
+# Resize the image
+resized_img = img.resize((50, 50))
 
-# Resize an image
-resized_image = Image(image_url, size=(224, 224))
-
-# Access different representations of the image
-pil_image = image_file.pil
-array = image_file.array
-base64 = image_file.base64
-
-# Save an image
-image_file.save("path/to/save.jpg", encoding="jpeg", quality=95)
+# Save the image
+img.save("output_image.png")
 ```
+
+The `Image` class provides a convenient interface for working with image data in various formats and performing common image operations.
+
+</details>
+
+<details>
+<summary><strong>Trajectory</strong></summary>
+
+The `Trajectory` class represents a time series of multidimensional data, such as robot movements or sensor readings.
+
+```python
+from embdata import Trajectory
+import numpy as np
+
+# Create a Trajectory
+data = np.random.rand(100, 3)  # 100 timesteps, 3 dimensions
+traj = Trajectory(data, freq_hz=10)
+
+# Compute statistics
+stats = traj.stats()
+print(stats)
+
+# Plot the trajectory
+traj.plot()
+
+# Resample the trajectory
+resampled_traj = traj.resample(target_hz=5)
+
+# Save the plot
+traj.save("trajectory_plot.png")
+```
+
+The `Trajectory` class offers methods for analyzing, visualizing, and manipulating trajectory data, making it easier to work with time series data in robotics and other applications.
+
+</details>
+
+<details>
+<summary><strong>Episode</strong></summary>
+
+The `Episode` class provides a list-like interface for a sequence of observations, actions, and other data, particularly useful for reinforcement learning scenarios.
+
+```python
+from embdata import Episode, Sample
+
+# Create an Episode
+episode = Episode()
+
+# Add steps to the episode
+episode.append(Sample(observation=[1, 2, 3], action=0, reward=1))
+episode.append(Sample(observation=[2, 3, 4], action=1, reward=0))
+episode.append(Sample(observation=[3, 4, 5], action=0, reward=2))
+
+# Iterate over the episode
+for step in episode.iter():
+    print(step.observation, step.action, step.reward)
+
+# Split the episode based on a condition
+def split_condition(step):
+    return step.reward > 0
+
+split_episodes = episode.split(split_condition)
+
+# Access episode metadata
+print(episode.metadata)
+print(episode.freq_hz)
+```
+
+The `Episode` class simplifies the process of working with sequential data in reinforcement learning and other time-series applications.
+
+</details>
+
+<details>
+<summary><strong>Pose3D</strong></summary>
+
+The `Pose3D` class represents absolute coordinates for a 3D space with x, y, and theta (orientation).
+
+```python
+from embdata.geometry import Pose3D
+import math
+
+# Create a Pose3D instance
+pose = Pose3D(x=1, y=2, theta=math.pi/2)
+print(pose)  # Pose3D(x=1.0, y=2.0, theta=1.5707963267948966)
+
+# Convert to different units
+pose_cm = pose.to("cm")
+print(pose_cm)  # Pose3D(x=100.0, y=200.0, theta=1.5707963267948966)
+
+pose_deg = pose.to(angular_unit="deg")
+print(pose_deg)  # Pose3D(x=1.0, y=2.0, theta=90.0)
+
+# Convert to different formats
+pose_list = pose.to("list")
+print(pose_list)  # [1.0, 2.0, 1.5707963267948966]
+
+pose_dict = pose.to("dict")
+print(pose_dict)  # {'x': 1.0, 'y': 2.0, 'theta': 1.5707963267948966}
+```
+
+The `Pose3D` class provides methods for converting between different units and representations of 3D poses.
 
 </details>
 
 <details>
 <summary><strong>HandControl</strong></summary>
 
-### HandControl
+The `HandControl` class represents an action for a 7D space, including the pose of a robot hand and its grasp state.
 
-Action for a 7D space representing x, y, z, roll, pitch, yaw, and openness of the hand.
-
-#### Attributes:
-- `pose` (Pose): The pose of the robot hand, including position and orientation.
-- `grasp` (float): The openness of the robot hand, ranging from 0 (closed) to 1 (open).
-
-#### Example:
 ```python
 from embdata.geometry import Pose
 from embdata.motion.control import HandControl
@@ -384,9 +208,9 @@ hand_control = HandControl(
 )
 
 # Access and modify the hand control
-print(hand_control.pose.position)  # Output: [0.1, 0.2, 0.3]
+print(hand_control.pose.position)  # [0.1, 0.2, 0.3]
 hand_control.grasp = 0.8
-print(hand_control.grasp)  # Output: 0.8
+print(hand_control.grasp)  # 0.8
 
 # Example with complex nested structure
 from embdata.motion import Motion
@@ -404,9 +228,11 @@ robot_control = RobotControl(
     velocity=0.3
 )
 
-print(robot_control.hand.pose.position)  # Output: [0.1, 0.2, 0.3]
-print(robot_control.velocity)  # Output: 0.3
+print(robot_control.hand.pose.position)  # [0.1, 0.2, 0.3]
+print(robot_control.velocity)  # 0.3
 ```
+
+The `HandControl` class allows for easy manipulation and representation of robot hand controls in a 7D space.
 
 </details>
 
