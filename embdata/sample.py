@@ -411,19 +411,19 @@ class Sample(BaseModel):
 
         def add_to_accumulator(key, value):
             if non_numerical != "ignore" or isinstance(value, int | float | bool | Sample | dict):
-                if output_type == "dict" or to_keys:
+                if output_type == "dict" or to:
                     accumulator[key.rstrip(sep)] = value
                 else:
                     accumulator.append(value)
 
         def flatten_recursive(obj, path=""):
-            if exact_match(path.rstrip(sep), to_keys):
+            if exact_match(path.rstrip(sep), to):
                 add_to_accumulator(path.rstrip(sep), obj)
             elif isinstance(obj, Sample | dict):
                 items = obj.dump().items() if isinstance(obj, Sample) else obj.items()
                 for k, v in items:
                     key_path = f"{path}{k}"
-                    if to_keys and not matches_to_keys(key_path, to_keys):
+                    if to and not matches_to_keys(key_path, to):
                         continue
                     if not ignore_key(k, key_path):
                         flatten_recursive(v, key_path + sep)
