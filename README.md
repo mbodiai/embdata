@@ -273,3 +273,45 @@ print(type(episode))
 ```
 
 </details>
+## API Reference
+
+<details>
+<summary>embdata</summary>
+
+### embdata
+
+```python
+"""embdata: A package for handling embodied AI data structures and operations.
+
+This package provides classes and utilities for working with various data types
+commonly used in embodied AI tasks, such as episodes, time steps, images, and samples.
+
+Examples:
+    >>> from embdata import Episode, TimeStep, Image, Sample
+    >>> # Create a complex nested structure with image and text data
+    >>> image_data = Image.from_base64("base64_encoded_image_data", encoding="jpeg")
+    >>> text_data = Sample(text="This is a sample text")
+    >>> action = Sample(velocity=1.0, rotation=0.5)
+    >>> observation = Sample(image=image_data, text=text_data)
+    >>> time_step = TimeStep(observation=observation, action=action)
+    >>> episode = Episode(steps=[time_step])
+    >>> print(len(episode))
+    1
+    >>> print(episode.steps[0].observation.image.encoding)
+    'jpeg'
+    >>> print(episode.steps[0].observation.text.text)
+    'This is a sample text'
+    >>> print(episode.steps[0].action.velocity)
+    1.0
+"""
+```
+
+This package includes the following main classes:
+- `Episode`: Represents a sequence of time steps in an embodied AI task.
+- `TimeStep`: Represents a single step in an episode, containing observation and action data.
+- `ImageTask`: A specialized episode type for image-based tasks.
+- `VisionMotorStep`: A specialized time step for vision and motor tasks.
+- `Image`: Represents image data in various formats (base64, file path, numpy array, etc.).
+- `Sample`: A base class for serializing, recording, and manipulating arbitrary data.
+
+</details>
