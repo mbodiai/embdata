@@ -1,5 +1,5 @@
 from datasets import load_dataset
-from embdata import Episode, Sample, Trajectory, Image
+from embdata import Episode, Sample, Trajectory, Image, TimeStep
 from transformers import GPT2LMHeadModel, CLIPModel, CLIPProcessor, AutoTokenizer
 import torch
 import torch.nn as nn
