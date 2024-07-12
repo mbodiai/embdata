@@ -233,3 +233,43 @@ Example
 - [x] Motion rather than Action to distinguish from non-physical actions.
 
 ## Classes
+## API Reference
+
+<details>
+<summary>Demo Module</summary>
+
+### `load_and_process_dataset()`
+
+Load a dataset, create a sample, and process it into actions, observations, and states.
+
+**Returns:**
+- `tuple`: A tuple containing actions, observations, and states as flattened samples.
+
+**Example:**
+```python
+actions, observations, states = load_and_process_dataset()
+print(type(actions), type(observations), type(states))
+# Output: <class 'embdata.sample.Sample'> <class 'embdata.sample.Sample'> <class 'embdata.sample.Sample'>
+```
+
+### `create_and_analyze_episode(observations, actions, states)`
+
+Create an episode from observations, actions, and states, and perform various analyses.
+
+**Args:**
+- `observations` (Sample): Flattened observations.
+- `actions` (Sample): Flattened actions.
+- `states` (Sample): Flattened states.
+
+**Returns:**
+- `Episode`: The created and analyzed episode.
+
+**Example:**
+```python
+actions, observations, states = load_and_process_dataset()
+episode = create_and_analyze_episode(observations, actions, states)
+print(type(episode))
+# Output: <class 'embdata.episode.Episode'>
+```
+
+</details>
