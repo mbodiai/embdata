@@ -7,7 +7,7 @@ This example demonstrates how to download a robotics dataset, process it using t
 ```python
 from datasets import load_dataset
 from embdata import Episode, Sample, Trajectory, Image
-from transformers import GPT2Config, GPT2Model, ViTConfig, ViTModel, AutoTokenizer
+from transformers import GPT2LMHeadModel, CLIPModel, CLIPProcessor, AutoTokenizer
 import torch
 import torch.nn as nn
 
@@ -52,19 +52,19 @@ cleaned_trajectory = action_trajectory.low_pass_filter(cutoff_freq=2)
 episode.show()
 cleaned_trajectory.save("cleaned_action_trajectory.png")
 
-## 2. Define a Simple GPT2-ViT Model
+## 2. Define a GPT2-CLIP Model
 
-class GPT2ViT(nn.Module):
+class GPT2CLIP(nn.Module):
     def __init__(self, num_actions):
         super().__init__()
-        self.gpt2 = GPT2Model(GPT2Config())
-        self.vit = ViTModel(ViTConfig())
-        self.fusion = nn.Linear(self.gpt2.config.hidden_size + self.vit.config.hidden_size, 512)
+        self.gpt2 = GPT2LMHeadModel.from_pretrained("gpt2")
+        self.clip = CLIPModel.from_pretrained("openai/clip-vit-base-patch32")
+        self.fusion = nn.Linear(self.gpt2.config.hidden_size + self.clip.config.projection_dim, 512)
         self.action_head = nn.Linear(512, num_actions)
         
     def forward(self, input_ids, attention_mask, pixel_values):
-        text_features = self.gpt2(input_ids=input_ids, attention_mask=attention_mask).last_hidden_state[:, 0, :]
-        image_features = self.vit(pixel_values=pixel_values).last_hidden_state[:, 0, :]
+        text_features = self.gpt2(input_ids=input_ids, attention_mask=attention_mask).last_hidden_state[:, -1, :]
+        image_features = self.clip.get_image_features(pixel_values=pixel_values)
         fused_features = torch.cat([text_features, image_features], dim=1)
         fused_features = self.fusion(fused_features)
         action_logits = self.action_head(fused_features)
@@ -72,16 +72,17 @@ class GPT2ViT(nn.Module):
 
 ## 3. Prepare Data for Training
 
-tokenizer = AutoTokenizer.from_pretrained("gpt2")
+gpt2_tokenizer = AutoTokenizer.from_pretrained("gpt2")
+clip_processor = CLIPProcessor.from_pretrained("openai/clip-vit-base-patch32")
 
 def prepare_batch(examples):
-    inputs = tokenizer(examples["instruction"], padding=True, truncation=True, return_tensors="pt")
-    images = torch.stack([Image(base64=img).torch() for img in examples["image"]])
+    gpt2_inputs = gpt2_tokenizer(examples["instruction"], padding=True, truncation=True, return_tensors="pt")
+    clip_inputs = clip_processor(images=[Image(base64=img).pil for img in examples["image"]], return_tensors="pt")
     actions = torch.tensor(examples["action"])
     return {
-        "input_ids": inputs.input_ids,
-        "attention_mask": inputs.attention_mask,
-        "pixel_values": images,
+        "input_ids": gpt2_inputs.input_ids,
+        "attention_mask": gpt2_inputs.attention_mask,
+        "pixel_values": clip_inputs.pixel_values,
         "labels": actions
     }
 
@@ -89,7 +90,7 @@ train_dataset = processed_dataset["train"].map(prepare_batch, batched=True, remo
 
 ## 4. Training Loop
 
-model = GPT2ViT(num_actions=len(first_example["action"][0]))
+model = GPT2CLIP(num_actions=len(first_example["action"][0]))
 optimizer = torch.optim.AdamW(model.parameters(), lr=5e-5)
 loss_fn = nn.MSELoss()
 
@@ -110,13 +111,13 @@ for epoch in range(num_epochs):
 print("Training completed!")
 ```
 
-This example demonstrates how to use the `embdata` library to process and visualize robotics data, and then use it to finetune a simple GPT2-ViT model for action prediction. The process includes:
+This example demonstrates how to use the `embdata` library to process and visualize robotics data, and then use it to finetune a GPT2-CLIP model for action prediction. The process includes:
 
 1. Downloading and flattening the dataset
 2. Creating an Episode and cleaning the data with Trajectory
 3. Visualizing the data using `episode.show()` and `trajectory.save()`
-4. Defining a simple GPT2-ViT model
-5. Preparing the data for training
+4. Defining a GPT2-CLIP model using pretrained GPT-2 and CLIP models
+5. Preparing the data for training using GPT-2 tokenizer and CLIP processor
 6. Implementing a basic training loop
 
 You can further customize this example by adjusting the model architecture, training parameters, or data processing steps to suit your specific needs.
