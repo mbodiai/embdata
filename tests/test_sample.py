@@ -261,6 +261,12 @@ def test_sample_with_nested_dicts_and_lists():
     expected = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]
     assert flattened == expected, f"Expected {expected}, but got {flattened}"
 
+    unflattened_sample = Sample.unflatten(flattened, sample.schema())
+    assert unflattened_sample == sample, f"Expected {sample}, but got {unflattened_sample}"
+
+    unflattened_sample_dict = Sample.unflatten(flattened_dict, sample.schema())
+    assert unflattened_sample_dict == sample, f"Expected {sample}, but got {unflattened_sample_dict}"
+
     flattened_dict = sample.flatten(output_type="dict")
     expected_dict = {
         "a": 1,
