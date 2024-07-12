@@ -282,8 +282,11 @@ class Sample(BaseModel):
                 items = []
                 max_items = schema_part.get("maxItems", len(flat_data) - index)
                 for _ in range(max_items):
-                    value, index = unflatten_recursive(schema_part["items"], index)
-                    items.append(value)
+                    if index < len(flat_data):
+                        value, index = unflatten_recursive(schema_part["items"], index)
+                        items.append(value)
+                    else:
+                        items.append(None)
                 return items, index
             if index < len(flat_data):
                 return flat_data[index], index + 1
