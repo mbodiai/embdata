@@ -374,8 +374,13 @@ class Sample(BaseModel):
             - The order of elements in the flattened output is guaranteed to be consistent across calls.
         """
         to_keys = to
-        if to_keys is not None and not isinstance(to_keys, set):
-            to_keys = {to_keys}
+        if to_keys is not None:
+            if isinstance(to_keys, (str, set)):
+                to_keys = {to_keys} if isinstance(to_keys, str) else to_keys
+            elif isinstance(to_keys, list):
+                to_keys = set(to_keys)
+            else:
+                raise ValueError(f"Unsupported type for 'to': {type(to_keys)}")
         keys = set()
         keys_map = describe_keys(self)
         for k in to_keys or []:
