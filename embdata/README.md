@@ -170,6 +170,12 @@ class QuadrupedControl(Motion):
 # Use the custom Motion control
 quadruped_control = QuadrupedControl(front_left=0.1, front_right=0.2, back_left=0.3, back_right=0.4)
 print(quadruped_control.front_left, quadruped_control.back_right)
+    back_left: float
+    back_right: float
+
+# Use the custom Motion control
+quadruped_control = QuadrupedControl(front_left=0.1, front_right=0.2, back_left=0.3, back_right=0.4)
+print(quadruped_control.front_left, quadruped_control.back_right)
 ```
 
 </details>
