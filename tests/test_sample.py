@@ -250,3 +250,18 @@ def test_dict_shallow():
 
 if __name__ == "__main__":
     pytest.main([__file__, "-vv"])
+import pytest
+from embdata.sample import Sample
+
+def test_flatten_with_to():
+    sample = Sample(
+        a=1,
+        b={"c": 2, "d": [3, 4]},
+        e=Sample(f=5, g={"h": 6, "i": 7})
+    )
+    flattened = sample.flatten(to={"a", "b.c", "e.g.h"})
+    expected = [1, 2, 6]
+    assert flattened == expected, f"Expected {expected}, but got {flattened}"
+
+if __name__ == "__main__":
+    pytest.main()
