@@ -67,14 +67,33 @@ def MotionField(  # noqa
     motion_type: MotionType = "UNSPECIFIED",
     **kwargs,
 ) -> Any:
-    """Field for a motion.
+    """
+    Create a field for a motion with specified properties.
+
+    This function creates a CoordinateField with additional motion-specific properties.
+    It's used to define fields in Motion subclasses.
 
     Args:
-        default: Default value for the field.
-        bounds: Bounds of the motion.
-        shape: Shape of the motion.
-        description: Description of the motion.
-        motion_type: Type of the motion. Can be ['absolute', 'relative', 'velocity', 'torque', 'other'].
+        default (Any): Default value for the field.
+        bounds (list[float] | None): Lower and upper bounds of the motion.
+        shape (tuple[int] | None): Shape of the motion data.
+        description (str | None): Description of the motion.
+        reference_frame (str | None): Reference frame for the coordinates.
+        unit (LinearUnit | AngularUnit): Unit of measurement for the motion.
+        motion_type (MotionType): Type of the motion (e.g., 'absolute', 'relative', 'velocity', 'torque', 'other').
+        **kwargs: Additional keyword arguments to pass to CoordinateField.
+
+    Returns:
+        Any: A CoordinateField with motion-specific properties.
+
+    Example:
+        >>> class RobotArm(Motion):
+        ...     shoulder: float = MotionField(default=0.0, bounds=[-90, 90], unit="deg", motion_type="absolute")
+        ...     elbow: float = MotionField(default=0.0, bounds=[-120, 120], unit="deg", motion_type="absolute")
+        ...     wrist: float = MotionField(default=0.0, bounds=[-180, 180], unit="deg", motion_type="absolute")
+        >>> arm = RobotArm(shoulder=45, elbow=30, wrist=-15)
+        >>> print(arm)
+        RobotArm(shoulder=45.0, elbow=30.0, wrist=-15.0)
     """
     if description is None:
         description = f"{motion_type.lower()} motion"
@@ -209,18 +228,36 @@ def AnyMotionField(  # noqa
 
 
 class Motion(Coordinate):
-    """Base class for a motion. Does not allow extra fields.
+    """
+    Base class for defining motion-related data structures.
 
-    Subclass to validate the motion type, shape, and bounds of the motion.
+    This class extends the Coordinate class and provides a foundation for creating
+    motion-specific data models. It does not allow extra fields and enforces
+    validation of motion type, shape, and bounds.
+
+    Subclasses of Motion should define their fields using MotionField or its variants
+    (e.g., AbsoluteMotionField, VelocityMotionField) to ensure proper validation and
+    type checking.
+
+    Attributes:
+        Inherited from Coordinate
 
     Example:
-    >>> class Twist(Motion):
-    ...     x: float = VelocityMotionField(default=0.0, bounds=[-1.0, 1.0])
-    ...     y: float = VelocityMotionField(default=0.0, bounds=[-1.0, 1.0])
-    ...     z: float = VelocityMotionField(default=0.0, bounds=[-1.0, 1.0])
-    ...     roll: float = VelocityMotionField(default=0.0, bounds=["-pi", "pi"])
-    ...     pitch: float = VelocityMotionField(default=0.0, bounds=["-pi", "pi"])
-    ...     yaw: float = VelocityMotionField(default=0.0, bounds=["-pi", "pi"])
+        >>> class Twist(Motion):
+        ...     x: float = VelocityMotionField(default=0.0, bounds=[-1.0, 1.0])
+        ...     y: float = VelocityMotionField(default=0.0, bounds=[-1.0, 1.0])
+        ...     z: float = VelocityMotionField(default=0.0, bounds=[-1.0, 1.0])
+        ...     roll: float = VelocityMotionField(default=0.0, bounds=["-pi", "pi"])
+        ...     pitch: float = VelocityMotionField(default=0.0, bounds=["-pi", "pi"])
+        ...     yaw: float = VelocityMotionField(default=0.0, bounds=["-pi", "pi"])
+        >>> twist = Twist(x=0.5, y=-0.3, z=0.1, roll=0.2, pitch=-0.1, yaw=0.8)
+        >>> print(twist)
+        Twist(x=0.5, y=-0.3, z=0.1, roll=0.2, pitch=-0.1, yaw=0.8)
+
+    Note:
+        The Motion class is designed to work with complex nested structures.
+        It can handle various types of motion data, including images and text,
+        as long as they are properly defined using the appropriate MotionFields.
     """
 
     model_config = ConfigDict(arbitrary_types_allowed=True, extra="forbid", populate_by_name=True)

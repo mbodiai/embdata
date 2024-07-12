@@ -685,3 +685,44 @@ class Image(Sample):
 ```
 
 </details>
+## Classes
+
+<details>
+<summary>Motion</summary>
+
+```python
+class Motion(Coordinate):
+    """
+    Base class for defining motion-related data structures.
+
+    This class extends the Coordinate class and provides a foundation for creating
+    motion-specific data models. It does not allow extra fields and enforces
+    validation of motion type, shape, and bounds.
+
+    Subclasses of Motion should define their fields using MotionField or its variants
+    (e.g., AbsoluteMotionField, VelocityMotionField) to ensure proper validation and
+    type checking.
+
+    Attributes:
+        Inherited from Coordinate
+
+    Example:
+        >>> class Twist(Motion):
+        ...     x: float = VelocityMotionField(default=0.0, bounds=[-1.0, 1.0])
+        ...     y: float = VelocityMotionField(default=0.0, bounds=[-1.0, 1.0])
+        ...     z: float = VelocityMotionField(default=0.0, bounds=[-1.0, 1.0])
+        ...     roll: float = VelocityMotionField(default=0.0, bounds=["-pi", "pi"])
+        ...     pitch: float = VelocityMotionField(default=0.0, bounds=["-pi", "pi"])
+        ...     yaw: float = VelocityMotionField(default=0.0, bounds=["-pi", "pi"])
+        >>> twist = Twist(x=0.5, y=-0.3, z=0.1, roll=0.2, pitch=-0.1, yaw=0.8)
+        >>> print(twist)
+        Twist(x=0.5, y=-0.3, z=0.1, roll=0.2, pitch=-0.1, yaw=0.8)
+
+    Note:
+        The Motion class is designed to work with complex nested structures.
+        It can handle various types of motion data, including images and text,
+        as long as they are properly defined using the appropriate MotionFields.
+    """
+```
+
+</details>
