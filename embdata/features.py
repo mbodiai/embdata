@@ -57,10 +57,6 @@ def to_features_dict(indict, exclude_keys=None) -> Dict[str, Any]:
         >>> to_features_dict({"nested": {"a": 1, "b": "text"}})
         {'nested': {'a': Value(dtype='int64', id=None), 'b': Value(dtype='string', id=None)}}
 
-    Note:
-        - The function now correctly handles PIL Images, converting them to HFImage().
-        - Empty lists will raise a ValueError as the schema cannot be inferred.
-        - The 'image_keys' and 'prefix' arguments mentioned in the original docstring are not used in the function and have been removed from the documentation.
     """
     if exclude_keys is None:
         exclude_keys = set()
