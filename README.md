@@ -135,6 +135,95 @@ The `Sample` class provides a wide range of functionality for data manipulation,
 </details>
 
 <details>
+<summary><strong>MobileSingleHandControl</strong></summary>
+
+The `MobileSingleHandControl` class represents control for a robot that can move its base in 2D space with a 6D EEF control and grasp.
+
+**Usage Example**
+```python
+from embdata.geometry import PlanarPose
+from embdata.motion.control import MobileSingleHandControl, HandControl, HeadControl
+
+# Create a MobileSingleHandControl instance
+control = MobileSingleHandControl(
+    base=PlanarPose(x=1.0, y=2.0, theta=0.5),
+    hand=HandControl(
+        pose=Pose(position=[0.1, 0.2, 0.3], orientation=[0, 0, 0, 1]),
+        grasp=0.5
+    ),
+    head=HeadControl(tilt=-0.1, pan=0.2)
+)
+
+# Access and modify the control
+print(control.base.x)  # Output: 1.0
+control.hand.grasp = 0.8
+print(control.hand.grasp)  # Output: 0.8
+```
+
+</details>
+
+<details>
+<summary><strong>HumanoidControl</strong></summary>
+
+The `HumanoidControl` class represents control for a humanoid robot.
+
+**Usage Example**
+```python
+import numpy as np
+from embdata.motion.control import HumanoidControl, HeadControl
+
+# Create a HumanoidControl instance
+control = HumanoidControl(
+    left_arm=np.array([0.1, 0.2, 0.3, 0.4, 0.5, 0.6]),
+    right_arm=np.array([0.2, 0.3, 0.4, 0.5, 0.6, 0.7]),
+    left_leg=np.array([0.1, 0.2, 0.3, 0.4, 0.5, 0.6]),
+    right_leg=np.array([0.2, 0.3, 0.4, 0.5, 0.6, 0.7]),
+    head=HeadControl(tilt=-0.1, pan=0.2)
+)
+
+# Access and modify the control
+print(control.left_arm)  # Output: [0.1 0.2 0.3 0.4 0.5 0.6]
+control.head.tilt = -0.2
+print(control.head.tilt)  # Output: -0.2
+```
+
+</details>
+
+<details>
+<summary><strong>Subclassing Motion</strong></summary>
+
+You can create custom motion controls by subclassing the `Motion` class.
+
+**Usage Example**
+```python
+from embdata.motion import Motion
+from embdata.motion.fields import VelocityMotionField, AbsoluteMotionField
+
+class CustomRobotControl(Motion):
+    linear_velocity: float = VelocityMotionField(default=0.0, bounds=[-1.0, 1.0])
+    angular_velocity: float = VelocityMotionField(default=0.0, bounds=[-1.0, 1.0])
+    arm_position: float = AbsoluteMotionField(default=0.0, bounds=[0.0, 1.0])
+
+# Create an instance of the custom control
+custom_control = CustomRobotControl(
+    linear_velocity=0.5,
+    angular_velocity=-0.2,
+    arm_position=0.7
+)
+
+print(custom_control)
+# Output: CustomRobotControl(linear_velocity=0.5, angular_velocity=-0.2, arm_position=0.7)
+
+# Validate bounds
+try:
+    invalid_control = CustomRobotControl(linear_velocity=1.5)  # This will raise a ValueError
+except ValueError as e:
+    print(f"Validation error: {e}")
+```
+
+</details>
+
+<details>
 <summary><strong>Image</strong></summary>
 
 The `Image` class represents image data and provides methods for manipulation and conversion.
