@@ -83,7 +83,94 @@ OneDimensional = Annotated[Literal["dict", "np", "pt", "list"], "Numpy, PyTorch,
 
 
 class Sample(BaseModel):
-    """A base model class for serializing, recording, and manipulating arbitray data."""
+    """A base model class for serializing, recording, and manipulating arbitrary data.
+
+    This class provides a flexible and extensible way to handle complex data structures,
+    including nested objects, arrays, and various data types. It offers methods for
+    flattening, unflattening, converting between different formats, and working with
+    machine learning frameworks.
+
+    Attributes:
+        model_config (ConfigDict): Configuration for the model, including settings for
+            validation, extra fields, and arbitrary types.
+
+    Methods:
+        __init__(self, item=None, **data): Initialize a Sample instance.
+        schema(self, include_descriptions=False): Get a simplified JSON schema of the data.
+        to(self, container): Convert the Sample instance to a different container type.
+        flatten(self, output_type="list", non_numerical="allow", ignore=None, sep=".", to=None):
+            Flatten the Sample instance into a one-dimensional structure.
+        unflatten(cls, one_d_array_or_dict, schema=None): Unflatten a one-dimensional array or
+            dictionary into a Sample instance.
+        space(self): Return the corresponding Gym space for the Sample instance.
+        random_sample(self): Generate a random Sample instance based on its attributes.
+
+    Examples:
+        >>> sample = Sample(x=1, y=2, z={"a": 3, "b": 4}, extra_field=5)
+        >>> sample.flatten()
+        [1, 2, 3, 4, 5]
+        >>> sample.schema()
+        {
+            'type': 'object',
+            'properties': {
+                'x': {'type': 'number'},
+                'y': {'type': 'number'},
+                'z': {
+                    'type': 'object',
+                    'properties': {
+                        'a': {'type': 'number'},
+                        'b': {'type': 'number'}
+                    }
+                },
+                'extra_field': {'type': 'number'}
+            }
+        }
+        >>> flat_list = sample.flatten()
+        >>> Sample.unflatten(flat_list, sample.schema())
+        Sample(x=1, y=2, z={'a': 3, 'b': 4}, extra_field=5)
+
+        # Complex nested structure with image and text
+        >>> nested_sample = Sample(
+        ...     image=Sample(
+        ...         data=np.random.rand(32, 32, 3),
+        ...         metadata={"format": "RGB", "size": (32, 32)}
+        ...     ),
+        ...     text=Sample(
+        ...         content="Hello, world!",
+        ...         tokens=["Hello", ",", "world", "!"],
+        ...         embeddings=np.random.rand(4, 128)
+        ...     ),
+        ...     labels=["greeting", "example"]
+        ... )
+        >>> nested_sample.schema()
+        {
+            'type': 'object',
+            'properties': {
+                'image': {
+                    'type': 'object',
+                    'properties': {
+                        'data': {'type': 'array'},
+                        'metadata': {
+                            'type': 'object',
+                            'properties': {
+                                'format': {'type': 'string'},
+                                'size': {'type': 'array'}
+                            }
+                        }
+                    }
+                },
+                'text': {
+                    'type': 'object',
+                    'properties': {
+                        'content': {'type': 'string'},
+                        'tokens': {'type': 'array'},
+                        'embeddings': {'type': 'array'}
+                    }
+                },
+                'labels': {'type': 'array'}
+            }
+        }
+    """
 
     model_config = ConfigDict(
         use_enum_values=False,
@@ -94,48 +181,45 @@ class Sample(BaseModel):
     )
 
     def __init__(self, item=None, **data):
-        """A base model class for serializing, recording, and manipulating arbitray data.
+        """Initialize a Sample instance.
 
-        It accepts any keyword arguments and endows them with the following methods:
+        This method allows for flexible initialization of a Sample object, either from
+        an existing item or from keyword arguments. It handles various input types and
+        structures, including other Sample instances, dictionaries, lists, and more.
 
-        Methods:
-            schema: Get a simplified json schema of your data.
-            to: Convert the Sample instance to a different container type:
-                -
-            default_value: Get the default value for the Sample instance.
-            unflatten: Unflatten a one-dimensional array or dictionary into a Sample instance.
-            flatten: Flatten the Sample instance into a one-dimensional array or dictionary.
-            space_for: Default Gym space generation for a given value.
-            init_from: Initialize a Sample instance from a given value.
-            from_space: Generate a Sample instance from a Gym space.
-            pack_from: Pack a list of samples into a single sample with lists for attributes.
-            unpack: Unpack the packed Sample object into a list of Sample objects or dictionaries.
-            dict: Return the Sample object as a dictionary with None values excluded.
-            model_field_info: Get the FieldInfo for a given attribute key.
-            space: Return the corresponding Gym space for the Sample instance based on its instance attributes.
-            random_sample: Generate a random Sample instance based on its instance attributes.
+        Args:
+            item (Any, optional): An existing item to initialize the Sample from. This can
+                be another Sample instance, a dictionary, a list, or other supported types.
+            **data: Arbitrary keyword arguments to initialize the Sample's attributes.
 
         Examples:
-            >>> sample = Sample(x=1, y=2, z={"a": 3, "b": 4}, extra_field=5)
-            >>> sample.flatten()
-            [1, 2, 3, 4, 5]
-            >>> sample.schema()
-            {'type': 'object',
-                'properties': {
-                    'x': {'type': 'number'},
-                    'y': {'type': 'number'},
-                    'z': {'type': 'object'},
-                'properties':
-                {
-                'a':{'type': 'number'},
-                'b': {'type': 'number'}
-                }
-            },
-            'extra_field': {
-                'type': 'number'
-            }
-            >>> Sample.unflatten(flat_list, schema)
-            Sample(x=1, y=2, z={'a': 3, 'b': 4}, extra_field=5)
+            >>> Sample(x=1, y=2, z={"a": 3, "b": 4})
+            Sample(x=1, y=2, z={'a': 3, 'b': 4})
+
+            >>> existing_sample = Sample(a=1, b=2)
+            >>> Sample(existing_sample)
+            Sample(a=1, b=2)
+
+            >>> Sample([1, 2, 3])
+            Sample(items=[1, 2, 3])
+
+            >>> Sample({"key": "value"})
+            Sample(key='value')
+
+            # Complex nested structure
+            >>> nested_sample = Sample(
+            ...     image=Sample(
+            ...         data=np.random.rand(32, 32, 3),
+            ...         metadata={"format": "RGB", "size": (32, 32)}
+            ...     ),
+            ...     text=Sample(
+            ...         content="Hello, world!",
+            ...         tokens=["Hello", ",", "world", "!"],
+            ...         embeddings=np.random.rand(4, 128)
+            ...     )
+            ... )
+            >>> nested_sample
+            Sample(image=Sample(data=array(...), metadata={'format': 'RGB', 'size': (32, 32)}), text=Sample(content='Hello, world!', tokens=['Hello', ',', 'world', '!'], embeddings=array(...)))
         """
         if item is not None and self.__class__.__name__ != "Image":  # Hacky but works for now.
             if isinstance(item, Sample):
