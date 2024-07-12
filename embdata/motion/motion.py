@@ -67,8 +67,7 @@ def MotionField(  # noqa
     motion_type: MotionType = "UNSPECIFIED",
     **kwargs,
 ) -> Any:
-    """
-    Create a field for a motion with specified properties.
+    """Create a field for a motion with specified properties.
 
     This function creates a CoordinateField with additional motion-specific properties.
     It's used to define fields in Motion subclasses.
@@ -228,8 +227,7 @@ def AnyMotionField(  # noqa
 
 
 class Motion(Coordinate):
-    """
-    Base class for defining motion-related data structures.
+    """Base class for defining motion-related data structures.
 
     This class extends the Coordinate class and provides a foundation for creating
     motion-specific data models. It does not allow extra fields and enforces
@@ -261,24 +259,6 @@ class Motion(Coordinate):
     """
 
     model_config = ConfigDict(arbitrary_types_allowed=True, extra="forbid", populate_by_name=True)
-
-
-    @model_validator(mode="after")
-    def validate_shape(self) -> "Motion":
-        for key, value in self:
-            shape = self.model_field_info(key).get("_shape", "undefined")
-            if shape != "undefined":
-                shape_processed = []
-                value_processed = value
-                while len(shape_processed) < len(shape):
-                    shape_processed.append(len(value_processed))
-                    if shape_processed[-1] != len(value_processed):
-                        raise ValueError(
-                            f"{key} value {value} of length {len(value_processed)} at dimension {len(shape_processed)-1}does not have the correct shape {shape}",
-                        )
-                    value_processed = value_processed[0]
-        return self
-
 
 class AnyMotionControl(Motion):
     """Motion Control with arbitrary fields but minimal validation. Should not be subclassed. Subclass Motion instead for validation.

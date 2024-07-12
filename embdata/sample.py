@@ -84,6 +84,7 @@ OneDimensional = Annotated[Literal["dict", "np", "pt", "list"], "Numpy, PyTorch,
 
 class Sample(BaseModel):
     """A base model class for serializing, recording, and manipulating arbitray data."""
+
     model_config = ConfigDict(
         use_enum_values=False,
         validate_assignment=False,
@@ -93,45 +94,48 @@ class Sample(BaseModel):
     )
 
     def __init__(self, item=None, **data):
-        """Initialize a Sample instance.
+        """A base model class for serializing, recording, and manipulating arbitray data.
 
-        This method allows for flexible initialization of a Sample object, either from
-        an existing item or from keyword arguments. It handles various input types and
-        structures, including other Sample instances, dictionaries, lists, and more.
+        It accepts any keyword arguments and endows them with the following methods:
 
-        Args:
-            item (Any, optional): An existing item to initialize the Sample from. This can
-                be another Sample instance, a dictionary, a list, or other supported types.
-            **data: Arbitrary keyword arguments to initialize the Sample's attributes.
+        Methods:
+            schema: Get a simplified json schema of your data.
+            to: Convert the Sample instance to a different container type:
+                -
+            default_value: Get the default value for the Sample instance.
+            unflatten: Unflatten a one-dimensional array or dictionary into a Sample instance.
+            flatten: Flatten the Sample instance into a one-dimensional array or dictionary.
+            space_for: Default Gym space generation for a given value.
+            init_from: Initialize a Sample instance from a given value.
+            from_space: Generate a Sample instance from a Gym space.
+            pack_from: Pack a list of samples into a single sample with lists for attributes.
+            unpack: Unpack the packed Sample object into a list of Sample objects or dictionaries.
+            dict: Return the Sample object as a dictionary with None values excluded.
+            model_field_info: Get the FieldInfo for a given attribute key.
+            space: Return the corresponding Gym space for the Sample instance based on its instance attributes.
+            random_sample: Generate a random Sample instance based on its instance attributes.
 
         Examples:
-            >>> Sample(x=1, y=2, z={"a": 3, "b": 4})
-            Sample(x=1, y=2, z={'a': 3, 'b': 4})
-
-            >>> existing_sample = Sample(a=1, b=2)
-            >>> Sample(existing_sample)
-            Sample(a=1, b=2)
-
-            >>> Sample([1, 2, 3])
-            Sample(items=[1, 2, 3])
-
-            >>> Sample({"key": "value"})
-            Sample(key='value')
-
-            # Complex nested structure
-            >>> nested_sample = Sample(
-            ...     image=Sample(
-            ...         data=np.random.rand(32, 32, 3),
-            ...         metadata={"format": "RGB", "size": (32, 32)}
-            ...     ),
-            ...     text=Sample(
-            ...         content="Hello, world!",
-            ...         tokens=["Hello", ",", "world", "!"],
-            ...         embeddings=np.random.rand(4, 128)
-            ...     )
-            ... )
-            >>> nested_sample
-            Sample(image=Sample(data=array(...), metadata={'format': 'RGB', 'size': (32, 32)}), text=Sample(content='Hello, world!', tokens=['Hello', ',', 'world', '!'], embeddings=array(...)))
+            >>> sample = Sample(x=1, y=2, z={"a": 3, "b": 4}, extra_field=5)
+            >>> sample.flatten()
+            [1, 2, 3, 4, 5]
+            >>> sample.schema()
+            {'type': 'object',
+                'properties': {
+                    'x': {'type': 'number'},
+                    'y': {'type': 'number'},
+                    'z': {'type': 'object'},
+                'properties':
+                {
+                'a':{'type': 'number'},
+                'b': {'type': 'number'}
+                }
+            },
+            'extra_field': {
+                'type': 'number'
+            }
+            >>> Sample.unflatten(flat_list, schema)
+            Sample(x=1, y=2, z={'a': 3, 'b': 4}, extra_field=5)
         """
         if item is not None and self.__class__.__name__ != "Image":  # Hacky but works for now.
             if isinstance(item, Sample):
@@ -277,21 +281,24 @@ class Sample(BaseModel):
                     if not prop.startswith("_"):  # Skip properties starting with underscore
                         value, index = unflatten_recursive(prop_schema, index)
                         result[prop] = value
+                if schema_part.get("title", "").lower() == cls.__name__.lower():
+                    result = cls(**result)
+                elif schema_part.get("title", "").lower() == "sample":
+                    result = Sample(**result)
                 return result, index
             if schema_part["type"] == "array":
                 items = []
-                max_items = schema_part.get("maxItems", len(flat_data) - index)
-                for _ in range(max_items):
-                    if index < len(flat_data):
-                        value, index = unflatten_recursive(schema_part["items"], index)
-                        items.append(value)
+                for _ in range(schema_part.get("maxItems", len(flat_data) - index)):
+                    value, index = unflatten_recursive(schema_part["items"], index)
+                    items.append(value)
                 return items, index
-            if index < len(flat_data):
-                return flat_data[index], index + 1
-            return None, index
+            # print(f"flat_data: {flat_data}, index: {index}, schema_part: {schema_part}")
+            return flat_data[index], index + 1
 
         unflattened_dict, _ = unflatten_recursive(schema)
-        return cls(**unflattened_dict)
+        if isinstance(unflattened_dict, dict) and schema.get("title", "").lower() == cls.__name__.lower():
+            return cls(**unflattened_dict)
+        return unflattened_dict
 
     # def rearrange(self, pattern: str, **kwargs) -> Any:
     #     """Pack, unpack, flatten, select indices according to an einops-style pattern.
@@ -344,10 +351,6 @@ class Sample(BaseModel):
         creating a flattened representation based on the specified parameters.
 
         Note: If 'pt' or 'np' is specified as the 'output_type', non-numerical values are excluded.
-        
-        When 'to' is provided, the method always returns a list or Dataset, regardless of 'output_type'.
-        If multiple `to` keys are passed, the output list is concatenated in the order of occurrence.
-        The order of elements in the flattened output is guaranteed to be consistent across calls.
 
         Parameters:
         -----------
@@ -381,28 +384,24 @@ class Sample(BaseModel):
             - If multiple `to` keys are passed, the output list is concatenated in the order of occurrence.
             - The order of elements in the flattened output is guaranteed to be consistent across calls.
         """
-        if to is not None:
-            if isinstance(to, str):
-                to = {to}
-            elif isinstance(to, list):
-                to = set(to)
-            elif not isinstance(to, set):
-                raise ValueError(f"Unsupported type for 'to': {type(to)}")
+        to_keys = to
+        if to_keys is not None and not isinstance(to_keys, set):
+            to_keys = {to_keys}
         keys = set()
         keys_map = describe_keys(self)
-        for k in to or []:
+        for k in to_keys or []:
             if not isinstance(k, str):
-                raise ValueError(f"Invalid key in 'to': {k} (expected str)")
+                raise ValueError(f"Invalid key in 'to_keys': {k} (expected str)")
             if k in keys_map:
                 keys.add(keys_map[k])
             else:
                 keys.add(k)
-        to = keys
+        to_keys = keys
 
         if output_type in ["np", "pt"]:
             non_numerical = "ignore"
 
-        accumulator = {} if output_type == "dict" or to else []
+        accumulator = {} if output_type == "dict" else []
 
         def ignore_key(k, current_path):
             # Ignore keys starting with underscore by default.
@@ -419,19 +418,19 @@ class Sample(BaseModel):
 
         def add_to_accumulator(key, value):
             if non_numerical != "ignore" or isinstance(value, int | float | bool | Sample | dict):
-                if output_type == "dict" or to:
+                if output_type == "dict":
                     accumulator[key.rstrip(sep)] = value
                 else:
                     accumulator.append(value)
 
         def flatten_recursive(obj, path=""):
-            if exact_match(path.rstrip(sep), to):
+            if exact_match(path.rstrip(sep), to_keys):
                 add_to_accumulator(path.rstrip(sep), obj)
             elif isinstance(obj, Sample | dict):
                 items = obj.dump().items() if isinstance(obj, Sample) else obj.items()
                 for k, v in items:
                     key_path = f"{path}{k}"
-                    if to and not matches_to_keys(key_path, to):
+                    if to_keys and not matches_to_keys(key_path, to_keys):
                         continue
                     if not ignore_key(k, key_path):
                         flatten_recursive(v, key_path + sep)
@@ -456,11 +455,7 @@ class Sample(BaseModel):
         if output_type == "pt":
             return torch.tensor(list(accumulator.values()) if isinstance(accumulator, dict) else accumulator)
 
-        if to:
-            if output_type == "dict":
-                return accumulator
-            return {key: accumulator[key] for key in sorted(accumulator.keys())}
-        return accumulator if output_type == "dict" else accumulator
+        return accumulator
 
     def schema(self, include_descriptions=False) -> Dict:
         """Returns a simplified json schema.
@@ -522,7 +517,10 @@ class Sample(BaseModel):
 
         def simplify(schema, obj):
             if isinstance(obj, dict):
+                title = schema.get("title", "")
                 obj = Sample(**obj)
+                if "title" in schema and title:
+                    schema["title"] = title
                 _include_descriptions = False
             else:
                 _include_descriptions = include_descriptions
@@ -532,6 +530,7 @@ class Sample(BaseModel):
                 del schema["additionalProperties"]
             if "items" in schema:
                 schema["items"] = simplify(schema["items"], obj[0])
+                schema["maxItems"] = len(obj)
             if "type" in schema and "ndarray" in schema["type"]:
                 # Handle numpy arrays
                 schema["type"] = "array"
@@ -541,18 +540,20 @@ class Sample(BaseModel):
 
             if "type" in schema and schema["type"] == "object":
                 if "properties" not in schema:
+                    title = schema.get("title", "")
                     schema = obj.schema(include_descriptions=_include_descriptions)
+                    if "title" in schema and title:
+                        schema["title"] = title
                 for k, value in schema["properties"].items():
                     if isinstance(obj, Sample):
                         obj = obj.dict(recurse=False)
                     if k in obj:
                         schema["properties"][k] = simplify(value, obj[k])
                 if not schema["properties"] and isinstance(obj, Sample):
+                    title = schema.get("title", "")
                     schema = obj.schema(include_descriptions=_include_descriptions)
-            if "title" in schema:
-                del schema["title"]
-            if "Title" in schema:
-                del schema["Title"]
+                    if "title" in schema and title:
+                        schema["title"] = title
             if "allOf" in schema or "anyOf" in schema:
                 raise ValueError(f"Schema contains allOf or anyOf which is unsupported: {schema}")
             return schema

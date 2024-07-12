@@ -2,8 +2,7 @@
 # from unittest.mock import patch, MagicMock
 # from datasets import Dataset
 # import torch
-# from embdata import Episode, Sample, Image, Trajectory
-# from embdata.trajectory import Trajectory
+# from embdata import Episode, Sample, Trajectory, Image
 
 # # Mock the dataset loading
 # @pytest.fixture
@@ -44,8 +43,19 @@
 #     assert all(key in result for key in ["image", "instruction", "action", "reward", "is_terminal"])
 
 # # Test episode creation and trajectory cleaning
-# def test_episode_creation_and_trajectory():
-#     from docs.example import Episode, Trajectory, Sample, Image
+# @pytest.fixture
+# def mock_episode_trajectory():
+#     with patch('embdata.Episode') as mock_Episode, \
+#          patch('embdata.Trajectory') as mock_Trajectory:
+#         mock_episode = MagicMock()
+#         mock_Episode.return_value = mock_episode
+#         mock_trajectory = MagicMock()
+#         mock_Trajectory.return_value = mock_trajectory
+#         yield mock_episode, mock_trajectory
+
+# def test_episode_creation_and_trajectory(mock_episode_trajectory):
+#     from docs.example import create_episode, clean_trajectory
+#     mock_episode, mock_trajectory = mock_episode_trajectory
 #     example = {
 #         "image": [b"image1", b"image2"],
 #         "instruction": ["instruction1", "instruction2"],
@@ -53,47 +63,31 @@
 #         "reward": [1.0, 2.0],
 #         "is_terminal": [False, True]
 #     }
-#     episode = Episode()
-#     for i in range(len(example["image"])):
-#         step = Sample(
-#             image=Image(base64=example["image"][i]),
-#             instruction=example["instruction"][i],
-#             action=example["action"][i],
-#             reward=example["reward"][i],
-#             is_terminal=example["is_terminal"][i]
-#         )
-#         episode.append(step)
-    
-#     action_trajectory = episode.trajectory(field="action")
-#     cleaned_trajectory = action_trajectory.low_pass_filter(cutoff_freq=2)
-    
-#     assert isinstance(episode, Episode)
-#     assert isinstance(action_trajectory, Trajectory)
-#     assert isinstance(cleaned_trajectory, Trajectory)
+#     episode = create_episode(example)
+#     cleaned_trajectory = clean_trajectory(episode)
+#     assert episode == mock_episode
+#     mock_episode.append.assert_called()
+#     assert cleaned_trajectory == mock_trajectory.low_pass_filter.return_value
 
-# # Test GPT2CLIP model
-# def test_gpt2clip_model():
-#     from docs.example import GPT2CLIP
-#     model = GPT2CLIP(num_actions=3)
+# # Test GPT2ViT model
+# def test_gpt2vit_model():
+#     from docs.example import GPT2ViT
+#     model = GPT2ViT(num_actions=3)
 #     assert hasattr(model, 'gpt2')
-#     assert hasattr(model, 'clip')
+#     assert hasattr(model, 'vit')
 #     assert hasattr(model, 'fusion')
 #     assert hasattr(model, 'action_head')
 
 # # Test prepare_batch function
 # @pytest.fixture
-# def mock_tokenizer_and_processor():
-#     with patch('transformers.AutoTokenizer') as mock_AutoTokenizer, \
-#          patch('transformers.CLIPProcessor') as mock_CLIPProcessor:
+# def mock_tokenizer():
+#     with patch('transformers.AutoTokenizer') as mock_AutoTokenizer:
 #         mock_tok = MagicMock()
-#         mock_proc = MagicMock()
 #         mock_AutoTokenizer.from_pretrained.return_value = mock_tok
-#         mock_CLIPProcessor.from_pretrained.return_value = mock_proc
-#         yield mock_tok, mock_proc
+#         yield mock_tok
 
-# def test_prepare_batch(mock_tokenizer_and_processor):
-#     from docs.example import prepare_batch, Image
-#     mock_tokenizer, mock_processor = mock_tokenizer_and_processor
+# def test_prepare_batch(mock_tokenizer):
+#     from docs.example import prepare_batch
 #     examples = {
 #         "instruction": ["instruction1", "instruction2"],
 #         "image": [b"image1", b"image2"],
@@ -103,30 +97,16 @@
 #     assert all(key in result for key in ["input_ids", "attention_mask", "pixel_values", "labels"])
 
 # # Test training loop
-# def test_training_loop():
-#     from docs.example import GPT2CLIP
-#     model = GPT2CLIP(num_actions=3)
-#     optimizer = torch.optim.AdamW(model.parameters(), lr=5e-5)
+# @pytest.mark.parametrize("num_epochs", [1, 2])
+# def test_training_loop(num_epochs):
+#     from docs.example import train_model
+#     model = MagicMock()
+#     optimizer = MagicMock()
 #     train_dataset = [{"input_ids": torch.rand(1, 10), 
 #                       "attention_mask": torch.ones(1, 10), 
 #                       "pixel_values": torch.rand(1, 3, 224, 224), 
 #                       "labels": torch.rand(1, 3)} for _ in range(5)]
     
-#     num_epochs = 2
-#     batch_size = 2
-    
-#     for epoch in range(num_epochs):
-#         for i in range(0, len(train_dataset), batch_size):
-#             batch = train_dataset[i:i+batch_size]
-#             optimizer.zero_grad()
-#             outputs = model(
-#                 torch.cat([b["input_ids"] for b in batch]),
-#                 torch.cat([b["attention_mask"] for b in batch]),
-#                 torch.cat([b["pixel_values"] for b in batch])
-#             )
-#             labels = torch.cat([b["labels"] for b in batch])
-#             loss = torch.nn.functional.mse_loss(outputs, labels)
-#             loss.backward()
-#             optimizer.step()
-    
-#     assert True  # If we reach this point without errors, the test passes
+#     train_model(model, optimizer, train_dataset, num_epochs=num_epochs, batch_size=2)
+#     assert model.train.call_count == num_epochs
+#     assert optimizer.zero_grad.call_count == num_epochs * 3  # 5 samples, batch size 2, so 3 batches per epoch

@@ -76,7 +76,7 @@ def CoordinateField(  # noqa
         "_info": {
             "reference_frame": reference_frame,
             "unit": unit,
-             "bounds": bounds,
+            "bounds": bounds,
             **kwargs,
         },
     }
@@ -85,7 +85,6 @@ def CoordinateField(  # noqa
         json_schema_extra=json_schema_extra,
         description=description,
         default_factory=default_factory,
-        # **kwargs,
     )
 
 
@@ -188,6 +187,22 @@ class Coordinate(Sample):
                             raise ValueError(f"{key} item {i} ({v}) is out of bounds {bounds}")
                 elif not bounds[0] <= value <= bounds[1]:
                     raise ValueError(f"{key} value {value} is not within bounds {bounds}")
+        return self
+
+    @model_validator(mode="after")
+    def validate_shape(self) -> "Coordinate":
+        for key, value in self:
+            shape = self.model_field_info(key).get("_shape", "undefined")
+            if shape != "undefined":
+                shape_processed = []
+                value_processed = value
+                while len(shape_processed) < len(shape):
+                    shape_processed.append(len(value_processed))
+                    if shape_processed[-1] != len(value_processed):
+                        raise ValueError(
+                            f"{key} value {value} of length {len(value_processed)} at dimension {len(shape_processed)-1}does not have the correct shape {shape}",
+                        )
+                    value_processed = value_processed[0]
         return self
 
 class Pose3D(Coordinate):

@@ -39,7 +39,7 @@ dependencies = [
  "opencv-python==4.10.0.84",
  "shapely==2.0.4",
  "importlib_resources==6.4.0",
- "transformers>=4.30.0"
+ "transformers>=4.42.4"
 ]
 [project.optional-dependencies]
 audio = [
