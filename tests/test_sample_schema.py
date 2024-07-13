@@ -23,22 +23,26 @@ class NewSample(Sample):
 
 def test_sample_schema():
     assert NewSample().schema(include_descriptions=True) == {
+        "title": "NewSample",
         "type": "object",
         "properties": {
             "answer": {
+                "title": "Answer",
+                "type": "string",
                 "default": "",
                 "description": "Short, one sentence answer to any question a user might have asked. 20 words max.",
-                "type": "string",
-            },
-            "sleep": {
-                "default": False,
-                "description": "Whether the robot should go to sleep after executing the motion.",
-                "type": "boolean",
             },
             "home": {
+                "title": "Home",
+                "type": "boolean",
                 "default": False,
                 "description": "Whether the robot should go to home after executing the motion.",
+            },
+            "sleep": {
+                "title": "Sleep",
                 "type": "boolean",
+                "default": False,
+                "description": "Whether the robot should go to sleep after executing the motion.",
             },
         },
     }
@@ -65,13 +69,29 @@ def test_sample_schema_with_numpy_array():
 
     assert NewSample().schema(include_descriptions=False) == {
         "type": "object",
+        "title": "NewSample",
         "properties": {
-            "answer": {"default": "", "type": "string"},
-            "sleep": {"default": False, "type": "boolean"},
-            "home": {"default": False, "type": "boolean"},
+            "answer": {
+                "default": "",
+                "title": "Answer",
+                "type": "string",
+            },
+            "home": {
+                "default": False,
+                "title": "Home",
+                "type": "boolean",
+            },
             "image": {
+                "items": {
+                    "type": "number",
+                },
+                "title": "Numpy Array",
                 "type": "array",
-                "items": {"type": "number"},
+            },
+            "sleep": {
+                "default": False,
+                "title": "Sleep",
+                "type": "boolean",
             },
         },
     }
@@ -95,27 +115,53 @@ def test_sample_schema_with_null():
             description="Image data",
         )
 
-    assert NewSample(sleep=True).schema(include_descriptions=False) == {
-        "type": "object",
-        "required": ["sleep"],
-        "properties": {
-            "answer": {"default": "", "type": "string"},
-            "sleep": {"type": "boolean"},
-            "home": {"default": False, "type": "boolean"},
-            "image": {
-                "type": "array",
-                "items": {"type": "number"},
+    assert NewSample(sleep=True).schema(include_descriptions=False) ==  {
+        'properties': {
+            'answer': {
+                'default': '',
+            'title': 'Answer',
+                'type': 'string',
+            },
+            'home': {
+                'default': False,
+             'title': 'Home',
+                'type': 'boolean',
+            },
+            'image': {
+                'items': {
+                    'type': 'number',
+                },
+            'title': 'Numpy Array',
+                'type': 'array',
+            },
+            'sleep': {
+          'title': 'Sleep',
+                'type': 'boolean',
             },
         },
+        'required': [
+            'sleep',
+        ],
+    'title': 'NewSample',
+        'type': 'object',
     }
 
 
 def test_dynamic_field():
-    assert Sample(list_field=["a", "b"]).schema(include_descriptions=False) == {
-        "type": "object",
-        "properties": {"list_field": {"type": "array", "items": {"type": "string"}}},
+    assert Sample(list_field=["a", "b"]).schema(include_descriptions=False) ==     {
+        'properties': {
+            'list_field': {
+                'items': {
+                    'type': 'string',
+                },
+            'maxItems': 2,
+            'title': 'List Field',
+                'type': 'array',
+            },
+        },
+      'title': 'Sample',
+        'type': 'object',
     }
-
 
 def test_nested():
     class AnotherSample(Sample):
@@ -134,20 +180,36 @@ def test_nested():
             description="Nested sample",
         )
 
-    assert NewSample().schema(include_descriptions=False) == {
-        "type": "object",
-        "properties": {
-            "answer": {"default": "", "type": "string"},
-            "nested": {
-                "type": "object",
-                "properties": {
-                    "child_field": {
-                        "type": "object",
-                        "properties": {"list_field": {"type": "array", "items": {"type": "string"}}},
-                    }
+    assert NewSample().schema(include_descriptions=False) ==  {
+        'properties': {
+            'answer': {
+                'default': '',
+                'title': 'Answer',
+                'type': 'string',
+            },
+            'nested': {
+                'properties': {
+                    'child_field': {
+                        'properties': {
+                            'list_field': {
+                                'items': {
+                                    'type': 'string',
+                                },
+                                'maxItems': 2,
+                                'title': 'List Field',
+                                'type': 'array',
+                            },
+                        },
+                        'title': 'Sample',
+                        'type': 'object',
+                    },
                 },
+                'title': 'AnotherSample',
+                'type': 'object',
             },
         },
+        'title': 'NewSample',
+        'type': 'object',
     }
 
 

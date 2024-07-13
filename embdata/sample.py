@@ -288,17 +288,14 @@ class Sample(BaseModel):
                 return result, index
             if schema_part["type"] == "array":
                 items = []
-                for _ in range(schema_part.get("maxItems", len(flat_data) - index)):
+                for _e in range(schema_part.get("maxItems", len(flat_data) - index)):
                     value, index = unflatten_recursive(schema_part["items"], index)
                     items.append(value)
                 return items, index
-            # print(f"flat_data: {flat_data}, index: {index}, schema_part: {schema_part}")
             return flat_data[index], index + 1
 
         unflattened_dict, _ = unflatten_recursive(schema)
-        if isinstance(unflattened_dict, dict) and schema.get("title", "").lower() == cls.__name__.lower():
-            return cls(**unflattened_dict)
-        return unflattened_dict
+        return cls(**unflattened_dict) if not isinstance(unflattened_dict, cls) else unflattened_dict
 
     # def rearrange(self, pattern: str, **kwargs) -> Any:
     #     """Pack, unpack, flatten, select indices according to an einops-style pattern.
@@ -516,13 +513,13 @@ class Sample(BaseModel):
         schema = resolve_refs(schema)
 
         def simplify(schema, obj):
+            title = schema.get("title", "")
+            print(f"schema title in : {title}")
             if isinstance(obj, dict):
-                title = schema.get("title", "")
                 obj = Sample(**obj)
-                if "title" in schema and title:
-                    schema["title"] = title
                 _include_descriptions = False
-            else:
+            elif isinstance(obj, Sample):
+                title = obj.__class__.__name__
                 _include_descriptions = include_descriptions
             if "description" in schema and not include_descriptions:
                 del schema["description"]
@@ -531,6 +528,8 @@ class Sample(BaseModel):
             if "items" in schema:
                 schema["items"] = simplify(schema["items"], obj[0])
                 schema["maxItems"] = len(obj)
+                if schema["items"].get("title"): # Use the object title instead.
+                    del schema["items"]["title"]
             if "type" in schema and "ndarray" in schema["type"]:
                 # Handle numpy arrays
                 schema["type"] = "array"
@@ -540,22 +539,21 @@ class Sample(BaseModel):
 
             if "type" in schema and schema["type"] == "object":
                 if "properties" not in schema:
-                    title = schema.get("title", "")
                     schema = obj.schema(include_descriptions=_include_descriptions)
-                    if "title" in schema and title:
-                        schema["title"] = title
                 for k, value in schema["properties"].items():
                     if isinstance(obj, Sample):
                         obj = obj.dict(recurse=False)
                     if k in obj:
                         schema["properties"][k] = simplify(value, obj[k])
-                if not schema["properties"] and isinstance(obj, Sample):
-                    title = schema.get("title", "")
+                if not schema["properties"]:
                     schema = obj.schema(include_descriptions=_include_descriptions)
-                    if "title" in schema and title:
-                        schema["title"] = title
             if "allOf" in schema or "anyOf" in schema:
                 raise ValueError(f"Schema contains allOf or anyOf which is unsupported: {schema}")
+            if title:
+                schema["title"] = title
+            print(f"schema title in: {title} out: {schema.get('title')}")
+            from rich import print_json
+            print_json(data=schema)
             return schema
 
         return simplify(schema, self)
