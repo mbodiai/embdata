@@ -1,0 +1,9 @@
+[submodule "auto"]
+	path = auto
+	url = ./auto/
+[submodule "datasets"]
+	path = datasets
+	url = https://github.com/mbodiai/datasets.git
+[submodule "lerobot"]
+	path = lerobot
+	url = https://github.com/mbodiai/lerobot.git
