@@ -50,9 +50,9 @@ minimal dependencies. It is designed to be used in conjunction with [rerun.io](h
 pip install embdata
 ```
 
-Optionally, clone our fork of lerobot (https://github.com/huggingface/lerobot) and install:
+Optionally, clone lerobot (https://github.com/huggingface/lerobot) and install:
 ```console
-git clone https://github.com/mbodiai/lerobot
+git clone https://github.com/mbodiai/lerobot # or use our fork to install all dependencies at once.
 cd lerobot
 pip install -e .
 ```
