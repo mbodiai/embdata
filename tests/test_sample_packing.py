@@ -14,46 +14,46 @@ def sample_dicts():
 
 
 def test_pack_from_with_samples(sample_instances):
-    packed_sample = Sample.unpack_from(sample_instances)
+    packed_sample = Sample.pack_from(sample_instances)
     print(packed_sample)
     assert np.array_equal(packed_sample.attr1, [1, 2, 3])
     assert np.array_equal(packed_sample.attr2, ["a", "b", "c"])
 
 
 def test_pack_from_with_dicts(sample_dicts):
-    packed_sample = Sample.unpack_from(sample_dicts)
+    packed_sample = Sample.pack_from(sample_dicts)
     assert np.array_equal(packed_sample.attr1, [4, 5, 6])
     assert np.array_equal(packed_sample.attr2, ["d", "e", "f"])
 
 
 def test_pack_from_with_mixed(sample_instances, sample_dicts):
     mixed_inputs = sample_instances + sample_dicts
-    packed_sample = Sample.unpack_from(mixed_inputs)
+    packed_sample = Sample.pack_from(mixed_inputs)
     assert np.array_equal(packed_sample.attr1, [1, 2, 3, 4, 5, 6])
     assert np.array_equal(packed_sample.attr2, ["a", "b", "c", "d", "e", "f"])
 
 
 def test_pack_from_empty():
     with pytest.raises(ValueError):
-        Sample.unpack_from([])
+        Sample.pack_from([])
 
 
 def test_pack_from_invalid_input():
     with pytest.raises(ValueError):
-        Sample.unpack_from([None])
+        Sample.pack_from([None])
 
 
 def test_unpack_to_samples(sample_instances):
-    packed_sample = Sample.unpack_from(sample_instances)
-    unpacked_samples = packed_sample.pack()
+    packed_sample = Sample.pack_from(sample_instances)
+    unpacked_samples = packed_sample.unpack()
     for original, unpacked in zip(sample_instances, unpacked_samples):
         assert original.attr1 == unpacked.attr1
         assert original.attr2 == unpacked.attr2
 
 
 def test_unpack_to_dicts(sample_instances):
-    packed_sample = Sample.unpack_from(sample_instances)
-    unpacked_dicts = packed_sample.pack(to="dicts")
+    packed_sample = Sample.pack_from(sample_instances)
+    unpacked_dicts = packed_sample.unpack(to_dicts=True)
     for original, unpacked in zip(sample_instances, unpacked_dicts):
         assert original.attr1 == unpacked["attr1"]
         assert original.attr2 == unpacked["attr2"]
@@ -62,15 +62,15 @@ def test_unpack_to_dicts(sample_instances):
 def test_pack_from_with_padding_truncate(sample_instances):
     # Modify one instance to test truncation
     sample_instances[-1].attr3 = True
-    packed_sample = Sample.unpack_from(sample_instances, padding="truncate")
+    packed_sample = Sample.pack_from(sample_instances, padding="truncate")
     assert not hasattr(packed_sample, "attr3")
 
 
 def test_unpack_with_padding_truncate(sample_instances):
     # Modify one instance to test truncation
-    packed_sample = Sample.unpack_from(sample_instances)
+    packed_sample = Sample.pack_from(sample_instances)
     packed_sample.attr1 = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
-    unpacked_samples = packed_sample.pack(padding="truncate")
+    unpacked_samples = packed_sample.unpack(padding="truncate")
     print(unpacked_samples)
     assert unpacked_samples[0].attr1 == 1
     assert unpacked_samples[1].attr1 == 2
@@ -83,5 +83,5 @@ def test_unpack_with_padding_truncate(sample_instances):
 
 def test_unpack_empty():
     empty_sample = Sample()  # Assuming this creates an empty Sample instance
-    unpacked_samples = empty_sample.pack()
+    unpacked_samples = empty_sample.unpack()
     assert unpacked_samples == []

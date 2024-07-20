@@ -1,3 +1,4 @@
+import atexit
 import logging
 from threading import Thread
 from typing import Any, Callable, Dict, Iterable, Iterator, List, Literal
@@ -5,24 +6,26 @@ from typing import Any, Callable, Dict, Iterable, Iterator, List, Literal
 import numpy as np
 import rerun as rr
 import torch
+from datasets import Dataset, Features, Sequence, Value
+from datasets import Image as HFImage
 from pydantic import ConfigDict, Field, PrivateAttr, model_validator
 from rerun.archetypes import Image as RRImage
 from torchvision import transforms
 
-from datasets import Dataset, Features, Sequence, Value
-from datasets import Image as HFImage
 from embdata.motion import Motion
 from embdata.motion.control import RelativePoseHandControl
 from embdata.sample import Sample
 from embdata.sense.image import Image, SupportsImage
 from embdata.trajectory import Trajectory
 from embdata.utils.iter_utils import get_iter_class
+import sys
 
 try:
     from lerobot.common.datasets.lerobot_dataset import LeRobotDataset
     from lerobot.common.datasets.utils import calculate_episode_data_index, hf_transform_to_torch
 except ImportError:
     logging.warning("lerobot not found. Episode.lerobot() may not work.")
+
 
 
 def convert_images(values: Dict[str, Any] | Any, image_keys: set[str] | str | None = "image") -> "TimeStep":
@@ -547,7 +550,7 @@ class Episode(Sample):
         data = [step.dict() for step in self.steps]
         return Dataset.from_list(data, features=self.steps[0].features())
 
-    def lerobot(self) -> LeRobotDataset:
+    def lerobot(self) -> "LeRobotDataset":
         """Convert the episode to LeRobotDataset compatible format.
 
         Refer to https://github.com/huggingface/lerobot/blob/main/lerobot/scripts/push_dataset_to_hub.py for more details.
@@ -606,7 +609,7 @@ class Episode(Sample):
         )
 
     @classmethod
-    def from_lerobot(cls, lerobot_dataset: LeRobotDataset) -> "Episode":
+    def from_lerobot(cls, lerobot_dataset: "LeRobotDataset") -> "Episode":
         """Convert a LeRobotDataset compatible dataset back into an Episode.
 
         Args:
@@ -664,7 +667,7 @@ class Episode(Sample):
                     pass
             except KeyboardInterrupt:
                 self.close_view()
-                exit()
+                sys.exit()
 
     def show(self, mode: Literal["local", "remote"] | None = None, port=5003) -> None:
         if mode is None:
@@ -672,6 +675,7 @@ class Episode(Sample):
             raise ValueError(msg)
         thread = Thread(target=self.rerun, kwargs={"port": port, "mode": mode})
         self._rr_thread = thread
+        atexit.register(self.close_view)
         thread.start()
 
     def close_view(self) -> None:
@@ -690,7 +694,6 @@ class VisionMotorEpisode(Episode):
 class VisionMotorHandEpisode(VisionMotorEpisode):
     """An episode for vision-motor tasks with hand control."""
     _action_class: type[RelativePoseHandControl] = PrivateAttr(default=RelativePoseHandControl)
-
 
 if __name__ == "__main__":
     import doctest

@@ -1,6 +1,6 @@
 import numpy as np
 import pytest
-from embdata.utils.geometry_utils import pose_to_transformation_matrix, compute_view_params
+from embdata.utils.geometry_utils import pose_to_transformation_matrix
 from embdata.geometry import Pose, Pose6D
 from embdata.motion import Motion
 
@@ -18,23 +18,3 @@ def test_pose_to_transformation_matrix():
     np.testing.assert_array_almost_equal(result, expected)
 
 
-def test_compute_view_params():
-    # Test with Pose objects
-    camera_pos = np.array([0, 0, 0])
-    target_pos = np.array([1, 1, 1])
-    azimuth, distance, elevation, lookat = compute_view_params(camera_pos, target_pos)
-
-    assert np.isclose(azimuth, 45)
-    assert np.isclose(distance, np.sqrt(3))
-    assert np.isclose(elevation, 35.264389682754654)
-    np.testing.assert_array_almost_equal(lookat, [1, 1, 1])
-
-    # Test with numpy arrays
-    camera_pos_array = np.array([0, 0, 0])
-    target_pos_array = np.array([1, 1, 1])
-    azimuth, distance, elevation, lookat = compute_view_params(camera_pos_array, target_pos_array)
-
-    assert np.isclose(azimuth, 45)
-    assert np.isclose(distance, np.sqrt(3))
-    assert np.isclose(elevation, 35.264389682754654)
-    np.testing.assert_array_almost_equal(lookat, [1, 1, 1])

@@ -2,56 +2,6 @@
 
 This document provides examples of how to use the `embdata` library for various tasks.
 
-<details>
-<summary><strong>Cleaning and Visualizing a Dataset</strong></summary>
-
-```python
-from datasets import load_dataset
-import matplotlib.pyplot as plt
-from embdata.sample import Sample
-
-# Load a dataset
-dataset = load_dataset("some_dataset")
-
-# Clean the dataset
-def clean_dataset(dataset):
-    # Remove rows with missing values
-    dataset = dataset.filter(lambda example: all(v is not None for v in example.values()))
-    
-    # Convert string columns to lowercase
-    dataset = dataset.map(lambda example: {k: v.lower() if isinstance(v, str) else v for k, v in example.items()})
-    
-    return dataset
-
-cleaned_dataset = clean_dataset(dataset)
-
-# Visualize the dataset
-def visualize_dataset(dataset):
-    plt.figure(figsize=(10, 5))
-    plt.hist(dataset['numerical_column'], bins=20)
-    plt.title('Histogram of Numerical Column')
-    plt.xlabel('Value')
-    plt.ylabel('Frequency')
-    plt.show()
-
-visualize_dataset(cleaned_dataset)
-```
-
-</details>
-
-<details>
-<summary><strong>Uploading a Dataset to HuggingFace</strong></summary>
-
-```python
-from datasets import Dataset
-
-# Assuming you have a cleaned dataset
-def upload_to_huggingface(dataset, repo_name):
-    dataset.push_to_hub(repo_name)
-
-upload_to_huggingface(cleaned_dataset, "your-username/your-dataset-name")
-```
-
 </details>
 
 <details>

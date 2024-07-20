@@ -290,8 +290,8 @@ class Trajectory:
         if self._episode is None:
             msg = "This trajectory is not part of an episode"
             raise ValueError(msg)
-
         return self._episode
+
     def resample(self, target_hz: float) -> "Trajectory":
         if self.freq_hz is None:
             msg = "Cannot resample a trajectory without a frequency"

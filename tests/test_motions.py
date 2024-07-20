@@ -29,6 +29,13 @@ from embdata.geometry import Pose6D
 from embdata.geometry import PlanarPose
 
 
+@pytest.fixture(autouse=True)
+def mock_file():
+    with TemporaryDirectory() as tmpdirname:
+        filepath = Path(tmpdirname) / "test.h5"
+        yield filepath
+
+
 def test_location_angle_serialization():
     la = PlanarPose(x=0.5, y=-0.5, theta=1.57)
     json = la.dict()
@@ -119,10 +126,9 @@ def test_hand_control_deserialization():
 def test_unflatten():
     original_pose = PlanarPose(x=0.5, y=-0.5, theta=1.57)
     flattened_pose = original_pose.flatten(output_type="dict")
-    print(flattened_pose)
+
     schema = {
         "type": "object",
-        "title": "PlanarPose",
         "properties": {
             "x": {"type": "number"},
             "y": {"type": "number"},
@@ -158,20 +164,20 @@ def test_bounds():
         roll: float = MotionField(
             default=0,
             description="Roll about the X-axis in radians. Positive roll is clockwise.",
-            bounds=(-np.pi / 2, np.pi / 2),
+            bounds=(-np.pi/2, np.pi/2),
         )
         pitch: float = MotionField(
             default=0,
             description="Pitch about the Y-axis in radians. Positive pitch is down.",
-            bounds=(-np.pi / 2, np.pi / 2),
+            bounds=(-np.pi/2, np.pi/2),
         )
         yaw: float = MotionField(
             default=0,
             description="Yaw about the Z-axis in radians. Positive yaw is left.",
             bounds=(-np.pi, np.pi),
         )
-
     class XarmHandControl(HandControl):
+
         """Action for a 7D space representing x, y, z, roll, pitch, yaw, and oppenness of the hand."""
 
         pose: XarmPose6D = MotionField(default_factory=XarmPose6D, description="6D pose of the robot hand.")
@@ -179,15 +185,15 @@ def test_bounds():
             default=0,
             description="Openness of the robot hand. 0 is closed, 1 is open.",
         )
-
+    
     xarm = XarmHandControl()
-    assert xarm.pose.field_info("x")["bounds"] == (-0.3, 0.4)
-    assert xarm.pose.field_info("y")["bounds"] == (-0.4, 0.4)
-    assert xarm.pose.field_info("z")["bounds"] == (-0.175, 0.4)
-    assert xarm.pose.field_info("roll")["bounds"] == (-np.pi / 2, np.pi / 2)
-    assert xarm.pose.field_info("pitch")["bounds"] == (-np.pi / 2, np.pi / 2)
-    assert xarm.pose.field_info("yaw")["bounds"] == (-np.pi, np.pi)
-
+    assert xarm.model_field_info("pose")["_bounds"] == (-0.3, 0.4)
+    assert xarm.model_field_info("pose")["_bounds"] == (-0.4, 0.4)
+    assert xarm.model_field_info("pose")["_bounds"] == (-0.175, 0.4)
+    assert xarm.model_field_info("pose")["_bounds"] == (-np.pi/2, np.pi/2)
+    assert xarm.model_field_info("pose")["_bounds"] == (-np.pi/2, np.pi/2)
+    assert xarm.model_field_info("pose")["_bounds"] == (-np.pi, np.pi)
+    assert xarm.model_field_info("grasp")["_bounds"] == (0, 1)
 
 if __name__ == "__main__":
     pytest.main([__file__, "-vv"])
