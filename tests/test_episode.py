@@ -1,7 +1,8 @@
 import pytest
-from embdata.episode import Episode, TimeStep
+from embdata.episode import Episode, TimeStep, VisionMotorStep, ImageTask
 from embdata.sample import Sample
-
+from embdata import Image
+from embdata.motion.control import RelativePoseHandControl
 
 @pytest.fixture
 def time_step():
@@ -154,6 +155,20 @@ def test_episode_set_item(time_step):
 def test_episode_push_to_hub(time_step):
     episode = Episode(steps=[time_step, time_step, time_step])
     episode.dataset().push_to_hub("mbodiai/episode_test", private=True)
+
+
+def test_episode_vision_motor_step_dataset():
+    episode = Episode([])
+    episode.append(
+        VisionMotorStep(
+            episode_idx=0,
+            step_idx=0,
+            observation=ImageTask(image=Image(size=(224,224)), task="task"),
+            action=RelativePoseHandControl(),
+            state=Sample(),
+        )
+    )
+    episode.dataset()
 
 
 if __name__ == "__main__":
