@@ -170,6 +170,10 @@ def test_episode_vision_motor_step_dataset():
     )
     episode.dataset()
 
+def test_dataset_to_episode():
+    episode = Episode(steps=[time_step, time_step, time_step])
+    dataset = episode.dataset()
+    episode = Episode(steps=dataset.to_list())
 
 if __name__ == "__main__":
     pytest.main(["-vv", __file__])
