@@ -68,7 +68,7 @@ source_pkgs = ["embdata", "tests"]
 branch = true
 parallel = true
 omit = [
-  "src/embdata/__about__.py",
+  "embdata/__about__.py",
 ]
 
 [tool.coverage.paths]
