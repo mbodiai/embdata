@@ -583,7 +583,7 @@ class Sample(BaseModel):
                 result = {}
                 for pattern in to:
                     result[pattern] = [item[1] for item in flattened if match_key(item[0], pattern)]
-                return [dict(zip(result.keys(), values)) for values in zip(*result.values())] or [{}]
+                return [dict(zip(result.keys(), values)) for values in zip_longest(*result.values(), fillvalue=None)]
             
             # Group values by their original keys
             grouped_values = {}
@@ -595,12 +595,12 @@ class Sample(BaseModel):
                         grouped_values[pattern].append(value)
                         break
             
-            # If there's only one item per key, return a list of lists with single items
+            # If there's only one item per key, return a flat list
             if all(len(v) == 1 for v in grouped_values.values()):
-                return [[v[0] for v in grouped_values.values()]]
+                return [v[0] for v in grouped_values.values()]
             
             # If there are multiple items for at least one key, return a list of lists
-            return [v for v in grouped_values.values()] or [[]]
+            return [v for v in grouped_values.values()]
 
         if output_type == "dict":
             return dict(flattened)
