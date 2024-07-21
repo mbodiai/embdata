@@ -510,7 +510,7 @@ class Sample(BaseModel):
         def match_key(item_key, pattern):
             if '*' in pattern:
                 parts = pattern.split('*')
-                return item_key.startswith(parts[0]) and (len(parts) == 1 or item_key.endswith(parts[-1]))
+                return item_key.startswith(parts[0]) and item_key.endswith(parts[-1])
             return item_key == pattern or item_key.endswith(sep + pattern)
 
         grouped_values = {pattern: [] for pattern in to}
@@ -518,7 +518,7 @@ class Sample(BaseModel):
             for pattern in to:
                 if match_key(key, pattern):
                     if isinstance(value, list):
-                        grouped_values[pattern].extend(value)
+                        grouped_values[pattern].append(value)
                     else:
                         grouped_values[pattern].append(value)
                     break
@@ -536,9 +536,6 @@ class Sample(BaseModel):
         
         print(f"process_groups input: {grouped_values}")  # Debug print
         print(f"Lengths: {lengths}")  # Debug print
-        
-        if len(set(lengths)) > 1:
-            raise ValueError("All grouped values must have the same length")
         
         max_length = max(lengths)
         
@@ -627,7 +624,7 @@ class Sample(BaseModel):
                 return [dict(zip(to, values)) for values in processed]
             
             if output_type == "list":
-                return processed[0] if len(processed) == 1 and len(to) == 1 else processed
+                return processed[0] if len(processed) == 1 else processed
             elif output_type == "np":
                 return np.array(processed)
             elif output_type == "pt":
