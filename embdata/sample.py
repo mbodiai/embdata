@@ -521,6 +521,24 @@ class Sample(BaseModel):
                     break
         return grouped_values
 
+    @staticmethod
+    def process_groups(grouped_values):
+        result = []
+        if not grouped_values:
+            return result
+        
+        keys = list(grouped_values.keys())
+        max_length = max(len(values) for values in grouped_values.values())
+        
+        for i in range(max_length):
+            item = []
+            for key in keys:
+                values = grouped_values[key]
+                item.append(values[i] if i < len(values) else None)
+            result.append(item)
+        
+        return result
+
     def flatten(
         self,
         output_type: OneDimensional = "list",

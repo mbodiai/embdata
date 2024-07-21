@@ -218,5 +218,44 @@ def test_group_values_with_exact_match():
     }
     assert grouped == expected, f"Expected {expected}, but got {grouped}"
 
+def test_process_groups():
+    grouped_values = {
+        "a": [1, 2, 3],
+        "b": [4, 5],
+        "c": [6, 7, 8, 9]
+    }
+    result = Sample.process_groups(grouped_values)
+    expected = [
+        [1, 4, 6],
+        [2, 5, 7],
+        [3, None, 8],
+        [None, None, 9]
+    ]
+    assert result == expected, f"Expected {expected}, but got {result}"
+
+def test_process_groups_empty():
+    grouped_values = {}
+    result = Sample.process_groups(grouped_values)
+    expected = []
+    assert result == expected, f"Expected {expected}, but got {result}"
+
+def test_process_groups_single_item():
+    grouped_values = {
+        "a": [1],
+        "b": [2],
+        "c": [3]
+    }
+    result = Sample.process_groups(grouped_values)
+    expected = [[1, 2, 3]]
+    assert result == expected, f"Expected {expected}, but got {result}"
+
+def test_flatten_with_to_and_process_groups():
+    sample = Sample(a=1, b={"c": 2, "d": [3, 4]}, e=Sample(f=5, g={"h": 6, "i": 7}))
+    flattened = Sample.flatten_recursive(sample.dump())
+    grouped = Sample.group_values(flattened, ["a", "b.c", "e.g.h"])
+    result = Sample.process_groups(grouped)
+    expected = [[1, 2, 6]]
+    assert result == expected, f"Expected {expected}, but got {result}"
+
 if __name__ == "__main__":
     pytest.main()
