@@ -570,7 +570,7 @@ class Sample(BaseModel):
             if isinstance(to, str):
                 to = [to]
             to_set = set(to)
-            flattened = [item for item in flattened if any(key.startswith(t) for t in to_set)]
+            flattened = [item for item in flattened if any(item[0].startswith(t) for t in to_set)]
 
         if output_type == "dict":
             return dict(flattened)
