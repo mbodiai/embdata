@@ -540,9 +540,10 @@ class Sample(BaseModel):
                         group_key = sep.join(pattern_parts[:wildcard_index])
                         if group_key not in grouped_values:
                             grouped_values[group_key] = []
-                        if len(grouped_values[group_key]) <= int(parts[wildcard_index]):
+                        index = int(parts[wildcard_index])
+                        while len(grouped_values[group_key]) <= index:
                             grouped_values[group_key].append([])
-                        grouped_values[group_key][int(parts[wildcard_index])].append(value)
+                        grouped_values[group_key][index].append(value)
                     else:
                         grouped_values[pattern].append(value)
                     break
@@ -550,24 +551,14 @@ class Sample(BaseModel):
         # Handle nested structures
         for pattern, values in list(grouped_values.items()):
             if len(values) == 1:
-                if isinstance(values[0], list):
-                    grouped_values[pattern] = values[0]
+                grouped_values[pattern] = values[0]
+            elif all(isinstance(v, list) for v in values):
+                if all(len(v) == 1 for v in values):
+                    grouped_values[pattern] = [v[0] for v in values]
                 else:
                     grouped_values[pattern] = values
-            elif all(isinstance(v, list) for v in values):
-                grouped_values[pattern] = values
             elif not values:
                 del grouped_values[pattern]
-
-        # Ensure nested lists for patterns with multiple levels
-        for pattern in to:
-            parts = pattern.split(sep)
-            if len(parts) > 1:
-                current_key = parts[0]
-                for part in parts[1:]:
-                    if current_key in grouped_values and isinstance(grouped_values[current_key], list):
-                        grouped_values[current_key] = [grouped_values[current_key]]
-                    current_key = f"{current_key}{sep}{part}"
 
         print(f"group_values output: {grouped_values}")  # Debug print
         return grouped_values
