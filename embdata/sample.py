@@ -549,12 +549,20 @@ class Sample(BaseModel):
 
         # Handle nested structures
         for pattern, values in list(grouped_values.items()):
-            if len(values) == 1 and isinstance(values[0], list):
-                grouped_values[pattern] = values[0]
+            if len(values) == 1:
+                if isinstance(values[0], list):
+                    grouped_values[pattern] = values[0]
+                else:
+                    grouped_values[pattern] = values
             elif all(isinstance(v, list) for v in values):
                 grouped_values[pattern] = values
             elif not values:
                 del grouped_values[pattern]
+
+        # Ensure nested lists for patterns ending with '*'
+        for pattern in to:
+            if pattern.endswith('*') and pattern[:-1] in grouped_values:
+                grouped_values[pattern[:-1]] = [grouped_values[pattern[:-1]]]
 
         print(f"group_values output: {grouped_values}")  # Debug print
         return grouped_values
