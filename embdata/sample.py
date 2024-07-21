@@ -517,25 +517,39 @@ class Sample(BaseModel):
         for key, value in flattened:
             for pattern in to:
                 if match_key(key, pattern):
-                    grouped_values[pattern].append(value)
+                    if '.*' in pattern:
+                        # For wildcard patterns, keep the nested structure
+                        grouped_values[pattern].append(value)
+                    else:
+                        # For exact matches, flatten the structure
+                        if isinstance(value, list):
+                            grouped_values[pattern].extend(value)
+                        else:
+                            grouped_values[pattern].append(value)
                     break
 
-        # Handle nested structures and wildcards
+        # Handle nested structures for wildcard patterns
         for pattern in to:
             if '*' in pattern:
                 parts = pattern.split('*')
                 prefix, suffix = parts[0], parts[-1]
                 nested_values = []
+                current_nested = []
                 for key, value in flattened:
                     if key.startswith(prefix) and key.endswith(suffix):
-                        nested_values.append(value)
+                        if current_nested and not key.startswith(current_nested[-1][0].rsplit('.', 1)[0]):
+                            nested_values.append(current_nested)
+                            current_nested = []
+                        current_nested.append((key, value))
+                if current_nested:
+                    nested_values.append(current_nested)
                 if nested_values:
-                    grouped_values[pattern] = nested_values
+                    grouped_values[pattern] = [
+                        [v for _, v in nested] for nested in nested_values
+                    ]
 
-        # Flatten single-item lists
-        for pattern in grouped_values:
-            if len(grouped_values[pattern]) == 1 and isinstance(grouped_values[pattern][0], list):
-                grouped_values[pattern] = grouped_values[pattern][0]
+        # Remove empty lists
+        grouped_values = {k: v for k, v in grouped_values.items() if v}
 
         print(f"group_values output: {grouped_values}")  # Debug print
         return grouped_values
