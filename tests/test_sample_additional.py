@@ -187,7 +187,7 @@ def test_flatten_recursive_with_list_of_samples():
 
 def test_match_wildcard():
     assert Sample.match_wildcard("a.b.c", "a.b.c") == True
-    assert Sample.match_wildcard("a.b.c", "b.c") == True
+    assert Sample.match_wildcard("a.b.c", "b.c") == False
     assert Sample.match_wildcard("a.b.c", "a.*") == True
     assert Sample.match_wildcard("a.b.c", "*.c") == True
     assert Sample.match_wildcard("a.b.c", "a.*.c") == True

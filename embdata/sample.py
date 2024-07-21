@@ -505,15 +505,10 @@ class Sample(BaseModel):
     @staticmethod
     def match_wildcard(key, pattern, sep="."):
         if '*' not in pattern:
-            return key == pattern or key.endswith(sep + pattern)
-        
-        parts = pattern.split('*')
-        if len(parts) == 2:
-            return key.startswith(parts[0]) and key.endswith(parts[1])
-        
-        # Handle more complex patterns with multiple wildcards
+            return key == pattern
+
         import re
-        regex_pattern = '^' + pattern.replace('.', r'\.').replace('*', '.*') + '$'
+        regex_pattern = '^' + pattern.replace('.', r'\.').replace('*', '[^.]*') + '$'
         return re.match(regex_pattern, key) is not None
 
     @staticmethod
@@ -525,36 +520,26 @@ class Sample(BaseModel):
         for key, value in flattened:
             for pattern in to:
                 if Sample.match_wildcard(key, pattern, sep):
-                    if isinstance(value, list):
-                        grouped_values[pattern].append(value)
-                    else:
-                        grouped_values[pattern].append([value])
+                    grouped_values[pattern].append(value)
                     break
 
         # Handle nested structures for wildcard patterns
         for pattern in to:
             if '*' in pattern:
-                nested_values = []
-                current_nested = []
+                nested_values = {}
                 for key, value in flattened:
                     if Sample.match_wildcard(key, pattern, sep):
-                        if current_nested and not key.startswith(current_nested[-1][0].rsplit('.', 1)[0]):
-                            nested_values.append(current_nested)
-                            current_nested = []
-                        current_nested.append((key, value))
-                if current_nested:
-                    nested_values.append(current_nested)
-                if nested_values:
-                    grouped_values[pattern] = [
-                        [v for _, v in nested] for nested in nested_values
-                    ]
+                        parts = key.split(sep)
+                        group_key = sep.join(parts[:-1])
+                        if group_key not in nested_values:
+                            nested_values[group_key] = []
+                        nested_values[group_key].append(value)
+                grouped_values[pattern] = list(nested_values.values())
 
         # Flatten single-item lists
         for pattern, values in grouped_values.items():
-            if len(values) == 1:
+            if len(values) == 1 and isinstance(values[0], list):
                 grouped_values[pattern] = values[0]
-            elif all(len(v) == 1 for v in values):
-                grouped_values[pattern] = [v[0] for v in values]
 
         # Remove empty lists
         grouped_values = {k: v for k, v in grouped_values.items() if v}
