@@ -570,16 +570,32 @@ class Sample(BaseModel):
             if isinstance(to, str):
                 to = [to]
             to_set = set(to)
-            flattened = [item for item in flattened if any(item[0].startswith(t) or item[0].replace('*', '') == t for t in to_set)]
+            
+            def match_key(item_key, pattern):
+                if '*' in pattern:
+                    return item_key.startswith(pattern.split('*')[0])
+                return item_key == pattern
+
+            flattened = [item for item in flattened if any(match_key(item[0], t) for t in to_set)]
 
             if output_type == "dict":
                 result = {}
                 for key in to:
-                    result[key] = [item[1] for item in flattened if item[0] == key or item[0].replace('*', '') == key]
+                    result[key] = [item[1] for item in flattened if match_key(item[0], key)]
                 return result
             
             values = [item[1] for item in flattened]
-            return values
+            
+            # Group values by their original keys
+            grouped_values = {}
+            for key, value in flattened:
+                base_key = key.split('.')[0]
+                if base_key not in grouped_values:
+                    grouped_values[base_key] = []
+                grouped_values[base_key].append(value)
+            
+            # Return a list of lists, preserving the structure
+            return [grouped_values[key] for key in to if key in grouped_values]
 
         if output_type == "dict":
             return dict(flattened)
