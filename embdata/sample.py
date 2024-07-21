@@ -575,22 +575,10 @@ class Sample(BaseModel):
                 if '*' in pattern:
                     parts = pattern.split('*')
                     return all(part in item_key for part in parts)
-                return pattern in item_key
+                return pattern == item_key
 
-            print(f"Original flattened: {flattened}")
             flattened = [item for item in flattened if any(match_key(item[0], t) for t in to_set)]
-            print(f"Filtered flattened: {flattened}")
 
-            if output_type == "dict":
-                result = {}
-                for pattern in to:
-                    result[pattern] = [item[1] for item in flattened if match_key(item[0], pattern)]
-                print(f"Dict result: {result}")
-                dict_result = [dict(zip(result.keys(), values)) for values in zip_longest(*result.values(), fillvalue=None)]
-                print(f"Final dict result: {dict_result}")
-                return dict_result
-            
-            # Group values by their original keys
             grouped_values = {}
             for key, value in flattened:
                 for pattern in to:
@@ -599,19 +587,11 @@ class Sample(BaseModel):
                             grouped_values[pattern] = []
                         grouped_values[pattern].append(value)
                         break
+
+            if output_type == "dict":
+                return [dict(zip(grouped_values.keys(), values)) for values in zip(*grouped_values.values())]
             
-            print(f"Grouped values: {grouped_values}")
-            
-            # If there's only one item per key, return a nested list
-            if all(len(v) == 1 for v in grouped_values.values()):
-                flat_result = [[v[0] for v in grouped_values.values()]]
-                print(f"Flat result: {flat_result}")
-                return flat_result
-            
-            # If there are multiple items for at least one key, return a list of lists
-            list_result = [v for v in grouped_values.values()]
-            print(f"List result: {list_result}")
-            return list_result
+            return list(grouped_values.values())
 
         if output_type == "dict":
             return dict(flattened)
