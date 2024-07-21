@@ -479,12 +479,12 @@ class Sample(BaseModel):
     #     return output_sample
 
     @staticmethod
-    def flatten_recursive(obj, ignore=None, non_numerical="allow", sep="."):
+    def flatten_recursive(obj, ignore=set(), non_numerical="allow", sep="."):
         def _flatten(obj, prefix=''):
             items = []
             if isinstance(obj, dict):
                 for k, v in obj.items():
-                    if ignore and k in ignore:
+                    if k in ignore:
                         continue
                     new_key = f"{prefix}{k}" if prefix else k
                     items.extend(_flatten(v, f"{new_key}{sep}"))
@@ -543,7 +543,7 @@ class Sample(BaseModel):
         self,
         output_type: OneDimensional = "list",
         non_numerical: Literal["ignore", "forbid", "allow"] = "allow",
-        ignore: set[str] | None = None,
+        ignore: set[str] = set(),
         sep: str = ".",
         to: str | set[str] | List[str] | None = None,
     ) -> Dict[str, Any] | np.ndarray | torch.Tensor | List | Any:
@@ -563,13 +563,13 @@ class Sample(BaseModel):
             - "np": Returns a numpy array.
             - "pt": Returns a PyTorch tensor.
 
-        non_numerical : str, optional (default="ignore")
+        non_numerical : str, optional (default="allow")
             Determines how non-numerical values are handled. Options are:
             - "ignore": Non-numerical values are excluded from the output.
             - "forbid": Raises a ValueError if non-numerical values are encountered.
             - "allow": Includes non-numerical values in the output.
 
-        ignore : set[str], optional (default=None)
+        ignore : set[str], optional (default=set())
             Set of keys to ignore during flattening.
 
         sep : str, optional (default=".")
@@ -597,7 +597,7 @@ class Sample(BaseModel):
 
         Notes:
         ------
-            - When 'to' is provided, the method always returns a list, numpy array, or PyTorch tensor. Depending on output_type.
+            - When 'to' is provided, the method always returns a list, numpy array, or PyTorch tensor, depending on output_type.
             - If 'output_type' is 'dict' and 'to' is provided, the output is a list of dictionaries with the same keys as 'to'.
             - Otherwise, the output is a 2D array with the number of columns equal to the number of elements in the merged
                 flattened values of the keys in 'to'. The number of rows is equal to the maximum number of elements in the values
