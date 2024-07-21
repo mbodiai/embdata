@@ -505,7 +505,7 @@ class Sample(BaseModel):
     @staticmethod
     def match_wildcard(key, pattern, sep="."):
         if '*' not in pattern:
-            return pattern in key.split(sep)
+            return pattern in key.split(sep) or key == pattern
 
         key_parts = key.split(sep)
         pattern_parts = pattern.split(sep)
