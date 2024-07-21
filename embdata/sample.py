@@ -514,7 +514,7 @@ class Sample(BaseModel):
     @staticmethod
     def match_wildcard(key, pattern, sep="."):
         if "*" not in pattern:
-            return pattern in key.split(sep) or key == pattern
+            return key == pattern or pattern in key.split(sep)
 
         key_parts = key.split(sep)
         pattern_parts = pattern.split(sep)
@@ -522,13 +522,10 @@ class Sample(BaseModel):
         if len(pattern_parts) > len(key_parts):
             return False
 
-        for i, p in enumerate(pattern_parts):
+        for k, p in zip(key_parts, pattern_parts):
             if p == "*":
-                try:
-                    int(key_parts[i])
-                except (ValueError, IndexError):
-                    return False
-            elif i >= len(key_parts) or key_parts[i] != p:
+                continue
+            if k != p:
                 return False
 
         return True
@@ -538,38 +535,16 @@ class Sample(BaseModel):
         if isinstance(to, str):
             to = [to]
 
-        def flatten_and_group(obj, prefix=""):
-            grouped = {pattern: [] for pattern in to}
-            if isinstance(obj, dict):
-                for k, v in obj.items():
-                    new_prefix = f"{prefix}{k}{sep}" if prefix else f"{k}{sep}"
-                    sub_grouped = flatten_and_group(v, new_prefix)
-                    for pattern, values in sub_grouped.items():
-                        grouped[pattern].extend(values)
-            elif isinstance(obj, list):
-                for i, v in enumerate(obj):
-                    new_prefix = f"{prefix}{i}{sep}"
-                    sub_grouped = flatten_and_group(v, new_prefix)
-                    for pattern, values in sub_grouped.items():
-                        grouped[pattern].extend(values)
-            else:
-                for pattern in to:
-                    if Sample.match_wildcard(prefix.rstrip(sep), pattern, sep):
-                        grouped[pattern].append(obj)
-            return grouped
+        grouped_values = {pattern: [] for pattern in to}
 
-        grouped_values = flatten_and_group(data)
+        for key, value in data:
+            for pattern in to:
+                if Sample.match_wildcard(key, pattern, sep):
+                    grouped_values[pattern].append(value)
 
-        # Process grouped values
+        # Wrap single values in a list to maintain consistency
         for pattern, values in grouped_values.items():
-            if "*" in pattern:
-                pattern_parts = pattern.split(sep)
-                wildcard_index = pattern_parts.index("*")
-                grouped_values[pattern] = [
-                    values[i : i + 2 ** (len(pattern_parts) - wildcard_index - 1)]
-                    for i in range(0, len(values), 2 ** (len(pattern_parts) - wildcard_index - 1))
-                ]
-            else:
+            if not isinstance(values[0], list):
                 grouped_values[pattern] = [values]
 
         print(f"group_values output: {grouped_values}")  # Debug print
