@@ -603,7 +603,7 @@ class Sample(BaseModel):
                 return flattened_values
             
             # If there are multiple items for at least one key, return a list of lists
-            return [[v] if len(v) == 1 else v for v in grouped_values.values()]
+            return [v if len(v) > 1 else v[0] for v in grouped_values.values()]
 
         if output_type == "dict":
             return dict(flattened)
