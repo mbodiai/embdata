@@ -513,7 +513,7 @@ class Sample(BaseModel):
         
         # Handle more complex patterns with multiple wildcards
         import re
-        regex_pattern = pattern.replace('.', r'\.').replace('*', '.*')
+        regex_pattern = '^' + pattern.replace('.', r'\.').replace('*', '.*') + '$'
         return re.match(regex_pattern, key) is not None
 
     @staticmethod
@@ -525,14 +525,15 @@ class Sample(BaseModel):
         for key, value in flattened:
             for pattern in to:
                 if Sample.match_wildcard(key, pattern, sep):
-                    grouped_values[pattern].append(value)
+                    if isinstance(value, list):
+                        grouped_values[pattern].append(value)
+                    else:
+                        grouped_values[pattern].append([value])
                     break
 
         # Handle nested structures for wildcard patterns
         for pattern in to:
             if '*' in pattern:
-                parts = pattern.split('*')
-                prefix, suffix = parts[0], parts[-1]
                 nested_values = []
                 current_nested = []
                 for key, value in flattened:
@@ -548,12 +549,12 @@ class Sample(BaseModel):
                         [v for _, v in nested] for nested in nested_values
                     ]
 
-        # Flatten single-item lists and handle complex wildcards
+        # Flatten single-item lists
         for pattern, values in grouped_values.items():
-            if len(values) == 1 and isinstance(values[0], list):
+            if len(values) == 1:
                 grouped_values[pattern] = values[0]
-            elif '*' in pattern:
-                grouped_values[pattern] = [item for sublist in values for item in (sublist if isinstance(sublist, list) else [sublist])]
+            elif all(len(v) == 1 for v in values):
+                grouped_values[pattern] = [v[0] for v in values]
 
         # Remove empty lists
         grouped_values = {k: v for k, v in grouped_values.items() if v}

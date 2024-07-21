@@ -185,6 +185,19 @@ def test_flatten_recursive_with_list_of_samples():
     ]
     assert flattened == expected, f"Expected {expected}, but got {flattened}"
 
+def test_match_wildcard():
+    assert Sample.match_wildcard("a.b.c", "a.b.c") == True
+    assert Sample.match_wildcard("a.b.c", "b.c") == True
+    assert Sample.match_wildcard("a.b.c", "a.*") == True
+    assert Sample.match_wildcard("a.b.c", "*.c") == True
+    assert Sample.match_wildcard("a.b.c", "a.*.c") == True
+    assert Sample.match_wildcard("a.b.c", "*.b.*") == True
+    assert Sample.match_wildcard("a.b.c", "a.*.*") == True
+    assert Sample.match_wildcard("a.b.c", "*.*.*") == True
+    assert Sample.match_wildcard("a.b.c", "x.*") == False
+    assert Sample.match_wildcard("a.b.c", "*.x") == False
+    assert Sample.match_wildcard("a.b.c", "a.*.x") == False
+
 def test_group_values_with_complex_wildcards():
     flattened = [
         ('a.b.c', 1),
@@ -198,8 +211,8 @@ def test_group_values_with_complex_wildcards():
     grouped = Sample.group_values(flattened, ["a.b.*", "*.c.*", "c.*"])
     expected = {
         "a.b.*": [1, 2],
-        "*.c.*": [3, 4, 5, 6, 7],
-        "c.*": []
+        "*.c.*": [4, 5],
+        "c.*": [7]
     }
     assert grouped == expected, f"Expected {expected}, but got {grouped}"
 
