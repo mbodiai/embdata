@@ -515,8 +515,11 @@ class Sample(BaseModel):
 
         for k, p in zip(key_parts, pattern_parts):
             if p == '*':
-                continue
-            if k != p:
+                try:
+                    int(k)
+                except ValueError:
+                    return False
+            elif k != p:
                 return False
 
         return True
