@@ -519,7 +519,7 @@ class Sample(BaseModel):
         key_parts = key.split(sep)
         pattern_parts = pattern.split(sep)
 
-        if len(pattern_parts) != len(key_parts):
+        if len(pattern_parts) > len(key_parts):
             return False
 
         return all(k == p or p == "*" for k, p in zip(key_parts, pattern_parts))
@@ -541,11 +541,9 @@ class Sample(BaseModel):
             if "*" in pattern:
                 parent_key = pattern.split("*")[0].rstrip(sep)
                 grouped_values[pattern] = [
-                    [v for k, v in grouped_values[pattern] if k.startswith(f"{parent_key}{sep}{i}")]
-                    for i in range(len(data))
+                    [v for k, v in data if k.startswith(f"{parent_key}{sep}")]
                 ]
-                grouped_values[pattern] = [group for group in grouped_values[pattern] if group]
-            else:
+            elif len(grouped_values[pattern]) == 1:
                 grouped_values[pattern] = [grouped_values[pattern]]
 
         print(f"group_values output: {grouped_values}")  # Debug print
