@@ -32,12 +32,13 @@ TODO: Implement Lazy attribute loading for the image data.
 
 import base64 as base64lib
 import io
-import logging
+from functools import cached_property, reduce, singledispatchmethod
 from pathlib import Path
-from typing import Any, Tuple, Union
-from urllib.parse import urlparse
+from typing import Any, Dict, SupportsBytes, Tuple
 
 import numpy as np
+from datasets.features import Features
+from datasets.features import Image as HFImage
 from gymnasium import spaces
 from PIL import Image as PILModule
 from PIL.Image import Image as PILImage
@@ -48,18 +49,21 @@ from pydantic import (
     Field,
     FilePath,
     InstanceOf,
+    ValidationError,
+    computed_field,
     model_serializer,
     model_validator,
+    validate_call,
 )
 from typing_extensions import Literal
 
-from datasets.features import Features
-from datasets.features import Image as HFImage
 from embdata.ndarray import NumpyArray
 from embdata.sample import Sample
 
-SupportsImage = Union[np.ndarray, PILImage, Base64Str, AnyUrl, FilePath]  # noqa: UP007
+ImageLikeArray = NumpyArray[3,Any, Any, np.uint8] | NumpyArray[Any, Any, 3, np.uint8]
+SupportsImage = NumpyArray[3,...,np.uint8] | InstanceOf[PILImage] | InstanceOf[Base64Str] | InstanceOf[AnyUrl] | InstanceOf[FilePath] | InstanceOf[bytes]
 
+HIGHEST_QUALITY = 10
 
 class Image(Sample):
     """An image sample that can be represented in various formats.
@@ -87,45 +91,78 @@ class Image(Sample):
         >>> array = Image(image).array
         >>> base64 = Image(image).base64
     """
-
     model_config: ConfigDict = ConfigDict(arbitrary_types_allowed=True, extras="forbid", validate_assignment=False)
 
-    array: NumpyArray
-    size: tuple[int, int]
-
-    pil: InstanceOf[PILImage] | None = Field(
-        None,
+    size: tuple[int, int] | tuple[int, int, int] | None = None
+    mode: Literal["RGB", "RGBA", "L", "P", "CMYK", "YCbCr", "I", "F"] = "RGB"
+    pil: InstanceOf[PILImage] = Field(
         repr=False,
         exclude=True,
         description="The image represented as a PIL Image object.",
     )
-    encoding: Literal["png", "jpeg", "jpg", "bmp", "gif"]
-    base64: InstanceOf[Base64Str] | None = None
-    url: InstanceOf[AnyUrl] | str | None = None
+    encoding: Literal["png", "jpeg", "jpg", "bmp", "gif"] = "jpeg"
     path: FilePath | None = None
 
-    @classmethod
-    def supports(cls, arg: SupportsImage) -> bool:
-        if not isinstance(arg, np.ndarray | PILImage | AnyUrl | str):
-            return False
+    @staticmethod
+    def supports(arg: SupportsImage) -> bool:
+        """Check if the input argument is a supported image type."""
+        @validate_call
+        def _supports(arg: SupportsImage) -> bool: # noqa
+            """Check if the input argument is a supported image type."""
+            return True
         try:
-            return Path(arg).exists() or arg.startswith("data:image")
-        except Exception as e:
-            logging.debug(f"Failed to validate image data: {e}")
+            return _supports(arg)
+        except (ValidationError, TypeError):
             return False
 
-    def __init__(
+    @computed_field(return_type=ImageLikeArray)
+    @cached_property
+    def array(self) -> ImageLikeArray:
+        """The image represented as a NumPy array."""
+        return np.array(self.pil)
+
+    @computed_field
+    @cached_property
+    def base64(self) -> Base64Str:
+        """The base64 encoded string of the image."""
+        buffer = io.BytesIO()
+        image = self.pil.convert(self.mode)
+        image.save(buffer, format=self.encoding.upper())
+        return base64lib.b64encode(buffer.getvalue()).decode("utf-8")
+
+    @computed_field
+    @cached_property
+    def url(self) -> AnyUrl:
+        """The URL of the image."""
+        return f"data:image/{self.encoding};base64,{self.base64}"
+
+    @computed_field
+    @cached_property
+    def bytes(self) -> SupportsBytes:
+        """The bytes object of the image."""
+        return self.pil.tobytes()
+
+    @model_serializer(when_used="json")
+    def omit_array_pil(self) -> dict:
+        """Return a dictionary with the array and PIL image omitted."""
+        return {
+            "base64": self.base64,
+            "path": self.path,
+            "url": self.url,
+            "size": self.size,
+            "encoding": self.encoding,
+        }
+
+    def __init__( # noqa
         self,
         arg: SupportsImage | None = None,
-        url: str | None = None,
         path: str | None = None,
-        base64: str | None = None,
         array: np.ndarray | None = None,
-        pil: PILImage | None = None,
-        encoding: str | None = "jpeg",
-        size: Tuple | None = None,
-        bytes_obj: bytes | None = None,
-        make_rgb: bool = True,
+        base64: Base64Str | None = None,
+        encoding: str = "jpeg",
+        size: Tuple[int, ...] | None = None,
+        bytes: SupportsBytes | None = None, # noqa
+        mode: Literal["RGB", "RGBA", "L", "P", "CMYK", "YCbCr", "I", "F"] | None = "RGB",
         **kwargs,
     ):
         """Initializes an image. Either one source argument or size tuple must be provided.
@@ -139,50 +176,27 @@ class Image(Sample):
             pil (Optional[PILImage], optional): The PIL image object.
             encoding (Optional[str], optional): The encoding format of the image. Defaults to 'jpeg'.
             size (Optional[Tuple[int, int]], optional): The size of the image as a (width, height) tuple.
-            bytes_obj (Optional[bytes], optional): The bytes object of the image.
-            make_rgb (bool, optional): Whether to convert the image to RGB format. Defaults to True.
+            bytes (Optional[bytes], optional): The bytes object of the image.
+            mode (Optional[str], optional): The mode to use for the image. Defaults to 'RGB'.
             **kwargs: Additional keyword arguments.
         """
         kwargs["encoding"] = encoding or "jpeg"
+        kwargs["path"] = path
         kwargs["size"] = size[:2] if isinstance(size, Tuple) else size
-        if arg is not None:
-            if isinstance(arg, bytes):
-                kwargs["bytes"] = arg
-            elif isinstance(arg, str):
-                if isinstance(arg, AnyUrl):
-                    kwargs["url"] = arg
-                elif Path(arg).exists():
-                    kwargs["path"] = arg
-                else:
-                    kwargs["base64"] = arg
-            elif isinstance(arg, Path):
-                kwargs["path"] = str(arg)
-            elif isinstance(arg, np.ndarray):
-                kwargs["array"] = arg
-            elif isinstance(arg, PILImage):
-                kwargs["pil"] = arg
-            elif isinstance(arg, Image):
-                # Overwrite an Image instance with the new kwargs
-                kwargs.update({"array": arg.array})
-            elif isinstance(arg, Tuple):
-                kwargs["size"] = arg[:2]
-            else:
-                raise ValueError(f"Unsupported argument type '{type(arg)}'.")
-        else:
-            if url is not None:
-                kwargs["url"] = url
-            elif path is not None:
-                kwargs["path"] = path
-            elif base64 is not None:
-                kwargs["base64"] = base64
-            elif array is not None:
-                kwargs["array"] = array
-            elif pil is not None:
-                kwargs["pil"] = pil
-            elif bytes_obj is not None:
-                kwargs["bytes"] = bytes_obj
-        kwargs["make_rgb"] = make_rgb
+        kwargs["mode"] = mode
+        kwargs["array"] = array
+        kwargs["base64"] = base64
+        kwargs["bytes"] = bytes
+        kwargs = self.dispatch_arg(arg, **kwargs)
         super().__init__(**kwargs)
+
+    @singledispatchmethod
+    @classmethod
+    def dispatch_arg(cls, arg: SupportsImage | None = None, **kwargs) -> dict:
+        if arg is None:
+            return kwargs
+        msg = f"Unsupported argument type: {type(arg)}"
+        raise ValueError(msg)
 
     def __repr__(self):
         """Return a string representation of the image."""
@@ -194,8 +208,91 @@ class Image(Sample):
         """Return a string representation of the image."""
         return f"Image(base64={self.base64[:10]}..., encoding={self.encoding}, size={self.size})"
 
+    @model_validator(mode="before")
+    @classmethod
+    def ensure_pil(cls, values: Dict[str, SupportsImage]) -> None:
+        """Ensure the image is represented as a PIL Image object."""
+        sources = ["array", "base64", "path", "url", "bytes"]
+        if values.get("pil") is None:
+            arg = reduce(lambda x, y: x if x is not None else y, [values.get(key) for key in sources])
+            values.update(cls.dispatch_arg(arg, **values))
+        return values
+
     @staticmethod
-    def from_base64(base64_str: str, encoding: str, size=None, make_rgb=False) -> "Image":
+    def pil_to_data(image: PILImage, encoding: str, size=None, mode="RGB") -> dict:
+        """Creates an Image instance from a PIL image.
+
+        Args:
+            image (PIL.Image.Image): The source PIL image from which to create the Image instance.
+            encoding (str): The format used for encoding the image when converting to base64.
+            size (Optional[Tuple[int, int]]): The size of the image as a (width, height) tuple.
+            mode (Optional[str]): The mode to use for the image. Defaults to "RGB".
+
+        Returns:
+            Image: An instance of the Image class with populated fields.
+        """
+        if encoding.lower() == "jpg":
+            encoding = "jpeg"
+        buffer = io.BytesIO()
+        image = image.convert(mode)
+        image.save(buffer, format=encoding.upper()) 
+        base64_encoded = base64lib.b64encode(buffer.getvalue()).decode("utf-8")
+        data_url = f"data:image/{encoding};base64,{base64_encoded}"
+        if size is not None:
+            image = image.resize(size, PILModule.Resampling.BICUBIC)
+        else:
+            size = image.size
+        return {
+            "array": np.array(image),
+            "base64": base64_encoded,
+            "pil": image,
+            "size": size,
+            "url": data_url,
+            "encoding": encoding.lower(),
+        }
+
+    @dispatch_arg.register
+    @classmethod
+    def init_dict(cls, arg: dict, **kwargs) -> None:
+        kwargs.update(arg)
+        if "pil" not in kwargs:
+            kwargs = cls.dispatch_arg(**kwargs)
+        return kwargs
+
+    @dispatch_arg.register(SupportsBytes)
+    @classmethod
+    def init_bytes(
+        cls,
+        arg: SupportsImage | None = None,
+        size: Tuple[int, int]| None = None,
+        encoding="jpeg",
+        mode: Literal["RGB", "RGBA", "L", "P", "CMYK", "YCbCr", "I", "F"] | None = "RGB",
+        **kwargs) -> None:
+        kwargs.update(cls.pil_to_data(PILModule.open(io.BytesIO(arg)), encoding, size, mode))
+        return kwargs
+
+    @dispatch_arg.register(np.ndarray)
+    @classmethod
+    def init_array(
+        cls,
+        arg: NumpyArray[3, Any, Any, np.uint8] | NumpyArray[Any, Any, 3, np.uint8] | None = None,
+        size: Tuple[int, int]| None = None,
+        encoding="jpeg",
+        mode: Literal["RGB", "RGBA", "L", "P", "CMYK", "YCbCr", "I", "F"] | None = "RGB",
+        **kwargs) -> None:
+        kwargs.update(cls.pil_to_data(PILModule.fromarray(arg), encoding, size, mode))
+        return kwargs
+
+    @dispatch_arg.register(str)
+    @classmethod
+    def init_str(
+        cls,
+        arg: str,
+        encoding: str = "jpeg",
+        action: Literal["download", "set"] = "set",
+        size: Tuple[int, int] | None = None, 
+        mode: Literal["RGB", "RGBA", "L", "P", "CMYK", "YCbCr", "I", "F"] | None = "RGB",
+        **kwargs) -> None:
         """Decodes a base64 string to create an Image instance.
 
         This method takes a base64 encoded string representation of an image,
@@ -203,10 +300,12 @@ class Image(Sample):
         you have image data in base64 format and want to work with it as an Image object.
 
         Args:
-            base64_str (str): The base64 string to decode.
+            arg (str): The base64 string to decode.
             encoding (str): The format used for encoding the image when converting to base64.
+            action (str): Either "download" or "set" if the URL is a download link.
             size (Optional[Tuple[int, int]]): The size of the image as a (width, height) tuple.
-            make_rgb (bool): Whether to convert the image to RGB format. Defaults to False.
+            mode (Optional[str]): The mode to use for the image. Defaults to "
+            **kwargs: Additional keyword arguments.
 
         Returns:
             Image: An instance of the Image class with populated fields.
@@ -227,13 +326,56 @@ class Image(Sample):
             >>> print(nested_data["metadata"]["text"])
             A small red square
         """
-        image_data = base64lib.b64decode(base64_str)
-        image = PILModule.open(io.BytesIO(image_data))
-        image = image.convert("RGB") if make_rgb else image
-        return Image(image, encoding, size)
+        if arg and Path(arg[:120]).exists():
+           return cls.dispatch_arg(Path(arg), encoding, size, mode, **kwargs)
+        if arg.startswith(("data:image", "http")):
+            image = cls.load_url(arg, action=action, **kwargs)
+            kwargs.update(cls.pil_to_data(image, encoding, size, mode))
+            return kwargs
+        return cls.init_base64(arg, encoding, size, mode, **kwargs)
 
-    @staticmethod
-    def open(path: str, encoding: str = "jpeg", size=None) -> "Image":
+    @classmethod
+    def init_base64(
+        cls,
+        arg: Base64Str,
+        encoding: str = "jpeg",
+        size: Tuple[int, int] | None = None,
+        mode: Literal["RGB", "RGBA", "L", "P", "CMYK", "YCbCr", "I", "F"] | None = "RGB",
+        **kwargs) -> None:
+        """Decodes a base64 string to create an Image instance."""
+        image_data = base64lib.b64decode(arg)
+        image = PILModule.open(io.BytesIO(image_data)).convert(mode)
+        kwargs.update(cls.pil_to_data(image, encoding, size, mode))
+        return kwargs
+
+    @dispatch_arg.register(PILImage)
+    @classmethod
+    def init_pil(
+        cls,
+        arg: PILImage,
+        encoding: str = "jpeg", 
+        size: Tuple[int, int] | None = None,
+        mode: Literal["RGB", "RGBA", "L", "P", "CMYK", "YCbCr", "I", "F"] | None = "RGB",
+        **kwargs) -> None:
+        """Creates an Image instance from a PIL image.
+
+        Args:
+            arg (PIL.Image.Image): The source PIL image from which to create the Image instance.
+            encoding (str): The format used for encoding the image when converting to base64.
+            size (Optional[Tuple[int, int]]): The size of the image as a (width, height) tuple.
+            mode (Optional[str]): The mode to use for the image. Defaults to "RGB".
+            **kwargs: Additional keyword arguments.
+
+        Returns:
+            Image: An instance of the Image class with populated fields.
+        """
+        kwargs.update(cls.pil_to_data(arg, encoding, size, mode))
+        return kwargs
+
+    @dispatch_arg.register(Path)
+    @classmethod
+    def open(cls, arg: Path, encoding: str = "jpeg", size: Tuple[int] | None = None,
+                                                     mode: str = "RGB", **kwargs) -> Dict[str, Any]:
         """Opens an image from a file path and creates an Image instance.
 
         This method reads an image file from the specified path, converts it to RGB format,
@@ -241,11 +383,13 @@ class Image(Sample):
         your local file system.
 
         Args:
-            path (str): The path to the image file.
+            arg (str): The path to the image file.
             encoding (str): The format used for encoding the image when converting to base64.
                             Defaults to "jpeg".
             size (Optional[Tuple[int, int]]): The size of the image as a (width, height) tuple.
                                               If provided, the image will be resized.
+            mode (Optional[str]): The mode to use for the image. Defaults to "RGB".
+            **kwargs: Additional keyword arguments.
 
         Returns:
             Image: An instance of the Image class with populated fields.
@@ -255,44 +399,13 @@ class Image(Sample):
             >>> print(image.size)
             (224, 224)
         """
-        image = PILModule.open(path).convert("RGB")
-        return Image(image, encoding, size)
+        image = PILModule.open(arg)
+        image = image.convert(mode)
+        kwargs.update(cls.pil_to_data(image, encoding, size, mode))
+        return kwargs
 
     @staticmethod
-    def pil_to_data(image: PILImage, encoding: str, size=None, make_rgb=True) -> dict:
-        """Creates an Image instance from a PIL image.
-
-        Args:
-            image (PIL.Image.Image): The source PIL image from which to create the Image instance.
-            encoding (str): The format used for encoding the image when converting to base64.
-            size (Optional[Tuple[int, int]]): The size of the image as a (width, height) tuple.
-
-        Returns:
-            Image: An instance of the Image class with populated fields.
-        """
-        if encoding.lower() == "jpg":
-            encoding = "jpeg"
-        buffer = io.BytesIO()
-        image.convert("RGB").save(buffer, format=encoding.upper()) if make_rgb else image.save(
-            buffer, format=encoding.upper()
-        )
-        base64_encoded = base64lib.b64encode(buffer.getvalue()).decode("utf-8")
-        data_url = f"data:image/{encoding};base64,{base64_encoded}"
-        if size is not None:
-            image = image.resize(size, PILModule.Resampling.BICUBIC)
-        else:
-            size = image.size
-        return {
-            "array": np.array(image),
-            "base64": base64_encoded,
-            "pil": image,
-            "size": size,
-            "url": data_url,
-            "encoding": encoding.lower(),
-        }
-
-    @staticmethod
-    def load_url(url: str, download=False) -> PILImage | None:
+    def load_url(url: str, action: Literal["download", "set"], mode="RGB") -> PILImage | None:
         """Downloads an image from a URL or decodes it from a base64 data URI.
 
         This method can handle both regular image URLs and base64 data URIs.
@@ -302,7 +415,8 @@ class Image(Sample):
 
         Args:
             url (str): The URL of the image to download, or a base64 data URI.
-            download (bool): If True, prompts the user before downloading. Defaults to False.
+            action (str): Either "download" or "set" to prompt the user before downloading.
+            mode (Optional[str]): The mode to use for the image. Defaults to "RGB".
 
         Returns:
             PIL.Image.Image | None: The downloaded and decoded image as a PIL Image object,
@@ -323,163 +437,26 @@ class Image(Sample):
             ...     print("Failed to load image")
         """
         if url.startswith("data:image"):
-            # Extract the base64 part of the data URI
             base64_str = url.split(";base64", 1)[1]
             image_data = base64lib.b64decode(base64_str)
-            return PILModule.open(io.BytesIO(image_data)).convert("RGB")
+            image = PILModule.open(io.BytesIO(image_data))
+            return image.convert(mode)
 
-        try:
-            # Open the URL and read the image data
-            import urllib.request
-
+        if action == "download":
+            from urllib.request import Request, urlopen
             user_agent = "Mozilla/5.0 (Windows; U; Windows NT 5.1; en-US; rv:1.9.0.7) Gecko/2009021910 Firefox/3.0.7"
-            headers = {
-                "User-Agent": user_agent,
-            }
-            if download:
-                accept = input("Do you want to download the image? (y/n): ")
-                if "y" not in accept.lower():
-                    return None
-            if not url.startswith("http"):
-                raise ValueError("URL must start with 'http' or 'https'.")
-            request = urllib.request.Request(url, None, headers)  # noqa
-            response = urllib.request.urlopen(request)  # noqa
-            data = response.read()  # The data u need
-            return PILModule.open(io.BytesIO(data)).convert("RGB")
-        except Exception as e:
-            logging.warning(f"Failed to load image from URL: {url}. {e}")
-            logging.warning("Not validating the Image data")
-            return None
+            headers = {"User-Agent": user_agent}
+            if not url.startswith(("http:", "https:")):
+                msg = "URL must start with 'http' or 'https'."
+                raise ValueError(msg)
+            with urlopen(Request(url, None, headers)) as response: # noqa
+                data = response.read()
+                image = PILModule.open(io.BytesIO(data))
+            return image.convert(mode)
+        return None
 
-    @classmethod
-    def from_bytes(cls, bytes_data: bytes, encoding: str = "jpeg", size=None) -> "Image":
-        """Creates an Image instance from a bytes object.
-
-        Args:
-            bytes_data (bytes): The bytes object to convert to an image.
-            encoding (str): The format used for encoding the image when converting to base64.
-            size (Optional[Tuple[int, int]]): The size of the image as a (width, height) tuple.
-
-        Returns:
-            Image: An instance of the Image class with populated fields.
-        """
-        image = PILModule.open(io.BytesIO(bytes_data)).convert("RGB")
-        return cls(image, encoding, size)
-
-    @staticmethod
-    def bytes_to_data(bytes_data: bytes, encoding: str = "jpeg", size=None, make_rgb=False) -> dict:
-        """Creates an Image instance from a bytes object.
-
-        Args:
-            bytes_data (bytes): The bytes object to convert to an image.
-            encoding (str): The format used for encoding the image when converting to base64.
-            size (Optional[Tuple[int, int]]): The size of the image as a (width, height) tuple.
-
-        Returns:
-            Image: An instance of the Image class with populated fields.
-        """
-        image = PILModule.open(io.BytesIO(bytes_data)).convert("RGB")
-        return Image.pil_to_data(image, encoding, size, make_rgb)
-
-    @model_validator(mode="before")
-    @classmethod
-    def validate_kwargs(cls, values) -> dict:
-        # Ensure that exactly one image source is provided
-        provided_fields = [
-            k for k in values if values[k] is not None and k in ["array", "base64", "path", "pil", "url"]
-        ]
-        if len(provided_fields) > 1:
-            raise ValueError(f"Multiple image sources provided; only one is allowed but got: {provided_fields}")
-
-        # Initialize all fields to None or their default values
-        validated_values = {
-            "array": None,
-            "base64": None,
-            "encoding": values.get("encoding", "jpeg").lower(),
-            "path": None,
-            "pil": None,
-            "url": None,
-            "size": values.get("size", None),
-        }
-        make_rgb = values.get("make_rgb", True)
-
-        # Validate the encoding first
-        if validated_values["encoding"] not in ["png", "jpeg", "jpg", "bmp", "gif"]:
-            raise ValueError("The 'encoding' must be a valid image format (png, jpeg, jpg, bmp, gif).")
-
-        if "bytes" in values and values["bytes"] is not None:
-            validated_values.update(
-                cls.bytes_to_data(values["bytes"], values["encoding"], values["size"], make_rgb=make_rgb)
-            )
-            return validated_values
-
-        if "pil" in values and values["pil"] is not None:
-            validated_values.update(
-                cls.pil_to_data(values["pil"], values["encoding"], values["size"], make_rgb=make_rgb),
-            )
-            return validated_values
-        # Process the provided image source
-        if "path" in provided_fields:
-            image = PILModule.open(values["path"]).convert("RGB")
-            validated_values["path"] = values["path"]
-            validated_values.update(
-                cls.pil_to_data(image, validated_values["encoding"], validated_values["size"], make_rgb=make_rgb)
-            )
-
-        elif "array" in provided_fields:
-            image = PILModule.fromarray(values["array"]).convert("RGB")
-            validated_values.update(
-                cls.pil_to_data(image, validated_values["encoding"], validated_values["size"], make_rgb=make_rgb)
-            )
-
-        elif "pil" in provided_fields:
-            validated_values.update(
-                cls.pil_to_data(
-                    values["pil"], validated_values["encoding"], validated_values["size"], make_rgb=make_rgb
-                ),
-            )
-
-        elif "base64" in provided_fields:
-            validated_values.update(
-                cls.from_base64(
-                    values["base64"], validated_values["encoding"], validated_values["size"], make_rgb=make_rgb
-                ),
-            )
-
-        elif "url" in provided_fields:
-            url_path = urlparse(values["url"]).path
-            file_extension = (
-                Path(url_path).suffix[1:].lower() if Path(url_path).suffix else validated_values["encoding"]
-            )
-            validated_values["encoding"] = file_extension
-            image = cls.load_url(values["url"])
-            if image is None:
-                validated_values["array"] = np.zeros((224, 224, 3), dtype=np.uint8)
-                validated_values["size"] = (224, 224)
-                return validated_values
-
-            validated_values.update(cls.pil_to_data(image, file_extension, validated_values["size"], make_rgb=make_rgb))
-            validated_values["url"] = values["url"]
-
-        elif "size" in values and values["size"] is not None:
-            array = np.zeros((values["size"][0], values["size"][1], 3), dtype=np.uint8)
-            image = PILModule.fromarray(array).convert("RGB")
-            validated_values.update(
-                cls.pil_to_data(image, validated_values["encoding"], validated_values["size"], make_rgb=make_rgb)
-            )
-        if any(validated_values[k] is None for k in ["array", "base64", "pil", "url"]):
-            logging.warning(
-                f"Failed to validate image data. Could only fetch {[k for k in validated_values if validated_values[k] is not None]}",
-            )
-        return validated_values
-
-    def save(self, path: str, encoding: str | None = None, quality: int = 10) -> None:
+    def save(self, path: str, encoding: str | None = None, quality: int = 10) -> str:
         """Save the image to the specified path.
-
-        This method saves the current image to a file at the specified path.
-        It allows you to specify the encoding format and, for JPEG images,
-        the quality of the saved image. After saving, the path attribute
-        of the image is updated to the new file path.
 
         If the image is a JPEG, the quality parameter can be used to set
         the quality of the saved image. For other formats, the quality
@@ -489,7 +466,7 @@ class Image(Sample):
             path (str): The path to save the image to.
             encoding (Optional[str]): The encoding to use for saving the image.
                                       If None, uses the current image encoding.
-            quality (int): The quality to use for saving the image (0-100).
+            quality (int): The quality to use for saving the image (0-10).
                            Only applies to JPEG format. Defaults to 10.
 
         Raises:
@@ -504,11 +481,12 @@ class Image(Sample):
             >>> jpeg_image.save("output.jpg", quality=8.5)
             >>> print(f"JPEG image saved with quality 8.5/10 to {jpeg_image.path}")
         """
-        if encoding == "png" and quality < 10:
-            raise ValueError("Quality can only be set for JPEG images.")
+        if encoding == "png" and quality < HIGHEST_QUALITY:
+            msg = "Quality can only be set for JPEG images."
+            raise ValueError(msg)
 
         encoding = encoding or self.encoding
-        if quality < 10:
+        if quality < HIGHEST_QUALITY:
             encoding = "jpeg"
 
         pil_image = self.pil
@@ -517,14 +495,15 @@ class Image(Sample):
 
         pil_image.save(path, encoding, quality=quality)
         self.path = path  # Update the path attribute to the new file path
+        return path
 
     def show(self) -> None:
         import platform
 
-        import matplotlib
+        import matplotlib as mpl
 
         if platform.system() == "Darwin":
-            matplotlib.use("TkAgg")
+            mpl.use("TkAgg")
         import matplotlib.pyplot as plt
 
         plt.imshow(self.array)
@@ -532,27 +511,13 @@ class Image(Sample):
     def space(self) -> spaces.Box:
         """Returns the space of the image."""
         if self.size is None:
-            raise ValueError("Image size is not defined.")
+            msg = "Image size is not defined."
+            raise ValueError(msg)
         return spaces.Box(low=0, high=255, shape=(*self.size, 3), dtype=np.uint8)
-
-    @model_serializer(mode="plain", when_used="json")
-    def exclude_pil(self) -> dict:
-        """Convert the image to a base64 encoded string."""
-        if self.base64 in self.url:
-            return {"size": self.size, "url": self.url, "encoding": self.encoding}
-        return {"base64": self.base64, "size": self.size, "url": self.url, "encoding": self.encoding}
 
     def dump(self, *args, as_field: str | None = None, **kwargs) -> dict | Any:
         """Return a dict or a field of the image."""
-        if as_field is not None:
-            return getattr(self, as_field)
-        return {
-            "array": self.array,
-            "base64": self.base64,
-            "size": self.size,
-            "url": self.url,
-            "encoding": self.encoding,
-        }
+        return getattr(self, as_field) if as_field is not None else self.dict(*args, **kwargs)
 
     def infer_features_dict(self) -> Features:
         """Infer features of the image."""

@@ -87,11 +87,11 @@ def test_structured_flatten():
     assert flat_list == [1, 2, 3, 4, 5], "Flat list should contain all values from the structure"
 
 
-def test_unpack_as_dict():
+def test_pack_as_dict():
     # Scenario with asdict=True
     data = {"key1": [1, 2, 3], "key2": ["a", "b", "c"], "key3": [[1, 2], [3, 4], [5, 6]]}
     sample = Sample(**data)
-    unpacked = sample.pack("dicts")
+    packed = sample.pack("dicts")
 
     expected = [
         {"key1": 1, "key2": "a", "key3": [1, 2]},
@@ -99,17 +99,17 @@ def test_unpack_as_dict():
         {"key1": 3, "key2": "c", "key3": [5, 6]},
     ]
 
-    assert unpacked == expected, "Unrolled wrappeds as dict do not match expected values"
+    assert packed == expected, "Unrolled wrappeds as dict do not match expected values"
 
 
-def test_unpack_as_sample_instances():
+def test_pack_as_sample_instances():
     # Scenario with asdict=False
     data = {"key1": [4, 5, 6], "key2": ["d", "e", "f"], "key3": [[7, 8], [9, 10], [11, 12]]}
     sample = Sample(**data)
-    unpacked = sample.pack("dicts")
+    pack = sample.pack("samples")
 
     # Validate each unrolled wrapped
-    for idx, wrapped in enumerate(unpacked):
+    for idx, wrapped in enumerate(pack):
         assert wrapped.key1 == data["key1"][idx], f"Unrolled wrapped key1 does not match expected value for index {idx}"
         assert wrapped.key2 == data["key2"][idx], f"Unrolled wrapped key2 does not match expected value for index {idx}"
         assert wrapped.key3 == data["key3"][idx], f"Unrolled wrapped key3 does not match expected value for index {idx}"

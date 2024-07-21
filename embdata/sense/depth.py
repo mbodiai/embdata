@@ -31,6 +31,7 @@ TODO: Implement Lazy attribute loading for the image data.
 """
 
 import base64 as base64lib
+from functools import singledispatch, lru_cache, cached_property
 import io
 import logging
 from pathlib import Path
@@ -94,7 +95,7 @@ class Depth(Image):
 
     model_config: ConfigDict = ConfigDict(arbitrary_types_allowed=True, extras="forbid", validate_assignment=False)
 
-    array: NumpyArray[1,..., np.uint16]
+    array: NumpyArray[1, Any, Any, np.uint16] | NumpyArray[Any, Any, np.uint16]
     size: tuple[int, int]
     points: NumpyArray[3,..., float]
     pil: InstanceOf[PILImage] | None = Field(
@@ -117,6 +118,7 @@ class Depth(Image):
         except Exception as e:
             logging.debug(f"Failed to validate image data: {e}")
             return False
+
 
     def __init__(
         self,
@@ -143,7 +145,6 @@ class Depth(Image):
             encoding (Optional[str], optional): The encoding format of the image. Defaults to 'jpeg'.
             size (Optional[Tuple[int, int]], optional): The size of the image as a (width, height) tuple.
             bytes_obj (Optional[bytes], optional): The bytes object of the image.
-            make_rgb (bool, optional): Whether to convert the image to RGB format. Defaults to True.
             **kwargs: Additional keyword arguments.
         """
         kwargs["encoding"] = encoding or "jpeg"
@@ -197,7 +198,7 @@ class Depth(Image):
         return f"Image(base64={self.base64[:10]}..., encoding={self.encoding}, size={self.size})"
 
     @staticmethod
-    def from_base64(base64_str: str, encoding: str, size=None, make_rgb=False) -> "Image":
+    def from_base64(base64_str: str, encoding: str, size=None) -> "Image":
         """Decodes a base64 string to create an Image instance.
 
         This method takes a base64 encoded string representation of an image,
@@ -208,7 +209,6 @@ class Depth(Image):
             base64_str (str): The base64 string to decode.
             encoding (str): The format used for encoding the image when converting to base64.
             size (Optional[Tuple[int, int]]): The size of the image as a (width, height) tuple.
-            make_rgb (bool): Whether to convert the image to RGB format. Defaults to False.
 
         Returns:
             Image: An instance of the Image class with populated fields.

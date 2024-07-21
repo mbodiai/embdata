@@ -231,15 +231,21 @@ class Trajectory:
         Returns:
           Trajectory: The modified trajectory.
         """
-        return Trajectory([fn(step) for step in self.steps])
+        return Trajectory(
+            [fn(step) for step in self.steps],
+            self.freq_hz,
+            self.time_idxs,
+            self.dim_labels,
+            self.angular_dims,
+            _episode=self._episode)
 
-    def __len__(self):  # noqa
+    def __len__(self):
         return len(self.steps)
 
-    def __getitem__(self, index):  # noqa
+    def __getitem__(self, index):
         return self.steps[index]
 
-    def __iter__(self):  # noqa
+    def __iter__(self):
         return iter(self.steps)
 
     def __post_init__(self, *args, **kwargs):

@@ -40,6 +40,7 @@ See the Pydantic documentation for more information on how to define Pydantic mo
 
 from typing import Any
 
+import numpy as np
 from pydantic import ConfigDict, model_validator
 from pydantic_core import PydanticUndefined
 from typing_extensions import Literal
@@ -291,6 +292,29 @@ class Motion(Coordinate):
         """Subtract two motions."""
         return self.make_relative_to(other)
 
+    @model_validator(mode="after")
+    def validate_bounds(self) -> "Motion":
+        """Validate the bounds of the motion for each field and child of the motion."""
+        for k, v in self:
+            if isinstance(v, Motion):
+                for kk, _ in v:
+                    bounds = v.field_info(kk).get("bounds")
+                    print(f"{kk} bounds: {bounds}")
+
+                    # Set the child's bounds to the parent's bounds if the child's bounds are None.
+                    if v.field_info(kk).get("bounds") is None:
+                        v.add_field_info(kk, "bounds", self.field_info(k).get("bounds"))
+
+            elif isinstance(v, int | float | np.ndarray | list) and self.field_info(k).get("bounds") is not None:
+                bounds = self.field_info(k).get("bounds")
+                if not isinstance(v, np.ndarray | list):
+                    v = [v] # noqa
+                for i, vv in enumerate(v):
+                    if isinstance(vv, int | float) and not bounds[0] <= vv <= bounds[1]:
+                        msg = f"{k} item {v} is out of bounds {self.fields[k].bounds}"
+                        raise ValueError(msg)
+        return self
+
 
 class AnyMotionControl(Motion):
     """Motion Control with arbitrary fields but minimal validation. Should not be subclassed. Subclass Motion instead for validation.
@@ -316,16 +340,5 @@ class AnyMotionControl(Motion):
     model_config = ConfigDict(arbitrary_types_allowed=True, extra="allow", populate_by_name=True)
 
     names: list[str] | None = None
-    joints: list[float] | NumpyArray = None
+    joints: list[float] | NumpyArray | Any = None
 
-    @model_validator(mode="after")
-    def validate_joints(self) -> "AnyMotionControl":
-        if self.joints is not None and self.names is not None and len(self.joints) != len(self.names):
-            msg = f"Number of joints {len(self.joints)} does not match number of names {len(self.names)}"
-            raise ValueError(msg)
-        if self.joints is not None:
-            for joint in self.joints:
-                if not isinstance(joint, int | float):
-                    msg = f"Joint {joint} is not a number"
-                    raise TypeError(msg)
-        return self

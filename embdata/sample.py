@@ -63,6 +63,7 @@ import functools
 import json
 import logging
 import operator
+from pathlib import Path
 import re
 from enum import Enum
 from importlib import import_module
@@ -161,10 +162,10 @@ class Sample(BaseModel):
         if isinstance(wrapped, Sample):
             # Only wrap if no other data is provided.
             if not data:
-                data = wrapped.dump()
+                data = {k: v for k, v in wrapped.model_dump() if not k.startswith("_")}
         elif isinstance(wrapped, dict):
             if not data:
-                data = {k: v for k, v in wrapped.items() if not k.startswith("_")}
+                data = {k: Sample(**v) if isinstance(v, dict) else v for k, v in wrapped.items() if not k.startswith("_")}
         elif self.__class__ == Sample:
             # Only the Sample class can wrap an arbitrary type.
             if isinstance(wrapped, list | tuple | np.ndarray | torch.Tensor | Dataset):
@@ -180,8 +181,7 @@ class Sample(BaseModel):
         elif isinstance(wrapped, spaces.Space):
             data.update(self.from_space(wrapped).model_dump())
 
-
-        describe(data)
+        # print(f"data: {describe(data)}")
         super().__init__(**data)
         if "_items" in data:
             self.items = CallableItems(data["_items"])
@@ -310,6 +310,8 @@ class Sample(BaseModel):
         return hash(tuple(self.dump().values()))
 
     def _str(self, obj, prefix=""):
+        if isinstance(obj, Path):
+            obj = str(obj)
         if not hasattr(obj, "_str"):
             return obj
         prefix += " "
@@ -334,12 +336,13 @@ class Sample(BaseModel):
         except KeyError:
             return default
 
-    def dump(self, exclude: set[str] | str | None = Literal["None"], as_field: str | None = None, recurse=False) -> Dict[str, Any] | Any:
+    def dump(self, exclude: set[str] | str | None = Literal["None"], as_field: str | None = None, recurse=True) -> Dict[str, Any] | Any:
         """Dump the Sample instance to a dictionary or value at a specific field if present.
 
         Args:
             exclude (set[str], optional): Attributes to exclude. Defaults to "None". Indicating to exclude None values.
             as_field (str, optional): The attribute to return as a field. Defaults to None.
+            recurse (bool, optional): Whether to convert nested Sample instances to dictionaries. Defaults to True.
 
         Returns:
             Dict[str, Any]: Dictionary representation of the Sample object.
@@ -352,13 +355,10 @@ class Sample(BaseModel):
                 continue
             if exclude and k in exclude:
                 continue
-            if isinstance(v, Sample):
+            if recurse and isinstance(v, Sample):
                 out[k] = v.dump(exclude=exclude, as_field=as_field, recurse=recurse) if recurse else v
-            elif isinstance(v, list | tuple | Dataset):
-                if len(v) > 0 and isinstance(v[0], Sample):
-                    out[k] = [item.dump(exclude=exclude, as_field=as_field, recurse=recurse) if recurse else item for item in v] # noqa
-                else:
-                    out[k] = v
+            elif recurse and isinstance(v, list | tuple | Dataset) and len(v) > 0 and isinstance(v[0], Sample):
+                    out[k] = [item.dump(exclude, as_field, recurse) for item in v]
             else:
                 out[k] = v
         return out
@@ -589,9 +589,9 @@ class Sample(BaseModel):
 
         def exact_match(key, to_keys):
             return to_keys and any(replace_digits_with_wildcard(key) == to_key for to_key in to_keys)
+
         def add_to_accumulator(key, value):
             key_stem = key_stems.get(replace_digits_with_wildcard(key), key).rstrip(sep)
-            # packed_key = str(key.split(sep)[-1].rstrip(sep))
             if non_numerical != "ignore" or isinstance(value, int | float | bool | Sample | dict):
                 if output_type == "dict" and not to_keys:
                     accumulator[key_stem] = value
@@ -651,7 +651,7 @@ class Sample(BaseModel):
             # x = functools.reduce(concat, x) if isinstance(x, list) else x
             if isinstance(x, list) and len(x) == 1:
                 x = x[0]
-            items = x.items() if isinstance(x, dict) else  enumerate(x) if isinstance(x, list) else x["wrapped"].items() if isinstance(x, Sample) else []
+            items = x.items() if isinstance(x, dict| Sample) else  enumerate(x) if isinstance(x, list) else []
             out =  {} if isinstance(x, dict | Sample) else []
             for k, v in items:
                 if isinstance(v, list) and len(v) == 1:
@@ -661,7 +661,7 @@ class Sample(BaseModel):
 
                 x[k] = reduce_squeeze(v)
             # print(f"inside squeex, type: {type(x)}")
-            describe(x)
+            # describe(x)
             return x
 
         def squeeze(x):
@@ -670,9 +670,9 @@ class Sample(BaseModel):
             return x
         if to_keys:
             # print(f"accumulator: ")
-            describe(accumulator)
+            # describe(accumulator)
             # print(f"packed_accumulator: ")
-            describe(packed_accumulator)
+            # describe(packed_accumulator)
             if output_type == "dict":
                 accumulator = {k: reduce_squeeze(v) for k, v in accumulator.items()}
             else:
@@ -694,7 +694,8 @@ class Sample(BaseModel):
         # describe(accumulator)
         # print(f"packed_accumulator: ")
         # describe(packed_accumulator)
-        return accumulator[0] if isinstance(accumulator, list) and len(accumulator) == 1 else accumulator["wrapped"] if isinstance(accumulator, Sample) else accumulator
+        return accumulator[0] if isinstance(accumulator, list) and len(accumulator) == 1 else accumulator
+
     def setdefault(self, key: str, default: Any) -> Any:
         """Set the default value for the attribute with the specified key."""
         def get_nested(x, key):
@@ -703,7 +704,7 @@ class Sample(BaseModel):
             if isinstance(x, dict):
                 y = x.get(key)
             elif hasattr(x, "__getitem__"):
-                y = x[key] if key in x else None
+                y = x.get(key, None)
             elif hasattr(x, key):
                 y =  getattr(x, key)
             x.key = Sample() if x is None else x
@@ -833,12 +834,12 @@ class Sample(BaseModel):
         feat_dict = {}
         for k, v in self:
             if v is None:
-                logging.info(f"Skipping {k} as it is None")
+                logging.info("Skipping %s as it is None", k)
                 continue
             if isinstance(v, Sample):
                 feat_dict[k] = v.infer_features_dict()
             elif isinstance(v, list | tuple | np.ndarray):
-                if isinstance(v[0], Sample) and len(v) > 0:
+                if len(v) > 0 and isinstance(v[0], Sample):
                     feat_dict[k] = [v[0].infer_features_dict()]
                 elif len(v) > 0:
                     feat_dict[k] = [to_features_dict(v[0])]
@@ -1086,7 +1087,7 @@ class Sample(BaseModel):
         return [mapper(zip(attributes, values, strict=False)) for values in unzipped]
 
     def unpack(self, to: Literal["dicts", "samples", "lists"] = "samples") -> List[Union["Sample", Dict]]:
-        return [sample.dump() if to == "dicts" else sample for _, sample in self]
+        return [[x.dump() if to == "dicts" else x for x in samples] for  _, samples in self]
 
     @classmethod
     def pack_from(cls, *args, packed_field: str = "steps", padding: Literal["truncate", "longest"] = "truncate", pad_value: Any | None = None) -> "Sample":
@@ -1112,13 +1113,15 @@ class Sample(BaseModel):
         if not args:
             msg = "Cannot pack an empty list of samples"
             raise ValueError(msg)
+        if len(args) == 1 and isinstance(args[0], (list, tuple)):
+            args = args[0]
         if not all(isinstance(arg, Sample | dict) for arg in args):
             msg = "All arguments must be Sample objects or dictionaries"
             raise TypeError(msg)
 
         if padding == "longest":
-            return cls(**{packed_field: [dict(sample) for sample in zip_longest(*args, fillvalue=pad_value)]})
-        return cls(**{packed_field: [dict(sample) for sample in zip(*args, strict=False)]})
+            return cls(**{packed_field: list(zip_longest(*args, fillvalue=pad_value))})
+        return cls(**{packed_field: list(zip(*args, strict=False))})
 
     def __unpack__(self):
         return self.unpack("dicts")
@@ -1159,6 +1162,15 @@ class Sample(BaseModel):
         if key in self.model_fields:
             info = self.model_fields[key].json_schema_extra or {}
         return info.get("_info", {})
+
+    def add_field_info(self, field_key, info_key, value) -> None:
+        if self.model_extra and field_key in self.model_extra:
+            info = FieldInfo(annotation=self.model_extra[field_key]).json_schema_extra or {}
+            info.update({info_key: value})
+            self.model_extra[field_key] = info
+        elif field_key in self.model_fields:
+            info = self.model_fields[field_key].json_schema_extra or {}
+            info.update({info_key: value})
 
     def space(self) -> spaces.Dict:
         """Return the corresponding Gym space for the Sample instance based on its instance attributes.
@@ -1206,7 +1218,7 @@ class Sample(BaseModel):
         """Convert the Sample instance to a HuggingFace Dataset object."""
         data = self
         # HuggingFace datasets require pillow images to be converted to bytes.
-        data = self.wrapped if hasattr(self, "wrapped") and self.wrappeed is not None else data.dump(as_field="pillow")
+        data = self.wrapped if hasattr(self, "wrapped") and self.wrappeed is not None else data.dump(as_field="pil")
         if isinstance(data, list):
             return Dataset.from_list(data, features=self.features())
         if isinstance(data, dict):
@@ -1219,7 +1231,7 @@ class Sample(BaseModel):
 
     def describe(self) -> str:
         """Return a string description of the Sample instance."""
-        return describe(self, compact=True)
+        return describe(self, compact=True, name=self.__class__.__name__)
 
 if __name__ == "__main__":
     import doctest

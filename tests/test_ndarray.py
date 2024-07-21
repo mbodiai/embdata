@@ -77,7 +77,7 @@ def assert_models_equal(model1: ModelWithArrays, model2: ModelWithArrays):
 
 
 def test_validation_errors():
-    with pytest.raises(TypeError):
+    with pytest.raises(ValidationError):
         ModelWithArrays(
             any_array=np.array([1, 2, 3, 4]),  # This is fine
             flexible_array=np.array([1, 2, 3, 4]),  # This is fine

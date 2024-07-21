@@ -1,0 +1,811 @@
+============================= test session starts ==============================
+platform linux -- Python 3.11.9, pytest-8.2.2, pluggy-1.5.0 -- /home/user/seb/embdata/.hatch/bin/python
+cachedir: .pytest_cache
+rootdir: /home/user/seb/embdata
+configfile: pyproject.toml
+collecting ... collected 12 items
+
+tests/test_sample_flatten.py::test_flatten_default PASSED                [  8%]
+tests/test_sample_flatten.py::test_flatten_to_dict FAILED                [ 16%]
+tests/test_sample_flatten.py::test_flatten_non_numerical_allow PASSED    [ 25%]
+tests/test_sample_flatten.py::test_flatten_non_numerical_forbid PASSED   [ 33%]
+tests/test_sample_flatten.py::test_flatten_to_numpy PASSED               [ 41%]
+tests/test_sample_flatten.py::test_flatten_to_torch PASSED               [ 50%]
+tests/test_sample_flatten.py::test_flatten_with_ignore PASSED            [ 58%]
+tests/test_sample_flatten.py::test_flatten_nested_structures PASSED      [ 66%]
+tests/test_sample_flatten.py::test_flatten_numpy_array PASSED            [ 75%]
+tests/test_sample_flatten.py::test_flatten_torch_tensor PASSED           [ 83%]
+tests/test_sample_flatten.py::test_flatten_to_keys FAILED                [ 91%]
+tests/test_sample_flatten.py::test_flatten_nested_dicts_and_lists_output_list FAILED [100%]
+
+=================================== FAILURES ===================================
+_____________________________ test_flatten_to_dict _____________________________
+
+sample_instance = Sample(
+ int_value=1,
+ float_value=2.0,
+ str_value=test,
+ list_value=[1, 2, 3],
+ dict_value={'a': 11, 'b': 'two'},
+ nested=Sample(
+  value=5
+
+),
+ np_array=[1 2 3],
+ torch_tensor=tensor([4, 5, 6]
+)
+)
+
+    def test_flatten_to_dict(sample_instance):
+        result = sample_instance.flatten(output_type="dict", sep=".")
+        assert isinstance(result, dict)
+>       assert list(result.values()) == [1, 2.0, "test", 1, 2, 3, 11, "two", 5, 1, 2, 3, 4, 5, 6]
+E       AssertionError: assert [{}, {}, {}, {'0': {}, '1': {}, '2': {}}, {'a': {}, 'b': {}}, {'value': {}}, {'0': {}, '1': {}, '2': {}}, {'0': {}, '1': {}, '2': {}}] == [1, 2.0, 'test', 1, 2, 3, 11, 'two', 5, 1, 2, 3, 4, 5, 6]
+E         
+E         At index 0 diff: {} != 1
+E         Right contains 7 more items, first extra item: 5
+E         
+E         Full diff:
+E           [
+E         +     {},
+E         +     {},
+E         +     {},
+E         +     {
+E         +         '0': {},
+E         +         '1': {},
+E         +         '2': {},
+E         -     1,
+E         ?     ^
+E         +     },
+E         ?     ^
+E         -     2.0,
+E         -     'test',
+E         +     {
+E         +         'a': {},
+E         +         'b': {},
+E         -     1,
+E         ?     ^
+E         +     },
+E         ?     ^
+E         +     {
+E         +         'value': {},
+E         -     2,
+E         ?     ^
+E         +     },
+E         ?     ^
+E         +     {
+E         +         '0': {},
+E         +         '1': {},
+E         +         '2': {},
+E         -     3,
+E         ?     ^
+E         +     },
+E         ?     ^
+E         -     11,
+E         -     'two',
+E         +     {
+E         +         '0': {},
+E         +         '1': {},
+E         +         '2': {},
+E         -     5,
+E         ?     ^
+E         +     },
+E         ?     ^
+E         -     1,
+E         -     2,
+E         -     3,
+E         -     4,
+E         -     5,
+E         -     6,
+E           ]
+
+tests/test_sample_flatten.py:81: AssertionError
+---------------------------- Captured stdout setup -----------------------------
+{'value': {'type': 'int'}}
+{
+    'int_value': {'type': 'int'},
+    'float_value': {'type': 'float'},
+    'str_value': {'type': 'str'},
+    'list_value': {'type': 'array', 'length': 3, 'items': {'type': 'int'}},
+    'dict_value': {'a': {'type': 'int'}, 'b': {'type': 'str'}},
+    'nested': {'value': {'type': 'int'}},
+    'np_array': {'type': 'ndarray'},
+    'torch_tensor': {'type': 'Tensor'}
+}
+----------------------------- Captured stdout call -----------------------------
+keys_map: {'int_value': 'int_value', 'float_value': 'float_value', 'str_value': 'str_value', 'list_value': 'list_value', 'dict_value': 'dict_value', 'a': 'dict_value.a', 'b': 'dict_value.b', 'nested': 'nested', 'value': 'nested.value', 'np_array': 'np_array', 'torch_tensor': 'torch_tensor'}
+k: int_value
+k: float_value
+k: str_value
+k: list_value
+k: dict_value
+k: a
+k: b
+k: nested
+k: value
+k: np_array
+k: torch_tensor
+to_keys: []
+key_stems: {}
+{}
+{}
+{}
+{}
+{}
+out: [1, 2, 3]
+{}
+{}
+{}
+{}
+{}
+{}
+{}
+{}
+{}
+out: [1, 2, 3]
+{}
+{}
+{}
+{}
+out: [4, 5, 6]
+{}
+{}
+{}
+{}
+accumulator: 
+{
+  "int_value": {
+    "": 1
+  },
+  "float_value": {
+    "": 2.0
+  },
+  "str_value": {
+    "": "test"
+  },
+  "list_value": {
+    "0": {
+      "": 1
+    },
+    "1": {
+      "": 2
+    },
+    "2": {
+      "": 3
+    }
+  },
+  "dict_value": {
+    "a": {
+      "": 11
+    },
+    "b": {
+      "": "two"
+    }
+  },
+  "nested": {
+    "value": {
+      "": 5
+    }
+  },
+  "np_array": {
+    "0": {
+      "": 1
+    },
+    "1": {
+      "": 2
+    },
+    "2": {
+      "": 3
+    }
+  },
+  "torch_tensor": {
+    "0": {
+      "": 4
+    },
+    "1": {
+      "": 5
+    },
+    "2": {
+      "": 6
+    }
+  }
+}
+packed_accumulator: 
+{
+  "": [
+    [
+      4,
+      5,
+      6
+    ]
+  ]
+}
+_____________________________ test_flatten_to_keys _____________________________
+
+sample_instance = Sample(
+ int_value=1,
+ float_value=2.0,
+ str_value=test,
+ list_value=[1, 2, 3],
+ dict_value={'a': 11, 'b': 'two'},
+ nested=Sample(
+  value=5
+
+),
+ np_array=[1 2 3],
+ torch_tensor=tensor([4, 5, 6]
+)
+)
+
+    def test_flatten_to_keys(sample_instance):
+        nested_structure = Sample(items=[sample_instance, sample_instance, sample_instance])
+>       result = nested_structure.flatten(to="items.*.dict_value")
+
+tests/test_sample_flatten.py:103: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+embdata/sample.py:609: in flatten
+    flatten_recursive(self)
+embdata/sample.py:596: in flatten_recursive
+    flatten_recursive(v, key_path + sep)
+embdata/sample.py:601: in flatten_recursive
+    packed_accumulator.setdefault(packed_key, []).append(flatten_to_list(obj))
+embdata/sample.py:580: in flatten_to_list
+    out.extend(flatten_to_list(v))
+embdata/sample.py:580: in flatten_to_list
+    out.extend(flatten_to_list(v))
+embdata/sample.py:580: in flatten_to_list
+    out.extend(flatten_to_list(v))
+embdata/sample.py:578: in flatten_to_list
+    items = obj.items() if hasattr(obj, "items") else enumerate(obj)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = tensor(4)
+
+    def __iter__(self):
+        # NB: we use 'imap' and not 'map' here, so that in Python 2 we get a
+        # generator and don't eagerly perform all the indexes.  This could
+        # save us work, and also helps keep trace ordering deterministic
+        # (e.g., if you zip(*hiddens), the eager map will force all the
+        # indexes of hiddens[0] before hiddens[1], while the generator
+        # map will interleave them.)
+        # NB: We have intentionally skipped __torch_function__ dispatch here.
+        # See gh-54457
+        if self.dim() == 0:
+>           raise TypeError("iteration over a 0-d tensor")
+E           TypeError: iteration over a 0-d tensor
+
+.hatch/lib/python3.11/site-packages/torch/_tensor.py:1047: TypeError
+---------------------------- Captured stdout setup -----------------------------
+{'value': {'type': 'int'}}
+{
+    'int_value': {'type': 'int'},
+    'float_value': {'type': 'float'},
+    'str_value': {'type': 'str'},
+    'list_value': {'type': 'array', 'length': 3, 'items': {'type': 'int'}},
+    'dict_value': {'a': {'type': 'int'}, 'b': {'type': 'str'}},
+    'nested': {'value': {'type': 'int'}},
+    'np_array': {'type': 'ndarray'},
+    'torch_tensor': {'type': 'Tensor'}
+}
+----------------------------- Captured stdout call -----------------------------
+{
+    'items': {
+        'type': 'array',
+        'length': 3,
+        'items': {
+            'int_value': {'type': 'int'},
+            'float_value': {'type': 'float'},
+            'str_value': {'type': 'str'},
+            'list_value': {
+                'type': 'array',
+                'length': 3,
+                'items': {'type': 'int'}
+            },
+            'dict_value': {'a': {'type': 'int'}, 'b': {'type': 'str'}},
+            'nested': {'value': {'type': 'int'}},
+            'np_array': {'type': 'ndarray'},
+            'torch_tensor': {'type': 'Tensor'}
+        }
+    }
+}
+keys_map: {'items': 'items', 'int_value': 'items.*.int_value', 'float_value': 'items.*.float_value', 'str_value': 'items.*.str_value', 'list_value': 'items.*.list_value', 'dict_value': 'items.*.dict_value', 'a': 'items.*.dict_value.a', 'b': 'items.*.dict_value.b', 'nested': 'items.*.nested', 'value': 'items.*.nested.value', 'np_array': 'items.*.np_array', 'torch_tensor': 'items.*.torch_tensor'}
+k: items
+k: int_value
+k: float_value
+k: str_value
+k: list_value
+k: dict_value
+k: a
+k: b
+k: nested
+k: value
+k: np_array
+k: torch_tensor
+to_keys: []
+key_stems: {}
+{}
+out: [1, 2, 3]
+out: [11, 'two']
+out: [5]
+out: [1, 2, 3]
+_______________ test_flatten_nested_dicts_and_lists_output_list ________________
+
+    def test_flatten_nested_dicts_and_lists_output_list():
+        sample = Sample(
+            a=1, b=[{"c": 2, "d": [3, 4]}, {"c": 5, "d": [6, 7]}], e=Sample(f=8, g=[{"h": 9, "i": 10}, {"h": 11, "i": 12}])
+        )
+        flattened = sample.flatten(output_type="list")
+        expected = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]
+        assert flattened == expected, f"Expected {expected}, but got {flattened}"
+    
+        flattened_dict = sample.flatten(output_type="sample")
+        print(f"flattened sample: {flattened_dict}")
+>       unflattened_sample = Sample.unflatten(flattened, sample.schema())
+
+tests/test_sample_flatten.py:120: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+embdata/sample.py:443: in unflatten
+    unflattened_dict, _ = unflatten_recursive(schema)
+embdata/sample.py:428: in unflatten_recursive
+    value, index = unflatten_recursive(prop_schema, index)
+embdata/sample.py:428: in unflatten_recursive
+    value, index = unflatten_recursive(prop_schema, index)
+embdata/sample.py:438: in unflatten_recursive
+    value, index = unflatten_recursive(schema_part["items"], index + _e)
+embdata/sample.py:428: in unflatten_recursive
+    value, index = unflatten_recursive(prop_schema, index)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+schema_part = {'title': 'I', 'type': 'integer'}, index = 12
+
+    def unflatten_recursive(schema_part, index=0):
+        print(f"schema_part: {schema_part}")
+        print(f"index: {index}")
+        if schema_part["type"] == "object":
+            result = {}
+            for prop, prop_schema in schema_part["properties"].items():
+                if not prop.startswith("_"):  # Skip properties starting with underscore
+                    print(f"prop: {prop}", f"prop_schema: {prop_schema}")
+                    value, index = unflatten_recursive(prop_schema, index)
+                    result[prop] = value
+            if schema_part.get("title", "").lower() == cls.__name__.lower():
+                result = cls(**result)
+            elif schema_part.get("title", "").lower() == "sample":
+                result = Sample(**result)
+            return result, index
+        if schema_part["type"] == "array":
+            items = []
+            for _e in range(schema_part.get("maxItems", len(flat_data) - index)):
+                value, index = unflatten_recursive(schema_part["items"], index + _e)
+                items.append(value)
+            return items, index
+>       return flat_data[index], index + 1
+E       IndexError: list index out of range
+
+embdata/sample.py:441: IndexError
+----------------------------- Captured stdout call -----------------------------
+{
+    'f': {'type': 'int'},
+    'g': {
+        'type': 'array',
+        'length': 2,
+        'items': {'h': {'type': 'int'}, 'i': {'type': 'int'}}
+    }
+}
+{
+    'a': {'type': 'int'},
+    'b': {
+        'type': 'array',
+        'length': 2,
+        'items': {
+            'c': {'type': 'int'},
+            'd': {'type': 'array', 'length': 2, 'items': {'type': 'int'}}
+        }
+    },
+    'e': {
+        'f': {'type': 'int'},
+        'g': {
+            'type': 'array',
+            'length': 2,
+            'items': {'h': {'type': 'int'}, 'i': {'type': 'int'}}
+        }
+    }
+}
+keys_map: {'a': 'a', 'b': 'b', 'c': 'b.*.c', 'd': 'b.*.d', 'e': 'e', 'f': 'e.f', 'g': 'e.g', 'h': 'e.g.*.h', 'i': 'e.g.*.i'}
+k: a
+k: b
+k: c
+k: d
+k: e
+k: f
+k: g
+k: h
+k: i
+to_keys: []
+key_stems: {}
+{}
+out: [3, 4]
+out: [2, 3, 4]
+out: [6, 7]
+out: [5, 6, 7]
+out: [2, 3, 4, 5, 6, 7]
+out: [3, 4]
+out: [6, 7]
+out: [9, 10]
+out: [11, 12]
+out: [9, 10, 11, 12]
+accumulator: 
+{
+  "accumulator": [
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7,
+    8,
+    9,
+    10,
+    11,
+    12
+  ]
+}
+packed_accumulator: 
+{
+  "": [
+    [
+      9,
+      10,
+      11,
+      12
+    ]
+  ]
+}
+keys_map: {'a': 'a', 'b': 'b', 'c': 'b.*.c', 'd': 'b.*.d', 'e': 'e', 'f': 'e.f', 'g': 'e.g', 'h': 'e.g.*.h', 'i': 'e.g.*.i'}
+k: a
+k: b
+k: c
+k: d
+k: e
+k: f
+k: g
+k: h
+k: i
+to_keys: []
+key_stems: {}
+{}
+{}
+{}
+out: [3, 4]
+out: [2, 3, 4]
+out: [6, 7]
+out: [5, 6, 7]
+out: [2, 3, 4, 5, 6, 7]
+{}
+{}
+{}
+out: [3, 4]
+{}
+{}
+{}
+{}
+{}
+out: [6, 7]
+{}
+{}
+{}
+{}
+{}
+out: [9, 10]
+out: [11, 12]
+out: [9, 10, 11, 12]
+{}
+{}
+{}
+{}
+{}
+{}
+{}
+accumulator: 
+{
+  "a": {
+    "": 1
+  },
+  "b": {
+    "0": {
+      "c": {
+        "": 2
+      },
+      "d": {
+        "0": {
+          "": 3
+        },
+        "1": {
+          "": 4
+        }
+      }
+    },
+    "1": {
+      "c": {
+        "": 5
+      },
+      "d": {
+        "0": {
+          "": 6
+        },
+        "1": {
+          "": 7
+        }
+      }
+    }
+  },
+  "e": {
+    "f": {
+      "": 8
+    },
+    "g": {
+      "0": {
+        "h": {
+          "": 9
+        },
+        "i": {
+          "": 10
+        }
+      },
+      "1": {
+        "h": {
+          "": 11
+        },
+        "i": {
+          "": 12
+        }
+      }
+    }
+  }
+}
+packed_accumulator: 
+{
+  "": [
+    [
+      9,
+      10,
+      11,
+      12
+    ]
+  ]
+}
+flattened sample: Sample(
+ a=Sample(
+  =1
+
+),
+ b=Sample(
+  0=Sample(
+   c=Sample(
+    =2
+
+
+
+),
+   d=Sample(
+    0=Sample(
+     =3
+
+
+
+
+),
+    1=Sample(
+     =4
+
+
+
+
+)
+
+
+
+)
+
+
+),
+  1=Sample(
+   c=Sample(
+    =5
+
+
+
+),
+   d=Sample(
+    0=Sample(
+     =6
+
+
+
+
+),
+    1=Sample(
+     =7
+
+
+
+
+)
+
+
+
+)
+
+
+)
+
+),
+ e=Sample(
+  f=Sample(
+   =8
+
+
+),
+  g=Sample(
+   0=Sample(
+    h=Sample(
+     =9
+
+
+
+
+),
+    i=Sample(
+     =10
+
+
+
+
+)
+
+
+
+),
+   1=Sample(
+    h=Sample(
+     =11
+
+
+
+
+),
+    i=Sample(
+     =12
+
+
+
+
+)
+
+
+
+)
+
+
+)
+
+)
+)
+{
+    'c': {'type': 'int'},
+    'd': {'type': 'array', 'length': 2, 'items': {'type': 'int'}}
+}
+{'h': {'type': 'int'}, 'i': {'type': 'int'}}
+{'h': {'type': 'int'}, 'i': {'type': 'int'}}
+schema_part: {'properties': {'a': {'title': 'A', 'type': 'integer'}, 'b': {'items': {'properties': {'c': {'title': 'C', 'type': 'integer'}, 'd': {'items': {'type': 'integer'}, 'title': 'D', 'type': 'array', 'maxItems': 2}}, 'type': 'object'}, 'title': 'B', 'type': 'array', 'maxItems': 2}, 'e': {'properties': {'f': {'title': 'F', 'type': 'integer'}, 'g': {'items': {'properties': {'h': {'title': 'H', 'type': 'integer'}, 'i': {'title': 'I', 'type': 'integer'}}, 'type': 'object'}, 'title': 'G', 'type': 'array', 'maxItems': 2}}, 'title': 'Sample', 'type': 'object'}}, 'title': 'Sample', 'type': 'object'}
+index: 0
+prop: a prop_schema: {'title': 'A', 'type': 'integer'}
+schema_part: {'title': 'A', 'type': 'integer'}
+index: 0
+prop: b prop_schema: {'items': {'properties': {'c': {'title': 'C', 'type': 'integer'}, 'd': {'items': {'type': 'integer'}, 'title': 'D', 'type': 'array', 'maxItems': 2}}, 'type': 'object'}, 'title': 'B', 'type': 'array', 'maxItems': 2}
+schema_part: {'items': {'properties': {'c': {'title': 'C', 'type': 'integer'}, 'd': {'items': {'type': 'integer'}, 'title': 'D', 'type': 'array', 'maxItems': 2}}, 'type': 'object'}, 'title': 'B', 'type': 'array', 'maxItems': 2}
+index: 1
+schema_part: {'properties': {'c': {'title': 'C', 'type': 'integer'}, 'd': {'items': {'type': 'integer'}, 'title': 'D', 'type': 'array', 'maxItems': 2}}, 'type': 'object'}
+index: 1
+prop: c prop_schema: {'title': 'C', 'type': 'integer'}
+schema_part: {'title': 'C', 'type': 'integer'}
+index: 1
+prop: d prop_schema: {'items': {'type': 'integer'}, 'title': 'D', 'type': 'array', 'maxItems': 2}
+schema_part: {'items': {'type': 'integer'}, 'title': 'D', 'type': 'array', 'maxItems': 2}
+index: 2
+schema_part: {'type': 'integer'}
+index: 2
+schema_part: {'type': 'integer'}
+index: 4
+schema_part: {'properties': {'c': {'title': 'C', 'type': 'integer'}, 'd': {'items': {'type': 'integer'}, 'title': 'D', 'type': 'array', 'maxItems': 2}}, 'type': 'object'}
+index: 6
+prop: c prop_schema: {'title': 'C', 'type': 'integer'}
+schema_part: {'title': 'C', 'type': 'integer'}
+index: 6
+prop: d prop_schema: {'items': {'type': 'integer'}, 'title': 'D', 'type': 'array', 'maxItems': 2}
+schema_part: {'items': {'type': 'integer'}, 'title': 'D', 'type': 'array', 'maxItems': 2}
+index: 7
+schema_part: {'type': 'integer'}
+index: 7
+schema_part: {'type': 'integer'}
+index: 9
+prop: e prop_schema: {'properties': {'f': {'title': 'F', 'type': 'integer'}, 'g': {'items': {'properties': {'h': {'title': 'H', 'type': 'integer'}, 'i': {'title': 'I', 'type': 'integer'}}, 'type': 'object'}, 'title': 'G', 'type': 'array', 'maxItems': 2}}, 'title': 'Sample', 'type': 'object'}
+schema_part: {'properties': {'f': {'title': 'F', 'type': 'integer'}, 'g': {'items': {'properties': {'h': {'title': 'H', 'type': 'integer'}, 'i': {'title': 'I', 'type': 'integer'}}, 'type': 'object'}, 'title': 'G', 'type': 'array', 'maxItems': 2}}, 'title': 'Sample', 'type': 'object'}
+index: 10
+prop: f prop_schema: {'title': 'F', 'type': 'integer'}
+schema_part: {'title': 'F', 'type': 'integer'}
+index: 10
+prop: g prop_schema: {'items': {'properties': {'h': {'title': 'H', 'type': 'integer'}, 'i': {'title': 'I', 'type': 'integer'}}, 'type': 'object'}, 'title': 'G', 'type': 'array', 'maxItems': 2}
+schema_part: {'items': {'properties': {'h': {'title': 'H', 'type': 'integer'}, 'i': {'title': 'I', 'type': 'integer'}}, 'type': 'object'}, 'title': 'G', 'type': 'array', 'maxItems': 2}
+index: 11
+schema_part: {'properties': {'h': {'title': 'H', 'type': 'integer'}, 'i': {'title': 'I', 'type': 'integer'}}, 'type': 'object'}
+index: 11
+prop: h prop_schema: {'title': 'H', 'type': 'integer'}
+schema_part: {'title': 'H', 'type': 'integer'}
+index: 11
+prop: i prop_schema: {'title': 'I', 'type': 'integer'}
+schema_part: {'title': 'I', 'type': 'integer'}
+index: 12
+=========================== short test summary info ============================
+FAILED tests/test_sample_flatten.py::test_flatten_to_dict - AssertionError: assert [{}, {}, {}, {'0': {}, '1': {}, '2': {}}, {'a': {}, 'b': {}}, {'value': {}}, {'0': {}, '1': {}, '2': {}}, {'0': {}, '1': {}, '2': {}}] == [1, 2.0, 'test', 1, 2, 3, 11, 'two', 5, 1, 2, 3, 4, 5, 6]
+  
+  At index 0 diff: {} != 1
+  Right contains 7 more items, first extra item: 5
+  
+  Full diff:
+    [
+  +     {},
+  +     {},
+  +     {},
+  +     {
+  +         '0': {},
+  +         '1': {},
+  +         '2': {},
+  -     1,
+  ?     ^
+  +     },
+  ?     ^
+  -     2.0,
+  -     'test',
+  +     {
+  +         'a': {},
+  +         'b': {},
+  -     1,
+  ?     ^
+  +     },
+  ?     ^
+  +     {
+  +         'value': {},
+  -     2,
+  ?     ^
+  +     },
+  ?     ^
+  +     {
+  +         '0': {},
+  +         '1': {},
+  +         '2': {},
+  -     3,
+  ?     ^
+  +     },
+  ?     ^
+  -     11,
+  -     'two',
+  +     {
+  +         '0': {},
+  +         '1': {},
+  +         '2': {},
+  -     5,
+  ?     ^
+  +     },
+  ?     ^
+  -     1,
+  -     2,
+  -     3,
+  -     4,
+  -     5,
+  -     6,
+    ]
+FAILED tests/test_sample_flatten.py::test_flatten_to_keys - TypeError: iteration over a 0-d tensor
+FAILED tests/test_sample_flatten.py::test_flatten_nested_dicts_and_lists_output_list - IndexError: list index out of range
+========================= 3 failed, 9 passed in 3.96s ==========================

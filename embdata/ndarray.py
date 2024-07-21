@@ -1,3 +1,4 @@
+from functools import partial, singledispatch
 from pathlib import Path
 from typing import (
     TYPE_CHECKING,
@@ -17,11 +18,10 @@ from pydantic import (
     FilePath,
     GetJsonSchemaHandler,
     PositiveInt,
-    ValidationError,
     validate_call,
 )
 from pydantic.json_schema import JsonSchemaValue
-from pydantic_core import core_schema
+from pydantic_core import PydanticCustomError, core_schema
 from pydantic_numpy.helper.annotation import (
     MultiArrayNumpyFile,
     pd_np_native_numpy_array_to_data_dict_serializer,
@@ -30,46 +30,54 @@ from pydantic_numpy.helper.validation import (
     validate_multi_array_numpy_file,
     validate_numpy_array_file,
 )
+from rich import print
 from typing_extensions import TypedDict
 
 SupportedDTypes = type[np.generic]
-
-def create_array_validator(
-    shape: Tuple[int, ...] | None, dtype: SupportedDTypes | None) -> Callable[[Any], npt.NDArray]:
-    def array_validator(array_data: Any) -> npt.NDArray:
-        if isinstance(array_data, dict):
-            array = np.array(array_data["data"], dtype=array_data.get("dtype", None))
-        elif isinstance(array_data, list | tuple | np.ndarray):
-            array = np.array(array_data)
-        else:
-            msg = f"Unsupported type for array_data: {type(array_data)}"
-            raise ValidationError(msg)
-
-        if shape is not None:
-            expected_ndim = len(shape)
-            actual_ndim = array.ndim
-            if actual_ndim != expected_ndim:
-                msg = f"Array has {actual_ndim} dimensions, expected {expected_ndim}"
-                raise ValidationError(msg)
-            for i, (expected, actual) in enumerate(zip(shape, array.shape, strict=False)):
-                if expected != -1 and expected is not None and expected != actual:
-                    msg = f"Dimension {i} has size {actual}, expected {expected}"
-                    raise ValueError(msg)
-
-        if dtype and array.dtype.type != dtype:
-            if issubclass(dtype, np.integer) and issubclass(array.dtype.type, np.floating):
-                array = np.round(array).astype(dtype, copy=False)
-            else:
-                array = array.astype(dtype, copy=True)
-
-        return array
-
-    return array_validator
 
 
 class NumpyDataDict(TypedDict):
     data: List
     data_type: SupportedDTypes
+
+
+
+@singledispatch
+def array_validator(array: np.ndarray, shape: Tuple[int, ...] | None, dtype: SupportedDTypes | None) -> npt.NDArray: 
+    if shape is not None:
+        expected_ndim = len(shape)
+        actual_ndim = array.ndim
+        if actual_ndim != expected_ndim:
+            details = f"Array has {actual_ndim} dimensions, expected {expected_ndim}"
+            msg = "ShapeError"
+            raise PydanticCustomError(msg, details)
+        for i, (expected, actual) in enumerate(zip(shape, array.shape, strict=False)):
+            if expected != -1 and expected is not None and expected != actual:
+                details = f"Dimension {i} has size {actual}, expected {expected}"
+                msg = "ShapeError"
+                raise PydanticCustomError(msg, details)
+
+    if dtype and array.dtype.type != dtype:
+        if issubclass(dtype, np.integer) and issubclass(array.dtype.type, np.floating):
+            array = np.round(array).astype(dtype, copy=False)
+        else:
+            array = array.astype(dtype, copy=True)
+    return array
+
+@array_validator.register
+def list_tuple_validator(array: list | tuple,  shape: Tuple[int, ...] | None, dtype: SupportedDTypes | None) -> npt.NDArray: # noqa
+    return array_validator.dispatch(np.ndarray)(np.asarray(array), shape, dtype)
+
+@array_validator.register
+def dict_validator(array: dict, shape: Tuple[int, ...] | None, dtype: SupportedDTypes | None) -> npt.NDArray:
+    array = np.array(array["data"]).astype(array["data_type"])
+    return array_validator.dispatch(np.ndarray)(array, shape, dtype)
+
+
+def create_array_validator(
+    shape: Tuple[int, ...] | None, dtype: SupportedDTypes | None) -> Callable[[Any], npt.NDArray]:
+    """Creates a validator function for NumPy arrays with a specified shape and data type."""
+    return partial(array_validator, shape=shape, dtype=dtype)
 
 
 @validate_call
@@ -167,7 +175,15 @@ def get_numpy_json_schema(
 
 
 class NumpyArray:
-    """A Pydantic field type for Numpy arrays. Shape and data type are validated.
+    """Pydantic validation for shape and dtype. Specify shape with a tuple of integers, "*" or `Any` for any size.
+
+    If the last dimension is a type (e.g. np.uint8), it will validate the dtype as well.
+
+    Examples:
+        from typing import Any
+        NumpyArray[1, 2, 3] will validate a 3D array with shape (1, 2, 3).
+        NumpyArray[Any, Any, Any] will validate a 3D array with any shape.
+        NumpyArray[3, 224, 224, np.uint8] will validate an array with shape (3, 224, 224) and dtype np.uint8.
 
     Lazy loading and caching by default.
 
@@ -198,7 +214,7 @@ class NumpyArray:
     def __class_getitem__(cls, params=None) -> Any:
         _shape = None
         _dtype = None
-        if params is None or params == "*" or params == Any or params == (Any,):
+        if params is None or params in ("*", Any, (Any,)):
             params = ("*",)
         if not isinstance(params, tuple):
             params = (params,)
@@ -213,7 +229,7 @@ class NumpyArray:
             _dtype: SupportedDTypes | None = np.int64
         elif _dtype is float:
             _dtype = np.float64
-        elif _dtype is not None and _dtype != "*" and _dtype != Any and isinstance(_dtype, type):
+        elif _dtype is not None and _dtype not in ("*", Any) and isinstance(_dtype, type):
             _dtype = np.dtype(_dtype).type
         elif isinstance(_dtype, int):
             _shape += (_dtype,)
@@ -225,12 +241,8 @@ class NumpyArray:
             shape = _shape
             dtype = _dtype
 
-        print(f"ParameterizedNumpyArray shape: {ParameterizedNumpyArray.shape}")
-        print(f"ParameterizedNumpyArray dtype: {ParameterizedNumpyArray.dtype}")
 
-        result = Annotated[np.ndarray | FilePath | MultiArrayNumpyFile, ParameterizedNumpyArray]
-        print(f"__class_getitem__ returns: {result}")
-        return result
+        return Annotated[np.ndarray | FilePath | MultiArrayNumpyFile, ParameterizedNumpyArray]
 
     @classmethod
     def __get_pydantic_core_schema__(
@@ -250,10 +262,11 @@ class NumpyArray:
                             core_schema.is_instance_schema(list),
                             core_schema.is_instance_schema(tuple),
                             core_schema.is_instance_schema(dict),
-                        ]
+                        ],
                     ),
+                    _common_numpy_array_validator,
                     np_array_schema,
-                ]
+                ],
             ),
             json_schema=core_schema.chain_schema(
                 [
@@ -261,14 +274,13 @@ class NumpyArray:
                         [
                             core_schema.list_schema(),
                             core_schema.dict_schema(),
-                        ]
+                        ],
                     ),
                     np_array_schema,
-                ]
+                ],
             ),
             serialization=core_schema.plain_serializer_function_ser_schema(
                 pd_np_native_numpy_array_to_data_dict_serializer,
-                is_field_serializer=False,
                 when_used="json-unless-none",
             ),
         )
@@ -285,8 +297,8 @@ if __name__ == "__main__":
     class MyModel(BaseModel):
         uint8_array: NumpyArray[np.uint8]
         must_have_exact_shape: NumpyArray[1, 2, 3]
-        must_be_3d: NumpyArray["*","*","*"]
-        must_be_1d: NumpyArray["*"]
+        must_be_3d: NumpyArray[Any, Any, Any]
+        must_be_1d: NumpyArray[Any, Any, Any]
 
     my_failing_model = MyModel(
         uint8_array=[1, 2, 3, 4],

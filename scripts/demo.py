@@ -13,16 +13,15 @@ Example:
     This will generate several PNG files with visualizations of the processed data.
 """
 
-from typing import TYPE_CHECKING
 
+import os
 from datasets import get_dataset_config_info, get_dataset_config_names, load_dataset
+from rich import print_json
+
 from embdata.describe import describe
 from embdata.episode import Episode, VisionMotorEpisode
 from embdata.sample import Sample
-from embdata.schema.oxe import get_hf_dataset, get_oxe_metadata, get_state
-
-if TYPE_CHECKING:
-    from embdata.trajectory import Trajectory
+from embdata.trajectory import Trajectory
 
 
 def load_and_process_bridge() -> tuple[Sample, Sample, Sample]:
@@ -96,10 +95,15 @@ if __name__ == "__main__":
 
     # ds = get_hf_dataset("taco_play")
 
-    ds = load_dataset("mbodiai/test_dumb3", split="train").take(10)
-    describe(ds)
-    ds = Sample(ds)
-    obs, actions, states = ds.flatten(to="observation"), ds.flatten(to="action"), ds.flatten(to="state")
-    zipped = zip(obs, actions, states, strict=False)
-    episode = VisionMotorEpisode(steps=zipped, freq_hz=5)
-    episode.show(mode="local")
+    ds = load_dataset("mbodiai/test_dumb3", split="train").take(2)
+    # describe(ds)
+    episode = Episode(steps=ds.to_list(), freq_hz=5)
+    episode.dataset().push_to_hub("mbodiai/test_dumb3", token=os.getenv("HF_TOKEN"))
+    
+    # obs, actions,  = ds.flatten(to="observation"), ds.flatten(to="action")
+    # describe(obs, "obs")
+    # describe(actions, "actions")
+    # print_json(data=actions)
+    # zipped = zip(obs, actions, states, strict=False)
+    # episode = VisionMotorEpisode(steps=zipped, freq_hz=5)
+    # episode.show(mode="local")

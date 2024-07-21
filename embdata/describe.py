@@ -8,7 +8,7 @@ from typing import Any, Dict
 
 import numpy as np
 from datasets import Dataset
-from rich import print, table
+from rich import print, print_json, table
 from rich.console import Console
 
 
@@ -147,18 +147,18 @@ def describe(ds: Any, name: str = "", compact: bool = True, show=True, check_ful
 
     if isinstance(ds, list | Dataset) and ds:
         if check_full:
-            schemas = {str(describe(item, compact=compact, show=False)) for item in ds}
+            schemas = {str(describe(item, compact=compact, show=False, name=name)) for item in ds}
             if len(schemas) != 1:
                 msg = f"Items in list are not of the same type: {schemas}. Pass `check_full=False` to ignore."
                 raise ValueError(msg)
-        schema["items"] = describe(ds[0], compact=compact, show=False)
+        schema["items"] = describe(ds[0], compact=compact, show=False, name=name)
     elif isinstance(ds, dict) and not compact:
-        schema["properties"] = {key: describe(value, key, compact, show=False) for key, value in ds.items()}
+        schema["properties"] = {key: describe(value, key, compact, show=False, name=name) for key, value in ds.items()}
     elif isinstance(ds, dict) and compact:
         schema = {key: describe(value, key, compact, show=False) for key, value in ds.items()}
 
     if show:
-        print(schema)
+        print_json(data=schema)
     return schema
 
 
