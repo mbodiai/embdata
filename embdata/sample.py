@@ -586,7 +586,9 @@ class Sample(BaseModel):
                 for pattern in to:
                     result[pattern] = [item[1] for item in flattened if match_key(item[0], pattern)]
                 print(f"Dict result: {result}")
-                return [dict(zip(result.keys(), values)) for values in zip_longest(*result.values(), fillvalue=None)]
+                dict_result = [dict(zip(result.keys(), values)) for values in zip_longest(*result.values(), fillvalue=None)]
+                print(f"Final dict result: {dict_result}")
+                return dict_result
             
             # Group values by their original keys
             grouped_values = {}
@@ -600,12 +602,16 @@ class Sample(BaseModel):
             
             print(f"Grouped values: {grouped_values}")
             
-            # If there's only one item per key, return a nested list
+            # If there's only one item per key, return a flat list
             if all(len(v) == 1 for v in grouped_values.values()):
-                return [[v[0] for v in grouped_values.values()]]
+                flat_result = [v[0] for v in grouped_values.values()]
+                print(f"Flat result: {flat_result}")
+                return flat_result
             
             # If there are multiple items for at least one key, return a list of lists
-            return [v for v in grouped_values.values()]
+            list_result = [v for v in grouped_values.values()]
+            print(f"List result: {list_result}")
+            return list_result
 
         if output_type == "dict":
             return dict(flattened)
