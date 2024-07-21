@@ -574,11 +574,21 @@ class Sample(BaseModel):
             def match_key(item_key, pattern):
                 if '*' in pattern:
                     parts = pattern.split('*')
-                    return all(part in item_key for part in parts)
-                return pattern == item_key
+                    return item_key.startswith(parts[0]) and (len(parts) == 1 or item_key.endswith(parts[-1]))
+                return item_key == pattern
 
+            print(f"Original flattened: {flattened}")
             flattened = [item for item in flattened if any(match_key(item[0], t) for t in to_set)]
+            print(f"Filtered flattened: {flattened}")
 
+            if output_type == "dict":
+                result = {}
+                for pattern in to:
+                    result[pattern] = [item[1] for item in flattened if match_key(item[0], pattern)]
+                print(f"Dict result: {result}")
+                return [dict(zip(result.keys(), values)) for values in zip_longest(*result.values(), fillvalue=None)]
+            
+            # Group values by their original keys
             grouped_values = {}
             for key, value in flattened:
                 for pattern in to:
@@ -587,11 +597,15 @@ class Sample(BaseModel):
                             grouped_values[pattern] = []
                         grouped_values[pattern].append(value)
                         break
-
-            if output_type == "dict":
-                return [dict(zip(grouped_values.keys(), values)) for values in zip(*grouped_values.values())]
             
-            return list(grouped_values.values())
+            print(f"Grouped values: {grouped_values}")
+            
+            # If there's only one item per key, return a flat list
+            if all(len(v) == 1 for v in grouped_values.values()):
+                return [v[0] for v in grouped_values.values()]
+            
+            # If there are multiple items for at least one key, return a list of lists
+            return [v for v in grouped_values.values()]
 
         if output_type == "dict":
             return dict(flattened)
