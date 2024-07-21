@@ -517,7 +517,10 @@ class Sample(BaseModel):
         for key, value in flattened:
             for pattern in to:
                 if match_key(key, pattern):
-                    grouped_values[pattern].append(value)
+                    if isinstance(value, list):
+                        grouped_values[pattern].extend(value)
+                    else:
+                        grouped_values[pattern].append(value)
                     break
         return grouped_values
 
@@ -529,6 +532,9 @@ class Sample(BaseModel):
         
         keys = list(grouped_values.keys())
         lengths = [len(values) for values in grouped_values.values()]
+        
+        if len(set(lengths)) > 1:
+            raise ValueError("All grouped values must have the same length")
         
         max_length = max(lengths)
         
@@ -616,7 +622,7 @@ class Sample(BaseModel):
                 return [dict(zip(to, values)) for values in processed]
             
             if output_type == "list":
-                return processed[0] if len(processed) == 1 else processed
+                return processed[0] if len(processed) == 1 and len(to) == 1 else processed
             elif output_type == "np":
                 return np.array(processed)
             elif output_type == "pt":
