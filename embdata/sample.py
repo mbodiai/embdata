@@ -533,29 +533,26 @@ class Sample(BaseModel):
         for key, value in flattened:
             for pattern in to:
                 if Sample.match_wildcard(key, pattern, sep):
-                    grouped_values[pattern].append(value)
+                    parts = key.split(sep)
+                    pattern_parts = pattern.split(sep)
+                    if '*' in pattern_parts:
+                        wildcard_index = pattern_parts.index('*')
+                        group_key = sep.join(pattern_parts[:wildcard_index])
+                        if group_key not in grouped_values:
+                            grouped_values[group_key] = []
+                        if len(grouped_values[group_key]) <= wildcard_index:
+                            grouped_values[group_key].append([])
+                        grouped_values[group_key][wildcard_index].append(value)
+                    else:
+                        grouped_values[pattern].append(value)
                     break
 
-        # Handle nested structures for wildcard patterns
-        for pattern in to:
-            if '*' in pattern:
-                nested_values = {}
-                for key, value in flattened:
-                    if Sample.match_wildcard(key, pattern, sep):
-                        parts = key.split(sep)
-                        group_key = sep.join(parts[:-1])
-                        if group_key not in nested_values:
-                            nested_values[group_key] = []
-                        nested_values[group_key].append(value)
-                grouped_values[pattern] = list(nested_values.values())
-
-        # Flatten single-item lists
-        for pattern, values in grouped_values.items():
+        # Flatten single-item lists and remove empty lists
+        for pattern, values in list(grouped_values.items()):
             if len(values) == 1 and isinstance(values[0], list):
                 grouped_values[pattern] = values[0]
-
-        # Remove empty lists
-        grouped_values = {k: v for k, v in grouped_values.items() if v}
+            elif not values:
+                del grouped_values[pattern]
 
         print(f"group_values output: {grouped_values}")  # Debug print
         return grouped_values
