@@ -537,7 +537,6 @@ class Sample(BaseModel):
                     pattern_parts = pattern.split(sep)
                     if '*' in pattern_parts:
                         wildcard_index = pattern_parts.index('*')
-                        group_key = sep.join(pattern_parts[:wildcard_index])
                         index = int(parts[wildcard_index])
                         while len(grouped_values[pattern]) <= index:
                             grouped_values[pattern].append([])
@@ -546,14 +545,14 @@ class Sample(BaseModel):
                         grouped_values[pattern].append(value)
                     break
 
-        # Handle nested structures and flatten single-element lists
+        # Handle nested structures and wrap values in lists
         for pattern, values in grouped_values.items():
-            if len(values) == 1 and isinstance(values[0], list):
-                grouped_values[pattern] = values[0]
+            if not values:
+                grouped_values[pattern] = [[]]
             elif all(isinstance(v, list) for v in values):
-                grouped_values[pattern] = [v[0] if len(v) == 1 else v for v in values]
-            elif len(values) == 1:
-                grouped_values[pattern] = values[0]
+                grouped_values[pattern] = values
+            else:
+                grouped_values[pattern] = [values]
 
         print(f"group_values output: {grouped_values}")  # Debug print
         return grouped_values
