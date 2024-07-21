@@ -505,21 +505,21 @@ class Sample(BaseModel):
     @staticmethod
     def match_wildcard(key, pattern, sep="."):
         if '*' not in pattern:
-            return key == pattern or key.endswith(sep + pattern)
+            return key == pattern
 
         key_parts = key.split(sep)
         pattern_parts = pattern.split(sep)
 
-        if len(key_parts) < len(pattern_parts):
+        if len(key_parts) != len(pattern_parts):
             return False
 
         for k, p in zip(key_parts, pattern_parts):
             if p == '*':
                 continue
-            if k != p and not (k.isdigit() and p == '*'):
+            if k != p:
                 return False
 
-        return len(key_parts) == len(pattern_parts) or pattern_parts[-1] == '*'
+        return True
 
     @staticmethod
     def group_values(flattened, to, sep="."):
