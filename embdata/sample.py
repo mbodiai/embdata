@@ -517,30 +517,25 @@ class Sample(BaseModel):
         for key, value in flattened:
             for pattern in to:
                 if match_key(key, pattern):
-                    if isinstance(value, list):
-                        grouped_values[pattern].append(value)
-                    else:
-                        grouped_values[pattern].append(value)
+                    grouped_values[pattern].append(value)
                     break
 
-        # Handle nested structures
+        # Handle nested structures and wildcards
         for pattern in to:
             if '*' in pattern:
                 parts = pattern.split('*')
                 prefix, suffix = parts[0], parts[-1]
                 nested_values = []
-                current_nested = []
                 for key, value in flattened:
                     if key.startswith(prefix) and key.endswith(suffix):
-                        if current_nested and not key.startswith(current_nested[-1][0].rsplit('.', 1)[0]):
-                            nested_values.append(current_nested)
-                            current_nested = []
-                        current_nested.append((key, value))
-                if current_nested:
-                    nested_values.append(current_nested)
-                grouped_values[pattern] = [
-                    [v for _, v in nested] for nested in nested_values
-                ]
+                        nested_values.append(value)
+                if nested_values:
+                    grouped_values[pattern] = nested_values
+
+        # Flatten single-item lists
+        for pattern in grouped_values:
+            if len(grouped_values[pattern]) == 1 and isinstance(grouped_values[pattern][0], list):
+                grouped_values[pattern] = grouped_values[pattern][0]
 
         print(f"group_values output: {grouped_values}")  # Debug print
         return grouped_values
