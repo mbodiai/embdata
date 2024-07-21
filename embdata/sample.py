@@ -584,18 +584,22 @@ class Sample(BaseModel):
                     result[key] = [item[1] for item in flattened if match_key(item[0], key)]
                 return result
             
-            values = [item[1] for item in flattened]
-            
             # Group values by their original keys
             grouped_values = {}
             for key, value in flattened:
-                base_key = key.split('.')[0]
-                if base_key not in grouped_values:
-                    grouped_values[base_key] = []
-                grouped_values[base_key].append(value)
+                for pattern in to:
+                    if match_key(key, pattern):
+                        if pattern not in grouped_values:
+                            grouped_values[pattern] = []
+                        grouped_values[pattern].append(value)
+                        break
+            
+            # Flatten the grouped values if there's only one key
+            if len(grouped_values) == 1:
+                return list(grouped_values.values())[0]
             
             # Return a list of lists, preserving the structure
-            return [grouped_values[key] for key in to if key in grouped_values]
+            return [grouped_values.get(key, []) for key in to]
 
         if output_type == "dict":
             return dict(flattened)
