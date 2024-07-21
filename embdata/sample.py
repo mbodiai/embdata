@@ -570,16 +570,16 @@ class Sample(BaseModel):
             if isinstance(to, str):
                 to = [to]
             to_set = set(to)
-            flattened = [item for item in flattened if any(item[0].startswith(t) for t in to_set)]
+            flattened = [item for item in flattened if any(item[0].startswith(t) or item[0].replace('*', '') == t for t in to_set)]
 
             if output_type == "dict":
                 result = {}
                 for key in to:
-                    result[key] = [item[1] for item in flattened if item[0] == key]
+                    result[key] = [item[1] for item in flattened if item[0] == key or item[0].replace('*', '') == key]
                 return result
             
             values = [item[1] for item in flattened]
-            return [values]
+            return values
 
         if output_type == "dict":
             return dict(flattened)
