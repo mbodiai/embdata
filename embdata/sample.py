@@ -598,16 +598,12 @@ class Sample(BaseModel):
             # Flatten the grouped values
             flattened_values = [item for sublist in grouped_values.values() for item in sublist]
             
-            # If there's only one item per key and only one key, return a flat list
-            if len(grouped_values) == 1 and len(flattened_values) == len(to):
+            # If there's only one item per key, return a flat list
+            if all(len(v) == 1 for v in grouped_values.values()):
                 return flattened_values
             
-            # If there's only one key but multiple items, return a nested list
-            if len(grouped_values) == 1:
-                return [flattened_values]
-            
-            # Otherwise, return a list of lists
-            return [grouped_values.get(key, []) for key in to]
+            # If there are multiple items for at least one key, return a list of lists
+            return [[v] if len(v) == 1 else v for v in grouped_values.values()]
 
         if output_type == "dict":
             return dict(flattened)
