@@ -534,7 +534,7 @@ class Sample(BaseModel):
 
 
     @staticmethod
-    def group_values(flattened, to, sep="."):
+    def group_values(flattened, to, sep=".", output_type="list"):
         grouped_values = Sample()
         for k, v in flattened:
             matched = Sample.get_matched_key(to, k, sep)
@@ -545,7 +545,7 @@ class Sample(BaseModel):
                 else:
                     # Otherwise we append the value to the last part of matched
                     grouped_values.setdefault(matched, [[]])[-1].append(v)
-        return grouped_values
+        return grouped_values.dict() if not output_type == "sample" else grouped_values
 
     def flatten(
         self,
