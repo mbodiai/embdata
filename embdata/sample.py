@@ -506,7 +506,7 @@ class Sample(BaseModel):
     @staticmethod
     def match_wildcard(key, pattern, sep="."):
         if '*' not in pattern:
-            return pattern in key.split(sep) or key == pattern
+            return key == pattern or pattern in key.split(sep)
 
         key_parts = key.split(sep)
         pattern_parts = pattern.split(sep)
@@ -514,16 +514,16 @@ class Sample(BaseModel):
         if len(pattern_parts) > len(key_parts):
             return False
 
-        for i, p in enumerate(pattern_parts):
+        i = 0
+        for p in pattern_parts:
             if p == '*':
-                try:
-                    int(key_parts[i])
-                except (ValueError, IndexError):
-                    return False
-            elif i >= len(key_parts) or key_parts[i] != p:
+                i += 1
+            elif i < len(key_parts) and p == key_parts[i]:
+                i += 1
+            else:
                 return False
 
-        return True
+        return i == len(key_parts)
 
     @staticmethod
     def get_matched_key(patterns, key, sep="."):
@@ -535,17 +535,29 @@ class Sample(BaseModel):
 
     @staticmethod
     def group_values(flattened, to, sep=".", output_type="list"):
-        grouped_values = Sample()
+        grouped_values = {}
         for k, v in flattened:
-            matched = Sample.get_matched_key(to, k, sep)
-            if matched:
-                # If the last part of matched is the last part of k, then it is a direct match
-                if k.endswith(matched):
-                   grouped_values.setdefault(matched, []).append([v])
+            for pattern in to:
+                if Sample.match_wildcard(k, pattern, sep):
+                    parts = pattern.split(sep)
+                    current = grouped_values
+                    for part in parts[:-1]:
+                        current = current.setdefault(part, {})
+                    current.setdefault(parts[-1], []).append([v])
+        
+        def flatten_dict(d):
+            result = {}
+            for key, value in d.items():
+                if isinstance(value, dict):
+                    nested = flatten_dict(value)
+                    for nk, nv in nested.items():
+                        result[f"{key}{sep}{nk}"] = nv
                 else:
-                    # Otherwise we append the value to the last part of matched
-                    grouped_values.setdefault(matched, [[]])[-1].append(v)
-        return grouped_values.dict() if not output_type == "sample" else grouped_values
+                    result[key] = value
+            return result
+        
+        flattened_result = flatten_dict(grouped_values)
+        return flattened_result if output_type != "sample" else Sample(**flattened_result)
 
     def flatten(
         self,
