@@ -506,7 +506,7 @@ class Sample(BaseModel):
     @staticmethod
     def match_wildcard(key, pattern, sep="."):
         if '*' not in pattern:
-            return key == pattern or pattern in key.split(sep)
+            return key == pattern or key.endswith(pattern)
 
         key_parts = key.split(sep)
         pattern_parts = pattern.split(sep)
@@ -514,16 +514,13 @@ class Sample(BaseModel):
         if len(pattern_parts) > len(key_parts):
             return False
 
-        i = 0
-        for p in pattern_parts:
+        i = len(key_parts) - len(pattern_parts)
+        for k, p in zip(key_parts[i:], pattern_parts):
             if p == '*':
-                i += 1
-            elif i < len(key_parts) and p == key_parts[i]:
-                i += 1
-            else:
+                continue
+            if k != p:
                 return False
-
-        return i == len(key_parts)
+        return True
 
     @staticmethod
     def get_matched_key(patterns, key, sep="."):
@@ -540,24 +537,18 @@ class Sample(BaseModel):
             for pattern in to:
                 if Sample.match_wildcard(k, pattern, sep):
                     parts = pattern.split(sep)
-                    current = grouped_values
-                    for part in parts[:-1]:
-                        current = current.setdefault(part, {})
-                    current.setdefault(parts[-1], []).append([v])
-        
-        def flatten_dict(d):
-            result = {}
-            for key, value in d.items():
-                if isinstance(value, dict):
-                    nested = flatten_dict(value)
-                    for nk, nv in nested.items():
-                        result[f"{key}{sep}{nk}"] = nv
-                else:
-                    result[key] = value
-            return result
-        
-        flattened_result = flatten_dict(grouped_values)
-        return flattened_result if output_type != "sample" else Sample(**flattened_result)
+                    if parts[-1] not in grouped_values:
+                        grouped_values[parts[-1]] = []
+                    if not grouped_values[parts[-1]] or k.count(sep) != pattern.count(sep):
+                        grouped_values[parts[-1]].append([])
+                    grouped_values[parts[-1]][-1].append(v)
+
+        # Flatten single-element lists
+        for k, v in grouped_values.items():
+            if len(v) == 1:
+                grouped_values[k] = v[0]
+
+        return grouped_values if output_type != "sample" else Sample(**grouped_values)
 
     def flatten(
         self,
