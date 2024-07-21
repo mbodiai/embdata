@@ -514,21 +514,15 @@ class Sample(BaseModel):
     @staticmethod
     def match_wildcard(key, pattern, sep="."):
         if "*" not in pattern:
-            return key == pattern or pattern in key.split(sep)
+            return key == pattern
 
         key_parts = key.split(sep)
         pattern_parts = pattern.split(sep)
 
-        if len(pattern_parts) > len(key_parts):
+        if len(pattern_parts) != len(key_parts):
             return False
 
-        for k, p in zip(key_parts, pattern_parts):
-            if p == "*":
-                continue
-            if k != p:
-                return False
-
-        return True
+        return all(k == p or p == "*" for k, p in zip(key_parts, pattern_parts))
 
     @staticmethod
     def group_values(data, to, sep="."):
@@ -542,10 +536,17 @@ class Sample(BaseModel):
                 if Sample.match_wildcard(key, pattern, sep):
                     grouped_values[pattern].append(value)
 
-        # Wrap single values in a list to maintain consistency
-        for pattern, values in grouped_values.items():
-            if not isinstance(values[0], list):
-                grouped_values[pattern] = [values]
+        # Group values by their parent key
+        for pattern in to:
+            if "*" in pattern:
+                parent_key = pattern.split("*")[0].rstrip(sep)
+                grouped_values[pattern] = [
+                    [v for k, v in grouped_values[pattern] if k.startswith(f"{parent_key}{sep}{i}")]
+                    for i in range(len(data))
+                ]
+                grouped_values[pattern] = [group for group in grouped_values[pattern] if group]
+            else:
+                grouped_values[pattern] = [grouped_values[pattern]]
 
         print(f"group_values output: {grouped_values}")  # Debug print
         return grouped_values
