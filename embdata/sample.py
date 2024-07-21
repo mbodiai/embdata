@@ -507,14 +507,8 @@ class Sample(BaseModel):
         if '*' not in pattern:
             return key == pattern or key.endswith(sep + pattern)
 
-        parts = pattern.split('*')
-        if len(parts) == 2:
-            return key.startswith(parts[0]) and key.endswith(parts[1])
-
         import re
-        regex_pattern = '^' + pattern.replace('.', r'\.').replace('*', '.*?') + '$'
-        return re.match(regex_pattern, key) is not None
-        regex_pattern = '^' + pattern.replace('.', r'\.').replace('*', '.*') + '$'
+        regex_pattern = '^' + pattern.replace('.', r'\.').replace('*', '[^.]*') + '$'
         return re.match(regex_pattern, key) is not None
 
     @staticmethod
