@@ -254,8 +254,39 @@ def test_process_groups_unequal_lengths():
         "b": [4, 5],
         "c": [6, 7, 8, 9]
     }
-    with pytest.raises(ValueError, match="All grouped values must have the same length"):
-        Sample.process_groups(grouped_values)
+    result = Sample.process_groups(grouped_values)
+    expected = [[1, 4, 6], [2, 5, 7], [3, None, 8], [None, None, 9]]
+    assert result == expected, f"Expected {expected}, but got {result}"
+
+def test_group_values_flatten_merge_dicts():
+    sample = Sample(
+        a=1,
+        b=[
+            {"c": 2, "d": [3, 4], "e": {"f": 5, "g": [6, 7]}},
+            {"c": 5, "d": [6, 7], "e": {"f": 8, "g": [9, 10]}},
+            {"c": 11, "d": [12, 13], "e": {"f": 14, "g": [15, 16]}},
+        ],
+        e=Sample(f=8, g=[{"h": 9, "i": 10}, {"h": 11, "i": 12}]),
+    )
+    flattened = Sample.flatten_recursive(sample.dump())
+    grouped = Sample.group_values(flattened, ["b.*.d", "b.*.e.g"])
+    expected = {
+        "b.*.d": [[3, 4], [6, 7], [12, 13]],
+        "b.*.e.g": [[6, 7], [9, 10], [15, 16]]
+    }
+    assert grouped == expected, f"Expected {expected}, but got {grouped}"
+
+def test_group_values_nested_dicts_and_lists():
+    sample = Sample(
+        a=1, b=[{"c": 2, "d": [3, 4]}, {"c": 5, "d": [6, 7]}], e=Sample(f=8, g=[{"h": 9, "i": 10}, {"h": 11, "i": 12}])
+    )
+    flattened = Sample.flatten_recursive(sample.dump())
+    grouped = Sample.group_values(flattened, ["c", "d"])
+    expected = {
+        "c": [2, 5],
+        "d": [[3, 4], [6, 7]]
+    }
+    assert grouped == expected, f"Expected {expected}, but got {grouped}"
 
 def test_flatten_with_to_and_process_groups():
     sample = Sample(a=1, b={"c": 2, "d": [3, 4]}, e=Sample(f=5, g={"h": 6, "i": 7}))
