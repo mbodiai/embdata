@@ -540,9 +540,9 @@ class Sample(BaseModel):
                         group_key = sep.join(pattern_parts[:wildcard_index])
                         if group_key not in grouped_values:
                             grouped_values[group_key] = []
-                        if len(grouped_values[group_key]) <= wildcard_index:
+                        if len(grouped_values[group_key]) <= int(parts[wildcard_index]):
                             grouped_values[group_key].append([])
-                        grouped_values[group_key][-1].append(value)
+                        grouped_values[group_key][int(parts[wildcard_index])].append(value)
                     else:
                         grouped_values[pattern].append(value)
                     break
