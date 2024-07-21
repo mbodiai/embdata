@@ -503,20 +503,28 @@ class Sample(BaseModel):
         return _flatten(obj)
 
     @staticmethod
+    def match_wildcard(key, pattern, sep="."):
+        if '*' not in pattern:
+            return key == pattern or key.endswith(sep + pattern)
+        
+        parts = pattern.split('*')
+        if len(parts) == 2:
+            return key.startswith(parts[0]) and key.endswith(parts[1])
+        
+        # Handle more complex patterns with multiple wildcards
+        import re
+        regex_pattern = pattern.replace('.', r'\.').replace('*', '.*')
+        return re.match(regex_pattern, key) is not None
+
+    @staticmethod
     def group_values(flattened, to, sep="."):
         if isinstance(to, str):
             to = [to]
         
-        def match_key(item_key, pattern):
-            if '*' in pattern:
-                parts = pattern.split('*')
-                return item_key.startswith(parts[0]) and item_key.endswith(parts[-1])
-            return item_key == pattern or item_key.endswith(sep + pattern)
-
         grouped_values = {pattern: [] for pattern in to}
         for key, value in flattened:
             for pattern in to:
-                if match_key(key, pattern):
+                if Sample.match_wildcard(key, pattern, sep):
                     grouped_values[pattern].append(value)
                     break
 
@@ -528,7 +536,7 @@ class Sample(BaseModel):
                 nested_values = []
                 current_nested = []
                 for key, value in flattened:
-                    if key.startswith(prefix) and key.endswith(suffix):
+                    if Sample.match_wildcard(key, pattern, sep):
                         if current_nested and not key.startswith(current_nested[-1][0].rsplit('.', 1)[0]):
                             nested_values.append(current_nested)
                             current_nested = []
@@ -544,7 +552,7 @@ class Sample(BaseModel):
         for pattern, values in grouped_values.items():
             if len(values) == 1 and isinstance(values[0], list):
                 grouped_values[pattern] = values[0]
-            elif '*' in pattern and not pattern.startswith('*'):
+            elif '*' in pattern:
                 grouped_values[pattern] = [item for sublist in values for item in (sublist if isinstance(sublist, list) else [sublist])]
 
         # Remove empty lists
