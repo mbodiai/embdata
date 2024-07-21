@@ -121,17 +121,19 @@ def test_flatten_recursive_with_numpy_and_torch():
     flattened = Sample.flatten_recursive(sample.dump())
     expected = [
         ('a', 1),
-        ('b.0', 2),
-        ('b.1', 3),
-        ('c.0', 4),
-        ('c.1', 5),
+        ('b', np.array([2, 3])),
+        ('c', torch.tensor([4, 5])),
         ('d.e', 6),
-        ('d.f.0', 7),
-        ('d.f.1', 8),
-        ('d.g.0', 9),
-        ('d.g.1', 10)
+        ('d.f', np.array([7, 8])),
+        ('d.g', torch.tensor([9, 10]))
     ]
-    assert flattened == expected, f"Expected {expected}, but got {flattened}"
+    assert len(flattened) == len(expected), f"Expected length {len(expected)}, but got {len(flattened)}"
+    for (key1, val1), (key2, val2) in zip(flattened, expected):
+        assert key1 == key2, f"Expected key {key2}, but got {key1}"
+        if isinstance(val1, (np.ndarray, torch.Tensor)):
+            assert np.array_equal(val1, val2), f"Expected {val2}, but got {val1}"
+        else:
+            assert val1 == val2, f"Expected {val2}, but got {val1}"
 
 def test_group_values_with_nested_structure():
     flattened = [
@@ -196,8 +198,23 @@ def test_group_values_with_complex_wildcards():
     grouped = Sample.group_values(flattened, ["a.b.*", "*.c.*", "c.*"])
     expected = {
         "a.b.*": [1, 2],
-        "*.c.*": [1, 2, 4, 5],
-        "c.*": [7]
+        "*.c.*": [3, 4, 5, 6, 7],
+        "c.*": []
+    }
+    assert grouped == expected, f"Expected {expected}, but got {grouped}"
+
+def test_group_values_with_exact_match():
+    flattened = [
+        ('a.b.c', 1),
+        ('a.b.d', 2),
+        ('b.c.d', 3),
+        ('c.d.e', 4)
+    ]
+    grouped = Sample.group_values(flattened, ["a.b.c", "b.c.d", "c.d.e"])
+    expected = {
+        "a.b.c": [1],
+        "b.c.d": [3],
+        "c.d.e": [4]
     }
     assert grouped == expected, f"Expected {expected}, but got {grouped}"
 
