@@ -572,6 +572,15 @@ class Sample(BaseModel):
             to_set = set(to)
             flattened = [item for item in flattened if any(item[0].startswith(t) for t in to_set)]
 
+            if output_type == "dict":
+                result = {}
+                for key in to:
+                    result[key] = [item[1] for item in flattened if item[0] == key]
+                return result
+            
+            values = [item[1] for item in flattened]
+            return [values]
+
         if output_type == "dict":
             return dict(flattened)
         
