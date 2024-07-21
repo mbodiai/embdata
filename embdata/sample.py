@@ -530,16 +530,13 @@ class Sample(BaseModel):
         keys = list(grouped_values.keys())
         lengths = [len(values) for values in grouped_values.values()]
         
-        if len(set(lengths)) > 1:
-            raise ValueError("All grouped values must have the same length")
-        
-        max_length = lengths[0]
+        max_length = max(lengths)
         
         for i in range(max_length):
             item = []
             for key in keys:
                 values = grouped_values[key]
-                item.append(values[i])
+                item.append(values[i] if i < len(values) else None)
             result.append(item)
         
         return result
@@ -619,7 +616,7 @@ class Sample(BaseModel):
                 return [dict(zip(to, values)) for values in processed]
             
             if output_type == "list":
-                return processed
+                return processed[0] if len(processed) == 1 else processed
             elif output_type == "np":
                 return np.array(processed)
             elif output_type == "pt":
