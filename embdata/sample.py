@@ -574,8 +574,8 @@ class Sample(BaseModel):
             def match_key(item_key, pattern):
                 if '*' in pattern:
                     parts = pattern.split('*')
-                    return item_key.startswith(parts[0]) and (len(parts) == 1 or item_key.endswith(parts[-1]))
-                return item_key == pattern
+                    return all(part in item_key for part in parts) and item_key.startswith(parts[0]) and item_key.endswith(parts[-1])
+                return pattern in item_key
 
             print(f"Original flattened: {flattened}")
             flattened = [item for item in flattened if any(match_key(item[0], t) for t in to_set)]
@@ -600,9 +600,9 @@ class Sample(BaseModel):
             
             print(f"Grouped values: {grouped_values}")
             
-            # If there's only one item per key, return a flat list
+            # If there's only one item per key, return a nested list
             if all(len(v) == 1 for v in grouped_values.values()):
-                return [v[0] for v in grouped_values.values()]
+                return [[v[0] for v in grouped_values.values()]]
             
             # If there are multiple items for at least one key, return a list of lists
             return [v for v in grouped_values.values()]
