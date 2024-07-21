@@ -522,6 +522,7 @@ class Sample(BaseModel):
                     else:
                         grouped_values[pattern].append(value)
                     break
+        print(f"group_values output: {grouped_values}")  # Debug print
         return grouped_values
 
     @staticmethod
@@ -532,6 +533,9 @@ class Sample(BaseModel):
         
         keys = list(grouped_values.keys())
         lengths = [len(values) for values in grouped_values.values()]
+        
+        print(f"process_groups input: {grouped_values}")  # Debug print
+        print(f"Lengths: {lengths}")  # Debug print
         
         if len(set(lengths)) > 1:
             raise ValueError("All grouped values must have the same length")
@@ -545,6 +549,7 @@ class Sample(BaseModel):
                 item.append(values[i] if i < len(values) else None)
             result.append(item)
         
+        print(f"process_groups output: {result}")  # Debug print
         return result
 
     def flatten(
