@@ -506,20 +506,17 @@ class Sample(BaseModel):
     def group_values(flattened, to, sep="."):
         if isinstance(to, str):
             to = [to]
-        to_set = set(to)
         
         def match_key(item_key, pattern):
             if '*' in pattern:
                 parts = pattern.split('*')
                 return item_key.startswith(parts[0]) and (len(parts) == 1 or item_key.endswith(parts[-1]))
-            return pattern == item_key.split(sep)[-1]
+            return item_key == pattern or item_key.endswith(sep + pattern)
 
-        grouped_values = {}
+        grouped_values = {pattern: [] for pattern in to}
         for key, value in flattened:
             for pattern in to:
                 if match_key(key, pattern):
-                    if pattern not in grouped_values:
-                        grouped_values[pattern] = []
                     grouped_values[pattern].append(value)
                     break
         return grouped_values
