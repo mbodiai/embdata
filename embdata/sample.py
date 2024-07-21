@@ -613,12 +613,20 @@ class Sample(BaseModel):
 
         if to:
             grouped_values = self.group_values(flattened, to, sep)
+            processed = self.process_groups(grouped_values)
 
             if output_type == "dict":
-                return [dict(zip(grouped_values.keys(), values)) for values in zip_longest(*grouped_values.values(), fillvalue=None)]
+                return [dict(zip(to, values)) for values in processed]
             
-            result = list(grouped_values.values())
-            return result[0] if len(result) == 1 else result
+            if output_type == "list":
+                return processed
+            elif output_type == "np":
+                return np.array(processed)
+            elif output_type == "pt":
+                import torch
+                return torch.tensor(processed)
+            else:
+                raise ValueError(f"Unsupported output_type: {output_type}")
 
         if output_type == "dict":
             return dict(flattened)
