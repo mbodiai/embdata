@@ -594,11 +594,14 @@ class Sample(BaseModel):
                         grouped_values[pattern].append(value)
                         break
             
-            # Flatten the grouped values if there's only one key
-            if len(grouped_values) == 1:
-                return list(grouped_values.values())[0]
+            # Flatten the grouped values
+            flattened_values = [item for sublist in grouped_values.values() for item in sublist]
             
-            # Return a list of lists, preserving the structure
+            # If there's only one item per key, return a flat list
+            if all(len(v) == 1 for v in grouped_values.values()):
+                return flattened_values
+            
+            # Otherwise, return a list of lists
             return [grouped_values.get(key, []) for key in to]
 
         if output_type == "dict":
