@@ -507,9 +507,19 @@ class Sample(BaseModel):
         if '*' not in pattern:
             return key == pattern or key.endswith(sep + pattern)
 
-        import re
-        regex_pattern = '^' + pattern.replace('.', r'\.').replace('*', '[^.]*') + '$'
-        return re.match(regex_pattern, key) is not None
+        key_parts = key.split(sep)
+        pattern_parts = pattern.split(sep)
+
+        if len(key_parts) < len(pattern_parts):
+            return False
+
+        for k, p in zip(key_parts, pattern_parts):
+            if p == '*':
+                continue
+            if k != p and not (k.isdigit() and p == '*'):
+                return False
+
+        return len(key_parts) == len(pattern_parts) or pattern_parts[-1] == '*'
 
     @staticmethod
     def group_values(flattened, to, sep="."):

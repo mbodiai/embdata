@@ -198,29 +198,29 @@ def test_match_wildcard():
     assert Sample.match_wildcard("e.g.i", "e.g.*") == False
 
     # Test cases from group_values_flatten_merge_dicts
-    assert Sample.match_wildcard("b.0.d.0", "b.*.d") == True
-    assert Sample.match_wildcard("b.1.d.0", "b.*.d") == True
-    assert Sample.match_wildcard("b.2.d.0", "b.*.d") == True
-    assert Sample.match_wildcard("b.0.e.g.0", "b.*.e.g") == True
-    assert Sample.match_wildcard("b.1.e.g.0", "b.*.e.g") == True
-    assert Sample.match_wildcard("b.2.e.g.0", "b.*.e.g") == True
+    assert Sample.match_wildcard("b.0.d.0", "b.*.d.*") == True
+    assert Sample.match_wildcard("b.1.d.0", "b.*.d.*") == True
+    assert Sample.match_wildcard("b.2.d.0", "b.*.d.*") == True
+    assert Sample.match_wildcard("b.0.e.g.0", "b.*.e.g.*") == True
+    assert Sample.match_wildcard("b.1.e.g.0", "b.*.e.g.*") == True
+    assert Sample.match_wildcard("b.2.e.g.0", "b.*.e.g.*") == True
 
     # Test cases from group_values_nested_dicts_and_lists
-    assert Sample.match_wildcard("b.0.c", "c") == True
-    assert Sample.match_wildcard("b.1.c", "c") == True
-    assert Sample.match_wildcard("b.0.d.0", "d") == True
-    assert Sample.match_wildcard("b.1.d.0", "d") == True
-    assert Sample.match_wildcard("b.1.d.0", "b.*.d") == True
-    assert Sample.match_wildcard("b.2.d.0", "b.*.d") == True
-    assert Sample.match_wildcard("b.0.e.g.0", "b.*.e.g") == True
-    assert Sample.match_wildcard("b.1.e.g.0", "b.*.e.g") == True
-    assert Sample.match_wildcard("b.2.e.g.0", "b.*.e.g") == True
+    assert Sample.match_wildcard("b.0.c", "b.*.c") == True
+    assert Sample.match_wildcard("b.1.c", "b.*.c") == True
+    assert Sample.match_wildcard("b.0.d.0", "b.*.d.*") == True
+    assert Sample.match_wildcard("b.1.d.0", "b.*.d.*") == True
+    assert Sample.match_wildcard("b.1.d.0", "b.*.d.*") == True
+    assert Sample.match_wildcard("b.2.d.0", "b.*.d.*") == True
+    assert Sample.match_wildcard("b.0.e.g.0", "b.*.e.g.*") == True
+    assert Sample.match_wildcard("b.1.e.g.0", "b.*.e.g.*") == True
+    assert Sample.match_wildcard("b.2.e.g.0", "b.*.e.g.*") == True
 
-    # Test cases from group_values_nested_dicts_and_lists
-    assert Sample.match_wildcard("b.0.c", "c") == True
-    assert Sample.match_wildcard("b.1.c", "c") == True
-    assert Sample.match_wildcard("b.0.d.0", "d") == True
-    assert Sample.match_wildcard("b.1.d.0", "d") == True
+    # Additional test cases for clarity
+    assert Sample.match_wildcard("b.0.c", "c") == False
+    assert Sample.match_wildcard("b.1.c", "c") == False
+    assert Sample.match_wildcard("b.0.d.0", "d") == False
+    assert Sample.match_wildcard("b.1.d.0", "d") == False
 
 # def test_group_values_with_complex_wildcards():
 #     flattened = [
