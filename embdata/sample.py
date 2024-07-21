@@ -543,13 +543,51 @@ class Sample(BaseModel):
                 of the keys in 'to'.
 
         """
-        # FOR TO KEYS
-        # reduce with operater.attrgetter
-        # reduce with operator.itemgetter
-        # reduce with operator.getitem
-        # reduce with operator.methodcaller
-        # reduce with operator.getindex
-        pass
+        def flatten_recursive(obj, prefix=''):
+            items = []
+            if isinstance(obj, dict):
+                for k, v in obj.items():
+                    if ignore and k in ignore:
+                        continue
+                    new_key = f"{prefix}{k}" if prefix else k
+                    items.extend(flatten_recursive(v, f"{new_key}{sep}"))
+            elif isinstance(obj, list):
+                for i, v in enumerate(obj):
+                    items.extend(flatten_recursive(v, f"{prefix}{i}{sep}"))
+            elif isinstance(obj, Sample):
+                items.extend(flatten_recursive(obj.dump(), prefix))
+            else:
+                if non_numerical == "forbid" and not isinstance(obj, (int, float, np.number)):
+                    raise ValueError(f"Non-numerical value encountered: {obj}")
+                if non_numerical == "ignore" and not isinstance(obj, (int, float, np.number)):
+                    return []
+                items.append((prefix.rstrip(sep), obj))
+            return items
+
+        flattened = flatten_recursive(self.dump())
+
+        if to:
+            if isinstance(to, str):
+                to = [to]
+            to_set = set(to)
+            flattened = [item for item in flattened if any(key.startswith(t) for t in to_set)]
+
+        if output_type == "dict":
+            return dict(flattened)
+        
+        values = [item[1] for item in flattened]
+
+        if output_type == "list":
+            return values
+        elif output_type == "np":
+            return np.array(values)
+        elif output_type == "pt":
+            import torch
+            return torch.tensor(values)
+        elif output_type == "sample":
+            return Sample(**dict(flattened))
+        else:
+            raise ValueError(f"Unsupported output_type: {output_type}")
 
     
     def setdefault(self, key: str, default: Any) -> Any:
