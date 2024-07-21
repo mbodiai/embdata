@@ -542,15 +542,17 @@ class Sample(BaseModel):
                             grouped_values[group_key] = []
                         if len(grouped_values[group_key]) <= wildcard_index:
                             grouped_values[group_key].append([])
-                        grouped_values[group_key][wildcard_index].append(value)
+                        grouped_values[group_key][-1].append(value)
                     else:
                         grouped_values[pattern].append(value)
                     break
 
-        # Flatten single-item lists and remove empty lists
+        # Handle nested structures
         for pattern, values in list(grouped_values.items()):
             if len(values) == 1 and isinstance(values[0], list):
                 grouped_values[pattern] = values[0]
+            elif all(isinstance(v, list) for v in values):
+                grouped_values[pattern] = values
             elif not values:
                 del grouped_values[pattern]
 
