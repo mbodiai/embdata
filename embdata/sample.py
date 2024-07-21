@@ -510,16 +510,16 @@ class Sample(BaseModel):
         key_parts = key.split(sep)
         pattern_parts = pattern.split(sep)
 
-        if len(key_parts) != len(pattern_parts):
+        if len(key_parts) < len(pattern_parts):
             return False
 
         for k, p in zip(key_parts, pattern_parts):
             if p == '*':
-                continue
+                return True  # Match everything after the wildcard
             if k != p:
                 return False
 
-        return True
+        return len(key_parts) == len(pattern_parts)
 
     @staticmethod
     def group_values(flattened, to, sep="."):
