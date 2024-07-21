@@ -530,29 +530,27 @@ class Sample(BaseModel):
             to = [to]
         
         grouped_values = {pattern: [] for pattern in to}
-        for key, value in flattened:
-            for pattern in to:
+        for pattern in to:
+            pattern_parts = pattern.split(sep)
+            wildcard_index = pattern_parts.index('*') if '*' in pattern_parts else -1
+            
+            for key, value in flattened:
                 if Sample.match_wildcard(key, pattern, sep):
-                    parts = key.split(sep)
-                    pattern_parts = pattern.split(sep)
-                    if '*' in pattern_parts:
-                        wildcard_index = pattern_parts.index('*')
-                        index = int(parts[wildcard_index])
+                    key_parts = key.split(sep)
+                    if wildcard_index != -1:
+                        index = int(key_parts[wildcard_index])
                         while len(grouped_values[pattern]) <= index:
                             grouped_values[pattern].append([])
                         grouped_values[pattern][index].append(value)
                     else:
                         grouped_values[pattern].append(value)
-                    break
 
-        # Handle nested structures and wrap values in lists
+        # Adjust the structure based on the pattern
         for pattern, values in grouped_values.items():
-            if not values:
-                grouped_values[pattern] = [[]]
-            elif all(isinstance(v, list) for v in values):
-                grouped_values[pattern] = values
-            else:
+            if '*' not in pattern:
                 grouped_values[pattern] = [values]
+            else:
+                grouped_values[pattern] = [v if v else [] for v in values]
 
         print(f"group_values output: {grouped_values}")  # Debug print
         return grouped_values
