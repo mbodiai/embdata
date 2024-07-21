@@ -510,16 +510,16 @@ class Sample(BaseModel):
         key_parts = key.split(sep)
         pattern_parts = pattern.split(sep)
 
-        if len(pattern_parts) > len(key_parts):
+        if len(pattern_parts) != len(key_parts):
             return False
 
         for k, p in zip(key_parts, pattern_parts):
             if p == '*':
-                return True
+                continue
             if k != p:
                 return False
 
-        return len(key_parts) == len(pattern_parts)
+        return True
 
     @staticmethod
     def group_values(flattened, to, sep="."):
