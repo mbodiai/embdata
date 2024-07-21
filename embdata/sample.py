@@ -505,21 +505,21 @@ class Sample(BaseModel):
     @staticmethod
     def match_wildcard(key, pattern, sep="."):
         if '*' not in pattern:
-            return key == pattern
+            return pattern in key.split(sep)
 
         key_parts = key.split(sep)
         pattern_parts = pattern.split(sep)
 
-        if len(pattern_parts) != len(key_parts):
+        if len(pattern_parts) > len(key_parts):
             return False
 
-        for k, p in zip(key_parts, pattern_parts):
+        for i, p in enumerate(pattern_parts):
             if p == '*':
                 try:
-                    int(k)
-                except ValueError:
+                    int(key_parts[i])
+                except (ValueError, IndexError):
                     return False
-            elif k != p:
+            elif i >= len(key_parts) or key_parts[i] != p:
                 return False
 
         return True
