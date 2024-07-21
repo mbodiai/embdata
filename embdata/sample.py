@@ -478,6 +478,52 @@ class Sample(BaseModel):
 
     #     return output_sample
 
+    @staticmethod
+    def flatten_recursive(obj, ignore=None, non_numerical="allow", sep="."):
+        def _flatten(obj, prefix=''):
+            items = []
+            if isinstance(obj, dict):
+                for k, v in obj.items():
+                    if ignore and k in ignore:
+                        continue
+                    new_key = f"{prefix}{k}" if prefix else k
+                    items.extend(_flatten(v, f"{new_key}{sep}"))
+            elif isinstance(obj, list):
+                for i, v in enumerate(obj):
+                    items.extend(_flatten(v, f"{prefix}{i}{sep}"))
+            elif isinstance(obj, Sample):
+                items.extend(_flatten(obj.dump(), prefix))
+            else:
+                if non_numerical == "forbid" and not isinstance(obj, (int, float, np.number)):
+                    raise ValueError(f"Non-numerical value encountered: {obj}")
+                if non_numerical == "ignore" and not isinstance(obj, (int, float, np.number)):
+                    return []
+                items.append((prefix.rstrip(sep), obj))
+            return items
+        return _flatten(obj)
+
+    @staticmethod
+    def group_values(flattened, to, sep="."):
+        if isinstance(to, str):
+            to = [to]
+        to_set = set(to)
+        
+        def match_key(item_key, pattern):
+            if '*' in pattern:
+                parts = pattern.split('*')
+                return item_key.startswith(parts[0]) and (len(parts) == 1 or item_key.endswith(parts[-1]))
+            return pattern == item_key.split(sep)[-1]
+
+        grouped_values = {}
+        for key, value in flattened:
+            for pattern in to:
+                if match_key(key, pattern):
+                    if pattern not in grouped_values:
+                        grouped_values[pattern] = []
+                    grouped_values[pattern].append(value)
+                    break
+        return grouped_values
+
     def flatten(
         self,
         output_type: OneDimensional = "list",
@@ -543,69 +589,16 @@ class Sample(BaseModel):
                 of the keys in 'to'.
 
         """
-        def flatten_recursive(obj, prefix=''):
-            items = []
-            if isinstance(obj, dict):
-                for k, v in obj.items():
-                    if ignore and k in ignore:
-                        continue
-                    new_key = f"{prefix}{k}" if prefix else k
-                    items.extend(flatten_recursive(v, f"{new_key}{sep}"))
-            elif isinstance(obj, list):
-                for i, v in enumerate(obj):
-                    items.extend(flatten_recursive(v, f"{prefix}{i}{sep}"))
-            elif isinstance(obj, Sample):
-                items.extend(flatten_recursive(obj.dump(), prefix))
-            else:
-                if non_numerical == "forbid" and not isinstance(obj, (int, float, np.number)):
-                    raise ValueError(f"Non-numerical value encountered: {obj}")
-                if non_numerical == "ignore" and not isinstance(obj, (int, float, np.number)):
-                    return []
-                items.append((prefix.rstrip(sep), obj))
-            return items
-
-        flattened = flatten_recursive(self.dump())
+        flattened = self.flatten_recursive(self.dump(), ignore, non_numerical, sep)
 
         if to:
-            if isinstance(to, str):
-                to = [to]
-            to_set = set(to)
-            
-            def match_key(item_key, pattern):
-                if '*' in pattern:
-                    parts = pattern.split('*')
-                    return item_key.startswith(parts[0]) and (len(parts) == 1 or item_key.endswith(parts[-1]))
-                return item_key == pattern
-
-            print(f"Original flattened: {flattened}")
-            flattened = [item for item in flattened if any(match_key(item[0], t) for t in to_set)]
-            print(f"Filtered flattened: {flattened}")
+            grouped_values = self.group_values(flattened, to, sep)
 
             if output_type == "dict":
-                result = {}
-                for pattern in to:
-                    result[pattern] = [item[1] for item in flattened if match_key(item[0], pattern)]
-                print(f"Dict result: {result}")
-                return [dict(zip(result.keys(), values)) for values in zip_longest(*result.values(), fillvalue=None)]
+                return [dict(zip(grouped_values.keys(), values)) for values in zip_longest(*grouped_values.values(), fillvalue=None)]
             
-            # Group values by their original keys
-            grouped_values = {}
-            for key, value in flattened:
-                for pattern in to:
-                    if match_key(key, pattern):
-                        if pattern not in grouped_values:
-                            grouped_values[pattern] = []
-                        grouped_values[pattern].append(value)
-                        break
-            
-            print(f"Grouped values: {grouped_values}")
-            
-            # If there's only one item per key, return a flat list
-            if all(len(v) == 1 for v in grouped_values.values()):
-                return [v[0] for v in grouped_values.values()]
-            
-            # If there are multiple items for at least one key, return a list of lists
-            return [v for v in grouped_values.values()]
+            result = list(grouped_values.values())
+            return result[0] if len(result) == 1 else result
 
         if output_type == "dict":
             return dict(flattened)
