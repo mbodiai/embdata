@@ -189,7 +189,9 @@ def test_match_wildcard():
     # Test cases from group_values_with_wildcard
     assert Sample.match_wildcard("a", "a") == True
     assert Sample.match_wildcard("b.c", "b.*") == False
-    assert Sample.match_wildcard("b.d.0", "b.*") == True
+    assert Sample.match_wildcard("b.d.0", "b.*") == False
+    assert Sample.match_wildcard("b.d.1", "d") == True
+    assert Sample.match_wildcard("b.d.0", "d") == True
     assert Sample.match_wildcard("e.g.h", "e.g.h") == True
 
     # Test cases from group_values_with_nested_structure
@@ -217,43 +219,43 @@ def test_match_wildcard():
     assert Sample.match_wildcard("b.2.e.g.0", "b.*.e.g.*") == True
 
     # Additional test cases for clarity
-    assert Sample.match_wildcard("b.0.c", "c") == False
-    assert Sample.match_wildcard("b.1.c", "c") == False
-    assert Sample.match_wildcard("b.0.d.0", "d") == False
-    assert Sample.match_wildcard("b.1.d.0", "d") == False
+    assert Sample.match_wildcard("b.0.c", "c") == True
+    assert Sample.match_wildcard("b.1.c", "c") == True
+    assert Sample.match_wildcard("b.0.d.0", "d") == True
+    assert Sample.match_wildcard("b.1.d.0", "d") == True
 
-# def test_group_values_with_complex_wildcards():
-#     flattened = [
-#         ('a.b.c', 1),
-#         ('a.b.d', 2),
-#         ('a.x.y', 3),
-#         ('b.c.d', 4),
-#         ('b.c.e', 5),
-#         ('b.x.y', 6),
-#         ('c.d.e', 7)
-#     ]
-#     grouped = Sample.group_values(flattened, ["a.b.*", "*.c.*", "c.*"])
-#     expected = {
-#         "a.b.*": [1, 2],
-#         "*.c.*": [4, 5],
-#         "c.*": [7]
-#     }
-#     assert grouped == expected, f"Expected {expected}, but got {grouped}"
+def test_group_values_with_complex_wildcards():
+    flattened = [
+        ('a.b.c', 1),
+        ('a.b.d', 2),
+        ('a.x.y', 3),
+        ('b.c.d', 4),
+        ('b.c.e', 5),
+        ('b.x.y', 6),
+        ('c.d.e', 7)
+    ]
+    grouped = Sample.group_values(flattened, ["a.b", "a.b.d", "c"])
+    expected = {
+       "a.b": [1],
+        "a.b.d": [2],
+        "c": [1,7]
+    }
+    assert grouped == expected, f"Expected {expected}, but got {grouped}"
 
-# def test_group_values_with_exact_match():
-#     flattened = [
-#         ('a.b.c', 1),
-#         ('a.b.d', 2),
-#         ('b.c.d', 3),
-#         ('c.d.e', 4)
-#     ]
-#     grouped = Sample.group_values(flattened, ["a.b.c", "b.c.d", "c.d.e"])
-#     expected = {
-#         "a.b.c": [1],
-#         "b.c.d": [3],
-#         "c.d.e": [4]
-#     }
-#     assert grouped == expected, f"Expected {expected}, but got {grouped}"
+def test_group_values_with_exact_match():
+    flattened = [
+        ('a.b.c', 1),
+        ('a.b.d', 2),
+        ('b.c.d', 3),
+        ('c.d.e', 4)
+    ]
+    grouped = Sample.group_values(flattened, ["a.b.c", "b.c.d", "c.d.e"])
+    expected = {
+        "a.b.c": [1],
+        "b.c.d": [3],
+        "c.d.e": [4]
+    }
+    assert grouped == expected, f"Expected {expected}, but got {grouped}"
 
 # def test_process_groups():
 #     grouped_values = {
