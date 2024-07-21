@@ -559,10 +559,15 @@ class Sample(BaseModel):
             elif not values:
                 del grouped_values[pattern]
 
-        # Ensure nested lists for patterns ending with '*'
+        # Ensure nested lists for patterns with multiple levels
         for pattern in to:
-            if pattern.endswith('*') and pattern[:-1] in grouped_values:
-                grouped_values[pattern[:-1]] = [grouped_values[pattern[:-1]]]
+            parts = pattern.split(sep)
+            if len(parts) > 1:
+                current_key = parts[0]
+                for part in parts[1:]:
+                    if current_key in grouped_values and isinstance(grouped_values[current_key], list):
+                        grouped_values[current_key] = [grouped_values[current_key]]
+                    current_key = f"{current_key}{sep}{part}"
 
         print(f"group_values output: {grouped_values}")  # Debug print
         return grouped_values
