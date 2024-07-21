@@ -510,13 +510,10 @@ class Sample(BaseModel):
         key_parts = key.split(sep)
         pattern_parts = pattern.split(sep)
 
-        if len(key_parts) < len(pattern_parts):
-            return False
-
-        for k, p in zip(key_parts, pattern_parts):
+        for i, p in enumerate(pattern_parts):
             if p == '*':
-                return True  # Match everything after the wildcard
-            if k != p:
+                return len(key_parts) >= i
+            if i >= len(key_parts) or key_parts[i] != p:
                 return False
 
         return len(key_parts) == len(pattern_parts)
