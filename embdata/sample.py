@@ -517,15 +517,7 @@ class Sample(BaseModel):
         for key, value in flattened:
             for pattern in to:
                 if match_key(key, pattern):
-                    if '.*' in pattern:
-                        # For wildcard patterns, keep the nested structure
-                        grouped_values[pattern].append(value)
-                    else:
-                        # For exact matches, flatten the structure
-                        if isinstance(value, list):
-                            grouped_values[pattern].extend(value)
-                        else:
-                            grouped_values[pattern].append(value)
+                    grouped_values[pattern].append(value)
                     break
 
         # Handle nested structures for wildcard patterns
@@ -547,6 +539,13 @@ class Sample(BaseModel):
                     grouped_values[pattern] = [
                         [v for _, v in nested] for nested in nested_values
                     ]
+
+        # Flatten single-item lists and handle complex wildcards
+        for pattern, values in grouped_values.items():
+            if len(values) == 1 and isinstance(values[0], list):
+                grouped_values[pattern] = values[0]
+            elif '*' in pattern and not pattern.startswith('*'):
+                grouped_values[pattern] = [item for sublist in values for item in (sublist if isinstance(sublist, list) else [sublist])]
 
         # Remove empty lists
         grouped_values = {k: v for k, v in grouped_values.items() if v}
