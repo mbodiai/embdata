@@ -221,15 +221,14 @@ def test_group_values_with_exact_match():
 def test_process_groups():
     grouped_values = {
         "a": [1, 2, 3],
-        "b": [4, 5],
-        "c": [6, 7, 8, 9]
+        "b": [4, 5, 6],
+        "c": [7, 8, 9]
     }
     result = Sample.process_groups(grouped_values)
     expected = [
-        [1, 4, 6],
-        [2, 5, 7],
-        [3, None, 8],
-        [None, None, 9]
+        [1, 4, 7],
+        [2, 5, 8],
+        [3, 6, 9]
     ]
     assert result == expected, f"Expected {expected}, but got {result}"
 
@@ -248,6 +247,15 @@ def test_process_groups_single_item():
     result = Sample.process_groups(grouped_values)
     expected = [[1, 2, 3]]
     assert result == expected, f"Expected {expected}, but got {result}"
+
+def test_process_groups_unequal_lengths():
+    grouped_values = {
+        "a": [1, 2, 3],
+        "b": [4, 5],
+        "c": [6, 7, 8, 9]
+    }
+    with pytest.raises(ValueError, match="All grouped values must have the same length"):
+        Sample.process_groups(grouped_values)
 
 def test_flatten_with_to_and_process_groups():
     sample = Sample(a=1, b={"c": 2, "d": [3, 4]}, e=Sample(f=5, g={"h": 6, "i": 7}))

@@ -528,13 +528,18 @@ class Sample(BaseModel):
             return result
         
         keys = list(grouped_values.keys())
-        max_length = max(len(values) for values in grouped_values.values())
+        lengths = [len(values) for values in grouped_values.values()]
+        
+        if len(set(lengths)) > 1:
+            raise ValueError("All grouped values must have the same length")
+        
+        max_length = lengths[0]
         
         for i in range(max_length):
             item = []
             for key in keys:
                 values = grouped_values[key]
-                item.append(values[i] if i < len(values) else None)
+                item.append(values[i])
             result.append(item)
         
         return result
