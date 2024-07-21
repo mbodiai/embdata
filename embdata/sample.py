@@ -550,15 +550,12 @@ class Sample(BaseModel):
 
         # Handle nested structures
         for pattern, values in list(grouped_values.items()):
-            if len(values) == 1 and not isinstance(values[0], list):
-                grouped_values[pattern] = [values[0]]
+            if not values:
+                grouped_values[pattern] = []
             elif all(isinstance(v, list) for v in values):
-                if all(len(v) == 1 for v in values):
-                    grouped_values[pattern] = [v[0] for v in values]
-                else:
-                    grouped_values[pattern] = values
-            elif not values:
-                del grouped_values[pattern]
+                grouped_values[pattern] = values
+            else:
+                grouped_values[pattern] = [values]
 
         print(f"group_values output: {grouped_values}")  # Debug print
         return grouped_values
