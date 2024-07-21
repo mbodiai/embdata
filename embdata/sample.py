@@ -506,7 +506,7 @@ class Sample(BaseModel):
     @staticmethod
     def match_wildcard(key, pattern, sep="."):
         if '*' not in pattern:
-            return key == pattern or key.endswith(pattern)
+            return key == pattern or key.endswith(f"{sep}{pattern}")
 
         key_parts = key.split(sep)
         pattern_parts = pattern.split(sep)
@@ -536,17 +536,18 @@ class Sample(BaseModel):
         for k, v in flattened:
             for pattern in to:
                 if Sample.match_wildcard(k, pattern, sep):
-                    parts = pattern.split(sep)
-                    if parts[-1] not in grouped_values:
-                        grouped_values[parts[-1]] = []
-                    if not grouped_values[parts[-1]] or k.count(sep) != pattern.count(sep):
-                        grouped_values[parts[-1]].append([])
-                    grouped_values[parts[-1]][-1].append(v)
+                    if pattern not in grouped_values:
+                        grouped_values[pattern] = []
+                    if not grouped_values[pattern] or k.count(sep) != pattern.count(sep):
+                        grouped_values[pattern].append([])
+                    grouped_values[pattern][-1].append(v)
 
         # Flatten single-element lists
         for k, v in grouped_values.items():
             if len(v) == 1:
                 grouped_values[k] = v[0]
+            elif all(len(sublist) == 1 for sublist in v):
+                grouped_values[k] = [sublist[0] for sublist in v]
 
         return grouped_values if output_type != "sample" else Sample(**grouped_values)
 
