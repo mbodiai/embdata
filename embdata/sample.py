@@ -670,12 +670,11 @@ class Sample(BaseModel):
         for items in zip(*grouped):
             item = {}
             for key, value in zip(to, items):
-                item[key] = value
-            result.append(item)
-        return result
-                    item[key] = values[i]
+                if isinstance(value, list):
+                    for i, v in enumerate(value):
+                        item[f"{key}_{i}"] = v
                 else:
-                    item[key] = values
+                    item[key] = value
             result.append(item)
         return result
 
