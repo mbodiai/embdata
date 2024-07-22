@@ -642,23 +642,23 @@ class Sample(BaseModel):
 
     def group_values(self, flattened, to, sep="."):
         grouped = []
-        for item in self.b:  # Iterate over the list in 'b'
-            group = {}
-            for pattern in to:
-                keys = pattern.split(sep)
-                value = item
-                for key in keys[1:]:  # Skip the first key ('b')
-                    if key == "*":
-                        continue
-                    if isinstance(value, dict) and key in value:
-                        value = value[key]
-                    else:
-                        value = None
+        for pattern in to:
+            keys = pattern.split(sep)
+            value = self
+            for key in keys:
+                if key == "*":
+                    if isinstance(value, list):
+                        value = [self._get_nested_value(item, keys[keys.index(key)+1:]) for item in value]
                         break
-                if value is not None:
-                    group[keys[-1]] = value
-            if group:
-                grouped.append(group)
+                elif isinstance(value, Sample) and hasattr(value, key):
+                    value = getattr(value, key)
+                elif isinstance(value, dict) and key in value:
+                    value = value[key]
+                else:
+                    value = None
+                    break
+            if value is not None:
+                grouped.append(value)
         return grouped
 
     def _get_nested_value(self, obj, keys):
@@ -672,9 +672,7 @@ class Sample(BaseModel):
         return obj
 
     def process_grouped(self, grouped, to):
-        if not grouped:
-            return []
-        result = [{key.split('.')[-1]: item.get(key.split('.')[-1]) for key in to if key.split('.')[-1] in item} for item in grouped]
+        result = [grouped]
         print(f"Process grouped result: {result}")  # Debug print
         return result
 
