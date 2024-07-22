@@ -70,7 +70,7 @@ from importlib import import_module
 from itertools import zip_longest
 from pathlib import Path
 from typing import Annotated, Any, Dict, Generator, List, Literal, Union, get_origin
-from functools import reduce, update_wrapper, wraps
+from functools import cached_property, reduce, update_wrapper, wraps
 from functools import lru_cache as lcache
 import numpy as np
 import torch
@@ -1194,23 +1194,28 @@ class Sample(BaseModel):
         """
         return self.__class__.model_validate(self.space().sample())
 
+    @cached_property
     def numpy(self) -> "Sample":
         """Convert the Sample instance to a numpy array."""
         return self.flatten("np")
 
+    @cached_property
     def tolist(self) -> "Sample":
         """Convert the Sample instance to a list."""
         return self.flatten("list")
 
+    @cached_property
     def torch(self) -> "Sample":
         import_module("torch")
         """Convert the Sample instance to a PyTorch tensor."""
         return self.flatten("pt")
 
+    @cached_property
     def json(self) -> str:  # noqa: F811
         """Convert the Sample instance to a JSON string."""
         return self.model_dump_json()
 
+    @cached_property
     def features(self) -> Features:
         """Convert the Sample instance to a HuggingFace Features object."""
         return Features(self.infer_features_dict())
