@@ -614,6 +614,9 @@ class Sample(BaseModel):
             print(f"Grouped: {grouped}")  # Debug print
             flattened = self.process_grouped(grouped, to)
             print(f"Processed: {flattened}")  # Debug print
+            
+            if output_type == "dict":
+                return [{k: v for k, v in zip(to, flattened)}]
             return [flattened]  # Wrap in a list to match the expected output
 
         if output_type == "dict":
