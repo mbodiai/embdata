@@ -1237,30 +1237,50 @@ class Sample(BaseModel):
         return self.__class__.model_validate(self.space().sample())
 
     @cached_property
-    def numpy(self) -> "Sample":
+    def _numpy(self) -> "Sample":
         """Convert the Sample instance to a numpy array."""
         return self.flatten("np")
 
+    def numpy(self) -> "Sample":
+        """Convert the Sample instance to a numpy array."""
+        return self._numpy
+
     @cached_property
-    def tolist(self) -> "Sample":
+    def _tolist(self) -> "Sample":
         """Convert the Sample instance to a list."""
         return self.flatten("list")
 
+    def tolist(self) -> "Sample":
+        """Convert the Sample instance to a list."""
+        return self._tolist
+
     @cached_property
-    def torch(self) -> "Sample":
+    def _torch(self) -> "Sample":
         import_module("torch")
         """Convert the Sample instance to a PyTorch tensor."""
         return self.flatten("pt")
 
+    def torch(self) -> "Sample":
+        """Convert the Sample instance to a PyTorch tensor."""
+        return self._torch
+
     @cached_property
-    def json(self) -> str:  # noqa: F811
+    def _json(self) -> str:  # noqa: F811
         """Convert the Sample instance to a JSON string."""
         return self.model_dump_json()
 
+    def json(self) -> str:
+        """Convert the Sample instance to a JSON string."""
+        return self._json
+
     @cached_property
-    def features(self) -> Features:
+    def _features(self) -> Features:
         """Convert the Sample instance to a HuggingFace Features object."""
         return Features(self.infer_features_dict())
+
+    def features(self) -> Features:
+        """Convert the Sample instance to a HuggingFace Features object."""
+        return self._features
 
     def dataset(self) -> Dataset:
         """Convert the Sample instance to a HuggingFace Dataset object."""
