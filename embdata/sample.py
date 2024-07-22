@@ -672,15 +672,21 @@ class Sample(BaseModel):
         return obj
 
     def process_grouped(self, grouped, to):
+        if not grouped:
+            return []
+        
+        if isinstance(grouped[0], (int, float, str)):
+            return [{key: value for key, value in zip(to, grouped)}]
+        
         result = []
         for i in range(len(grouped[0])):
             item = {}
             for key, values in zip(to, grouped):
                 parts = key.split('.')
                 if len(parts) > 1 and parts[-2] == '*':
-                    item[parts[-1]] = values[i]
+                    item[parts[-1]] = values[i] if isinstance(values, list) else values
                 else:
-                    item[key] = values[i]
+                    item[key] = values[i] if isinstance(values, list) else values
             result.append(item)
         return result
 
