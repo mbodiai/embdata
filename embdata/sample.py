@@ -664,34 +664,13 @@ class Sample(BaseModel):
                     raise AttributeError(f"Invalid list index: {k}")
             elif not isinstance(obj, Sample) and not hasattr(obj, k):
                 new_obj = Sample()
-                setattr(obj, k, new_obj)
-                obj = new_obj
-            elif hasattr(obj, k):
-                obj = getattr(obj, k)
-            else:
+            if not hasattr(obj, k):
                 setattr(obj, k, Sample())
-                obj = getattr(obj, k)
+            obj = getattr(obj, k)
         if isinstance(obj, dict):
-            if keys[-1] == "*":
-                return obj.setdefault("*", default if isinstance(default, list) else [default])
-            return obj.setdefault(keys[-1], default)
-        if isinstance(obj, list):
-            if keys[-1] == "*":
-                return obj
-            try:
-                index = int(keys[-1])
-                if index >= len(obj):
-                    obj.extend([None] * (index - len(obj) + 1))
-                if obj[index] is None:
-                    obj[index] = default
-                return obj[index]
-            except ValueError:
-                raise AttributeError(f"Invalid list index: {keys[-1]}")
-        if not hasattr(obj, keys[-1]):
-            if keys[-1] == "*":
-                setattr(obj, keys[-1], default if isinstance(default, list) else [default])
-            else:
-                setattr(obj, keys[-1], default)
+            obj[keys[-1]] = default
+        else:
+            setattr(obj, keys[-1], default)
         return getattr(obj, keys[-1])
 
     def schema(self, include: Literal["all", "descriptions", "info", "simple"] = "info") -> Dict:
