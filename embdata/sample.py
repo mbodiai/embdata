@@ -194,7 +194,7 @@ class Sample(BaseModel):
         self.__post_init__()
 
 
-    @mcache()
+    
     def __getitem__(self, key: str | int) -> Any:
         """Return the value of the attribute with the specified key.
 
@@ -333,17 +333,17 @@ class Sample(BaseModel):
         """Return a string representation of the Sample instance."""
         return self._str(self, prefix="")
 
-    @mcache()
+    
     def __repr__(self) -> str:
         """Return a string representation of the Sample instance."""
         return str(self)
 
-    @mcache()
+    
     def __len__(self) -> int:
         """Return the number of attributes in the Sample instance."""
         return len(list(self.items()))
 
-    @mcache()
+    
     def get(self, key: str, default: Any = None) -> Any:
         """Return the value of the attribute with the specified key or the default value if it does not exist."""
         try:
@@ -351,7 +351,7 @@ class Sample(BaseModel):
         except KeyError:
             return default
 
-    @mcache()
+    
     def _dump(self, exclude: set[str] | str | None = "None", as_field: str | None = None, recurse=True) -> Dict[str, Any] | Any:
         out = {}
         for k, v in self:
@@ -506,6 +506,7 @@ class Sample(BaseModel):
 
     #     return output_sample
     @staticmethod
+    @lcache
     def _flatten_recursive(obj, ignore: None | set = None, non_numerical="allow", sep="."):
         sample = Sample()
 
@@ -513,7 +514,7 @@ class Sample(BaseModel):
             out = []
             if isinstance(obj, dict):
                 for k, v in obj.items():
-                    if ignore and k in ignore:
+                    if k in ignore:
                         continue
                     new_key = f"{prefix}{k}" if prefix else k
                     subout = _flatten(v, f"{new_key}{sep}")
@@ -526,16 +527,14 @@ class Sample(BaseModel):
                 subout = _flatten(obj.dict(), prefix)
                 out.extend(subout)
             else:
-                if non_numerical == "forbid" and not isinstance(obj, (int, float, np.number)):
+                if non_numerical == "forbid" and not isinstance(obj, int | float | np.number):
                     msg = f"Non-numerical value encountered: {obj}"
                     raise ValueError(msg)
-                if non_numerical == "ignore" and not isinstance(obj, (int, float, np.number)):
+                if non_numerical == "ignore" and not isinstance(obj, int | float | np.number):
                     return []
                 out.append((prefix.rstrip(sep), obj))
             return out
-        
-        flattened = _flatten(obj)
-        for k, v in flattened:
+        for k, v in _flatten(obj):
             sample[k] = v
         return sample
 
@@ -584,36 +583,109 @@ class Sample(BaseModel):
         sep: str = ".",
         to: str | List[str] | None = None,
     ) -> Dict[str, Any] | np.ndarray | torch.Tensor | List | Any:
-        """Flatten the Sample instance into a strictly one-dimensional or two-dimensional structure."""
+        """Flatten the Sample instance into a strictly one-dimensional or two-dimensional structure.
+
+        This method traverses the nested structure of the Sample instance and its attributes,
+        creating a flattened representation based on the specified parameters.
+
+        Note: If 'pt' or 'np' is specified as the 'output_type', non-numerical values are excluded.
+
+        Parameters:
+        -----------
+        output_type : str, optional (default="list")
+            Specifies the type of the output. Options are:
+            - "list": Returns a flat list of values.
+            - "dict": Returns a dictionary with flattened keys and their corresponding values.
+            - "np": Returns a numpy array.
+            - "pt": Returns a PyTorch tensor.
+
+        non_numerical : str, optional (default="allow")
+            Determines how non-numerical values are handled. Options are:
+            - "ignore": Non-numerical values are excluded from the output.
+            - "forbid": Raises a ValueError if non-numerical values are encountered.
+            - "allow": Includes non-numerical values in the output.
+
+        ignore : set[str], optional (default=set())
+            Set of keys to ignore during flattening.
+
+        sep : str, optional (default=".")
+            Separator used for nested keys in the flattened output.
+
+        to : str | set[str] | List[str], optional (default=None)
+            Specifies which keys to include in the output. If provided, only these keys will be flattened.
+
+        Returns:
+        --------
+        Dict[str, Any] | np.ndarray | torch.Tensor | List
+            The flattened representation of the Sample instance.
+
+        Examples:
+        ---------
+            >>> sample = Sample(a=1, b={"c": 2, "d": [3, 4]}, e=Sample(f=5))
+            >>> sample.flatten()
+            [1, 2, 3, 4, 5]
+
+            >>> sample.flatten(output_type="dict")
+            {'a': 1, 'b.c': 2, 'b.d.0': 3, 'b.d.1': 4, 'e.f': 5}
+
+            >>> sample.flatten(ignore={"b"})
+            [1, 5]
+
+        Notes:
+        ------
+            - When 'to' is provided, the method always returns a list, numpy array, or PyTorch tensor, depending on output_type.
+            - If 'output_type' is 'dict' and 'to' is provided, the output is a list of dictionaries with the same keys as 'to'.
+            - Otherwise, the output is a 2D array with the number of columns equal to the number of elements in the merged
+                flattened values of the keys in 'to'. The number of rows is equal to the maximum number of elements in the values
+                of the keys in 'to'.
+
+        """
         ignore = ignore or ()
         if to is not None:
             to = [to] if isinstance(to, str) else to
-            to = list(full_paths(self, to, sep=sep).values())
+            to = full_paths(self, to, sep=sep).values()
         
-        flattened = self._flatten_recursive(self, ignore=ignore, non_numerical=non_numerical, sep=sep)
+        # Returns a Sample
+        flattened = self.flatten_recursive(self, ignore=ignore, non_numerical=non_numerical, sep=sep)
         if to is not None:
-            grouped = self._group_values(flattened, to)
-            flattened = self._process_grouped(grouped, to)
+            grouped = self.group_values(flattened, to, sep=sep)
+            flattened = self.process_grouped(grouped, to) # Returns a Sample
 
         if output_type == "dict":
             return flattened.dict()
-        
-        flattened_values = list(flattened.values())
-        
+        print(f"flattened: {flattened}")
+        flattened = list(flattened.values())
         if output_type == "np":
-            return np.array(flattened_values, dtype=object)
+            return np.array(flattened)
         if output_type == "pt":
-            return torch.tensor([v if isinstance(v, (int, float)) else 0 for v in flattened_values])
-        return flattened_values
+            return torch.tensor(flattened)
+        return flattened
     
 
     def setdefault(self, key: str, default: Any) -> Any:
         """Set the default value for the attribute with the specified key."""
-        if key not in self:
-            self[key] = default
-        return self[key]
+        def get_nested(x, key):
+            if key == "*":
+                 pass
+            if isinstance(x, dict):
+                y = x.get(key)
+            elif hasattr(x, "__getitem__"):
+                y = x.get(key, None)
+            elif hasattr(x, key):
+                y =  getattr(x, key)
+            x.key = Sample() if x is None else x
+            return x.key
 
-    @mcache()
+        obj = self
+        if "./*" in key:
+            keys = key.split(".") if "." in key else key.split("/")
+            nested = functools.reduce(get_nested, keys[:-1], obj)
+            key = keys[-1]
+            obj = nested
+        obj[key] = default
+        return obj[key]
+
+    
     def schema(self, include: Literal["all", "descriptions", "info", "simple"] = "info") -> Dict:
         """Returns a simplified json schema.
 
@@ -724,7 +796,7 @@ class Sample(BaseModel):
 
         return simplify(schema, self)
 
-    @mcache()
+    
     def infer_features_dict(self) -> Dict[str, Any]:
         """Infers features from the data recusively."""
         feat_dict = {}
@@ -743,7 +815,7 @@ class Sample(BaseModel):
                 feat_dict[k] = to_features_dict(v)
         return feat_dict
 
-    @mcache()
+    
     def to(self, container: Any, **kwargs) -> Any:
         """Convert the Sample instance to a different container type.
 
@@ -893,7 +965,7 @@ class Sample(BaseModel):
                 return cls.unpack_from(sampled)
         return cls(sampled)
 
-    @mcache()
+    
     @classmethod
     def unpack_from(cls, samples: List[Union["Sample", Dict]], padding: Literal["truncate", "longest"] = "longest", pad_value: Any = None) -> "Sample":
         """Pack a list of samples or dicts into a single sample with lists of samples for attributes.
@@ -939,7 +1011,7 @@ class Sample(BaseModel):
 
         return cls(**{attr: [sample.get(attr, pad_value) if isinstance(sample, dict) else getattr(sample, attr, pad_value) for sample in samples] for attr in attributes})
 
-    @mcache()
+    
     def pack(
         self,
         to: Literal["dicts", "samples"] = "samples",
@@ -988,7 +1060,7 @@ class Sample(BaseModel):
     def unpack(self, to: Literal["dicts", "samples", "lists"] = "samples") -> List[Union["Sample", Dict]]:
         return [[x.dump() if to == "dicts" else x for x in samples] for  _, samples in self]
 
-    @mcache()
+    
     @classmethod
     def pack_from(cls, *args, packed_field: str = "steps", padding: Literal["truncate", "longest"] = "truncate", pad_value: Any | None = None) -> "Sample":
         """Pack an iterable of Sample objects or dictionaries into a single Sample object with a single list attribute of Samples.
