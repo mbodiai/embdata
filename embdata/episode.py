@@ -101,8 +101,14 @@ class TimeStep(Sample):
         supervision: Any | None = None, 
         episode_idx: int = 0, step_idx: int = 0, 
         timestamp: float | None = None, **kwargs) -> None:
+        Obs = self.__class__._observation_class.get_default()  # noqa: N806, SLF001
+        Act = self.__class__._action_class.get_default()  # noqa: N806, SLF001
+        Sta = self.__class__._state_class.get_default()  # noqa: N806, SLF001
 
-        
+        observation = Obs(**convert_images(observation)) if observation is not None else None
+        action = Act(**convert_images(action)) if action is not None else None
+        state = Sta(**convert_images(state)) if state is not None else None
+        supervision = convert_images(supervision) if supervision is not None else None
         super().__init__(observation=observation, action=action, state=state, supervision=supervision, episode_idx=episode_idx, step_idx=step_idx, timestamp=timestamp, **kwargs)
 
 
@@ -180,10 +186,6 @@ class Episode(Sample):
 
     @classmethod
     def from_list(cls, steps: List[Dict], observation_key: str, action_key: str, supervision_key: str | None = None):
-        return cls(steps, observation_key, action_key, supervision_key)
-
-    @classmethod
-    def from_list(cls, steps: List[Dict], observation_key: str, action_key: str, supervision_key: str | None = None):
         Step = cls._step_class.get_default()
         processed_steps = [
             Step(
@@ -205,7 +207,7 @@ class Episode(Sample):
         freq_hz = freq_hz or self.freq_hz or 1
         data = [getattr(step, field) for step in self.steps]
         if isinstance(data[0], Sample):
-            data = [d.numpy() if hasattr(d, 'numpy') else d for d in data]
+            data = [d.numpy() for d in data]
         return Trajectory(
             data,
             freq_hz=freq_hz,
