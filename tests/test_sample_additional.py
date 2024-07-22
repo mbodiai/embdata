@@ -411,12 +411,6 @@ def test_flatten_merge_dicts():
 #     assert unflattened_sample_dict == sample, f"Expected {sample}, but got {unflattened_sample_dict}"
 
 
-# def test_flatten_with_to():
-#     sample = Sample(a=1, b={"c": 2, "d": [3, 4]}, e=Sample(f=5, g={"h": 6, "i": 7}))
-#     flattened = sample.flatten(to=["a", "b.c", "e.g.h"])
-#     expected = [1, 2, 6]
-#     assert flattened == expected, f"Expected {expected}, but got {flattened}"
-
 
 if __name__ == "__main__":
     pytest.main()

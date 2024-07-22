@@ -300,5 +300,8 @@ def test_flatten_with_to_and_output_type():
      expected_dict = [{"a": 1, "b.c": 2, "e.g.h": 6}]                                                                                                               
      assert result_dict == expected_dict, f"Expected {expected_dict}, but got {result_dict}"  
 
+     result_dict = obj.flatten(to=["a", "c", "h"], output_type="dict")
+     assert result_dict == [{"a": 1, "c": 2, "h": 6}], f"Expected {expected_dict}, but got {result_dict}"
+
 if __name__ == "__main__":
     pytest.main()

@@ -81,6 +81,7 @@ import wirerope
 
 from embdata.describe import describe, full_paths
 from embdata.features import to_features_dict
+import contextlib
 
 OneDimensional = Annotated[Literal["dict", "np", "pt", "list", "sample"], "Numpy, PyTorch, list, sample, or dict"]
 
@@ -240,10 +241,15 @@ class Sample(BaseModel):
         except AttributeError as e:
             if hasattr(self, "_extra"):
                 try:
-                    return getattr(self._extra, key)
+                    if isinstance(key, str):
+                        sep = "." if "." in key else "/"
+                        keys = key.replace("*", "").replace(f"{sep}{sep}", sep).split(sep)
+                        key = "__nest__".join(keys)
+                        print(f"self._extra: {self._extra}, keys: {self._extra.keys()}")
+                        return getattr(self._extra, key)
                 except AttributeError:
                     pass
-            msg = f"'{key}' not found in Sample or its _extra attribute: {self}"
+            msg = f"'{key}' not found in Sample or its _extra attribute: {self}. Try using ['key'] instead if key contains special characters."
             raise KeyError(msg) from e
 
     def __setattr__(self, key: str, value: Any) -> None:
@@ -269,6 +275,9 @@ class Sample(BaseModel):
             if isinstance(key, int):
                 msg = f"Sample object does not wrap a list but index was requested: {key}"
                 raise TypeError(msg)
+        if key in self:
+            setattr(self, key, value)
+            return
         if any(c in key for c in "./*"):
             sep = "." if "." in key else "/"
             keys = key.replace("*", "").replace(f"{sep}{sep}", sep).split(sep)
@@ -289,11 +298,6 @@ class Sample(BaseModel):
             key = "_items" if key == "items" else key
             setattr(self, key, value)
 
-    # def __getattribute__(self, key: str | int) -> Any:
-    #     if key == "items" and hasattr(self, "_items"):
-    #         return self._items
-    #     return super().__getattribute__(key)
-
     def __post_init__(self) -> None:
         if self.__class__ == Sample:
             self._extra: BaseModel = create_model(
@@ -301,7 +305,7 @@ class Sample(BaseModel):
                 __doc__=self.__class__.__doc__,
                 __config__=self.model_config,
                 **{
-                    k: Annotated[
+                    k.replace(".", "__nest__"): Annotated[
                         list[type(v[0])] if isinstance(v, list) and len(v) > 0 else type(v),
                         Field(default_factory=lambda: v),
                     ]
@@ -311,6 +315,9 @@ class Sample(BaseModel):
             )()
             self._extra.__getitem__ = self.__class__.__getitem__
             self._extra.__setitem__ = self.__class__.__setitem__
+            for k, v in self.dump().items():
+                if not k.startswith("_"):
+                    self.setdefault(k, v, nest=True)
 
     def __hash__(self) -> int:
         """Return a hash of the Sample instance."""
@@ -327,21 +334,28 @@ class Sample(BaseModel):
 
         return hash_helper(self.dump())
 
-    def _str(self, obj, prefix=""):
+    def _str(self, obj, prefix="", ignore=None):
+        ignore = ignore or set("_items")
         if isinstance(obj, Path):
             obj = str(obj)
         if not hasattr(obj, "_str"):
             return obj
         prefix += " "
         sep = ",\n" + prefix
-        out = f"{self.__class__.__name__}(\n{prefix}{sep.join([f'{k}={round(v, 3) if isinstance(v, float) else self._str(v,prefix)}' for k, v in obj if v is not None and k != '_items'])})"
+        out = f"{self.__class__.__name__}(\n{prefix}{sep.join([f'{k}={round(v, 3) if isinstance(v, float) else self._str(v,prefix)}' for k, v in obj if v is not None and k not in ignore])}"
         if hasattr(self, "_items"):
             out = out.replace(")", f"{sep}items={self._items}")
         return out.replace(")", "\n)")
 
     def __str__(self) -> str:
         """Return a string representation of the Sample instance."""
-        return self._str(self, prefix="")
+        unnested = {"_items"}
+        for k, _ in self:
+            if "." in k:
+                unnested.add(k.split(".")[0])
+            elif "/" in k:
+                unnested.add(k.split("/")[0])
+        return self._str(self, prefix="", ignore=set(unnested))
 
     def __repr__(self) -> str:
         """Return a string representation of the Sample instance."""
@@ -353,7 +367,7 @@ class Sample(BaseModel):
 
     def __contains__(self, key: str) -> bool:
         """Check if the Sample instance contains the specified attribute."""
-        return key in [k for k, _ in self]
+        return key in list(self.keys())
     def get(self, key: str, default: Any = None) -> Any:
         """Return the value of the attribute with the specified key or the default value if it does not exist."""
         try:
@@ -396,15 +410,38 @@ class Sample(BaseModel):
         return self._dump(exclude=exclude, as_field=as_field, recurse=recurse)
 
     def values(self) -> Generator:
-        for _, v in self:
-            yield v
+        ignore = set()
+        for k, _ in self:
+            if "." in k:
+                ignore.add(k.split(".")[0])
+            elif "/" in k:
+                ignore.add(k.split("/")[0])
+        for k, v in self:
+            if k not in ignore:
+                yield v
 
     def keys(self) -> Generator:
+        ignore = set()
         for k, _ in self:
-            yield k
+            if "." in k:
+                ignore.add(k.split(".")[0])
+            elif "/" in k:
+                ignore.add(k.split("/")[0])
+        print(f"ignore: {ignore}")  # Debug print
+        for k, _ in self:
+            if k not in ignore:
+                yield k
 
     def items(self) -> Generator:
-        yield from self
+        ignore = set()
+        for k, _ in self:
+            if "." in k:
+                ignore.add(k.split(".")[0])
+            elif "/" in k:
+                ignore.add(k.split("/")[0])
+        for k, v in self:
+            if k not in ignore:
+                yield k, v
 
     def dict(self, exclude: set[str] | None | str = "None", recurse=True) -> Dict[str, Any]:  # noqa
         """Return a dictionary representation of the Sample instance.
@@ -584,8 +621,8 @@ class Sample(BaseModel):
             return flattened
         
         result = []
-        current_group = Sample({k: [] for k in to})
-        num_tos = Sample({k: 0 for k in to})
+        current_group = {k: [] for k in to}
+        num_tos = {k: 0 for k in to}
         for k, v in zip(keys, flattened):
             print(f"current_group: {current_group}, result: {result}")
             for i, ft in enumerate(full_to):
@@ -593,12 +630,21 @@ class Sample(BaseModel):
                     current_group[to[i]].append(v)
                     num_tos[to[i]] += 1
             
-            if all([num_to == num_tos[to[0]] for num_to in num_tos.values()]):
+            print(f"current_group: {current_group}, num_tos: {num_tos}")  # Debug print
+            print(f"num to values: {list(num_tos.values())}")  # Debug print
+            if all(num_to == num_tos[to[0]] for num_to in num_tos.values()):
+                print(f"entered if statement")  # Debug print
+                print(f"current_group: {[len(current_group[to[i]]) for i in range(len(to))]}")  # Debug print
                 if all(len(current_group[to[i]]) > 0 for i in range(len(to))):
-                    current_group = current_group.dict() if output_type == "dict" else current_group
+                    ignore = {k for k in {k.split(sep)[0] for k in keys if sep in k}}
+                    ignore = {k for k in ignore if k not in to}
+                    current_group = {k: v[0] if len(v) == 1 else v for k, v in current_group.items() if k not in ignore}
                     if output_type not in ["dict", "sample"]:
-                        current_group = reduce(operator.iadd, current_group.values(), [])
-                    result.append(current_group)
+                        try:
+                            current_group = reduce(operator.iadd, current_group.values(), [])
+                        except TypeError:
+                            current_group = list(current_group.values())
+                    result.append(Sample(**current_group) if output_type == "sample" else current_group)
                 current_group = Sample({k: [] for k in to})
                 num_tos = Sample({k: 0 for k in to})
         print(f"Result before output: {result}")  # Debug print
@@ -618,6 +664,7 @@ class Sample(BaseModel):
                 setattr(self, k, v[0])
             if isinstance(v, dict) and len(v) == 1:
                 setattr(self, k, next(iter(v.values())))
+        return self
 
     def setdefault(self, key: str, default: Any, nest=True) -> Any:
         """Set the default value for the attribute with the specified key."""
