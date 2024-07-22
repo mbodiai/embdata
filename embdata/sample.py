@@ -672,8 +672,16 @@ class Sample(BaseModel):
         return obj
 
     def process_grouped(self, grouped, to):
-        result = [grouped]
-        print(f"Process grouped result: {result}")  # Debug print
+        result = []
+        for i in range(len(grouped[0])):
+            item = {}
+            for key, values in zip(to, grouped):
+                parts = key.split('.')
+                if len(parts) > 1 and parts[-2] == '*':
+                    item[parts[-1]] = values[i]
+                else:
+                    item[key] = values[i]
+            result.append(item)
         return result
 
     def setdefault(self, key: str, default: Any) -> Any:
