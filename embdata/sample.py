@@ -452,8 +452,11 @@ class Sample(BaseModel):
                     for prop, prop_schema in schema_part["properties"].items():
                         if prop in value:
                             result[prop], _ = unflatten_recursive(prop_schema, 0)
-                    print(f"Returning nested value: {result}, index: {index + 1}")
-                    return result, index + 1
+                        else:
+                            result[prop], _ = unflatten_recursive(prop_schema, index)
+                            index += 1
+                    print(f"Returning nested value: {result}, index: {index}")
+                    return result, index
                 print(f"Returning value: {value}, index: {index + 1}")
                 return value, index + 1
             else:
@@ -636,6 +639,8 @@ class Sample(BaseModel):
         return flattened_values if to is None else [flattened_values]  # Return as a single list or nested list based on 'to'
 
     def _flatten_values(self, flattened):
+        if isinstance(flattened, list):
+            return flattened
         result = []
         for v in flattened.values():
             if isinstance(v, Sample):
