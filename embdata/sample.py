@@ -612,18 +612,20 @@ class Sample(BaseModel):
             
             if output_type == "dict":
                 return flattened
-            return flattened
+            return self._convert_output(flattened, output_type)
 
         if output_type == "dict":
             return flattened.dict()
 
         flattened_values = self._flatten_values(flattened)
+        return self._convert_output(flattened_values, output_type)
 
+    def _convert_output(self, data, output_type):
         if output_type == "np":
-            return np.array(flattened_values, dtype=object)
+            return np.array(data, dtype=object)
         if output_type == "pt":
-            return torch.tensor(flattened_values, dtype=torch.float32)
-        return flattened_values
+            return torch.tensor(data, dtype=torch.float32)
+        return data
 
     def _flatten_values(self, flattened):
         if isinstance(flattened, list):
@@ -667,15 +669,17 @@ class Sample(BaseModel):
             return []
         
         result = []
-        for items in zip(*grouped):
+        for items in zip_longest(*grouped, fillvalue=None):
             item = {}
             for key, value in zip(to, items):
-                if isinstance(value, list):
-                    for i, v in enumerate(value):
-                        item[f"{key}_{i}"] = v
-                else:
-                    item[key] = value
-            result.append(item)
+                if value is not None:
+                    if isinstance(value, list):
+                        for i, v in enumerate(value):
+                            item[f"{key}_{i}"] = v
+                    else:
+                        item[key] = value
+            if item:  # Only append non-empty items
+                result.append(item)
         return result
 
     def setdefault(self, key: str, default: Any) -> Any:
