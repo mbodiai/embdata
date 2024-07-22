@@ -583,107 +583,43 @@ class Sample(BaseModel):
         sep: str = ".",
         to: str | List[str] | None = None,
     ) -> Dict[str, Any] | np.ndarray | torch.Tensor | List | Any:
-        """Flatten the Sample instance into a strictly one-dimensional or two-dimensional structure.
-
-        This method traverses the nested structure of the Sample instance and its attributes,
-        creating a flattened representation based on the specified parameters.
-
-        Note: If 'pt' or 'np' is specified as the 'output_type', non-numerical values are excluded.
-
-        Parameters:
-        -----------
-        output_type : str, optional (default="list")
-            Specifies the type of the output. Options are:
-            - "list": Returns a flat list of values.
-            - "dict": Returns a dictionary with flattened keys and their corresponding values.
-            - "np": Returns a numpy array.
-            - "pt": Returns a PyTorch tensor.
-
-        non_numerical : str, optional (default="allow")
-            Determines how non-numerical values are handled. Options are:
-            - "ignore": Non-numerical values are excluded from the output.
-            - "forbid": Raises a ValueError if non-numerical values are encountered.
-            - "allow": Includes non-numerical values in the output.
-
-        ignore : set[str], optional (default=set())
-            Set of keys to ignore during flattening.
-
-        sep : str, optional (default=".")
-            Separator used for nested keys in the flattened output.
-
-        to : str | set[str] | List[str], optional (default=None)
-            Specifies which keys to include in the output. If provided, only these keys will be flattened.
-
-        Returns:
-        --------
-        Dict[str, Any] | np.ndarray | torch.Tensor | List
-            The flattened representation of the Sample instance.
-
-        Examples:
-        ---------
-            >>> sample = Sample(a=1, b={"c": 2, "d": [3, 4]}, e=Sample(f=5))
-            >>> sample.flatten()
-            [1, 2, 3, 4, 5]
-
-            >>> sample.flatten(output_type="dict")
-            {'a': 1, 'b.c': 2, 'b.d.0': 3, 'b.d.1': 4, 'e.f': 5}
-
-            >>> sample.flatten(ignore={"b"})
-            [1, 5]
-
-        Notes:
-        ------
-            - When 'to' is provided, the method always returns a list, numpy array, or PyTorch tensor, depending on output_type.
-            - If 'output_type' is 'dict' and 'to' is provided, the output is a list of dictionaries with the same keys as 'to'.
-            - Otherwise, the output is a 2D array with the number of columns equal to the number of elements in the merged
-                flattened values of the keys in 'to'. The number of rows is equal to the maximum number of elements in the values
-                of the keys in 'to'.
-
-        """
+        """Flatten the Sample instance into a strictly one-dimensional or two-dimensional structure."""
         ignore = ignore or ()
         if to is not None:
             to = [to] if isinstance(to, str) else to
             to = full_paths(self, to, sep=sep).values()
         
-        # Returns a Sample
         flattened = self.flatten_recursive(self, ignore=ignore, non_numerical=non_numerical, sep=sep)
         if to is not None:
             grouped = self.group_values(flattened, to, sep=sep)
-            flattened = self.process_grouped(grouped, to) # Returns a Sample
+            flattened = self.process_grouped(grouped, to)
 
         if output_type == "dict":
             return flattened.dict()
-        print(f"flattened: {flattened}")
-        flattened = list(flattened.values())
+        
+        flattened_values = self._flatten_values(flattened)
+        
         if output_type == "np":
-            return np.array(flattened)
+            return np.array(flattened_values, dtype=object)
         if output_type == "pt":
-            return torch.tensor(flattened)
-        return flattened
+            return torch.tensor(flattened_values, dtype=torch.float32)
+        return flattened_values
+
+    def _flatten_values(self, flattened):
+        result = []
+        for v in flattened.values():
+            if isinstance(v, Sample):
+                result.extend(self._flatten_values(v))
+            else:
+                result.append(v)
+        return result
     
 
     def setdefault(self, key: str, default: Any) -> Any:
         """Set the default value for the attribute with the specified key."""
-        def get_nested(x, key):
-            if key == "*":
-                 pass
-            if isinstance(x, dict):
-                y = x.get(key)
-            elif hasattr(x, "__getitem__"):
-                y = x.get(key, None)
-            elif hasattr(x, key):
-                y =  getattr(x, key)
-            x.key = Sample() if x is None else x
-            return x.key
-
-        obj = self
-        if "./*" in key:
-            keys = key.split(".") if "." in key else key.split("/")
-            nested = functools.reduce(get_nested, keys[:-1], obj)
-            key = keys[-1]
-            obj = nested
-        obj[key] = default
-        return obj[key]
+        if key not in self.__dict__:
+            self.__dict__[key] = default
+        return self.__dict__[key]
 
     
     def schema(self, include: Literal["all", "descriptions", "info", "simple"] = "info") -> Dict:
