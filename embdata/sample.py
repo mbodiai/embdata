@@ -630,6 +630,21 @@ class Sample(BaseModel):
         flattened_values = self._flatten_values(flattened)
         return self._convert_output(flattened_values, output_type)
 
+    def _flatten_values(self, flattened):
+        if isinstance(flattened, list):
+            return flattened
+        result = []
+        for v in flattened.values():
+            if isinstance(v, Sample):
+                result.extend(self._flatten_values(v))
+            elif isinstance(v, dict):
+                result.extend(self._flatten_values(Sample(**v)))
+            elif isinstance(v, (list, tuple)):
+                result.extend(v)
+            else:
+                result.append(v)
+        return result
+
     def _convert_output(self, data, output_type):
         if output_type == "np":
             return np.array(data, dtype=object)
@@ -679,7 +694,7 @@ class Sample(BaseModel):
             return []
         
         result = []
-        items = [grouped[key] for key in to]
+        items = [grouped.get(key, []) for key in to]
         max_length = max(len(item) if isinstance(item, list) else 1 for item in items)
         
         for i in range(max_length):
