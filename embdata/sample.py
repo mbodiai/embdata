@@ -577,19 +577,51 @@ class Sample(BaseModel):
         keys = [replace_ints_with_wildcard(k, sep=sep) for k in keys]
         # print(f"Flattened: {flattened}")  # Debug print
         # print(f"Keys: {keys}")  # Debug print
-        if to:
-            out = []
+        if to is not None:
+            # print(f"to: {to}")  # Debug print
+            out =  []
             result = Sample()
+            matches = 0
             for k, v, kw in zip(keys, flattened, [replace_ints_with_wildcard(k, sep=sep) for k in keys]):
                 for i, ft in enumerate(full_to):
+                    # print(f"  Processing full_to: {ft}")  # Debug print
                     if ft in kw:
-                        result.setdefault(to[i], []).append(v)
+                        
+                        if kw == ft:
+                            result.setdefault(to[i], []).append(v)
+                            print(f"setting {v} to {to[i]}")  # Debug print
+                        else:
+                            print(f"appending {v} to {result}")  # Debug print
+                            result.setdefault(to[i], []).append(v)
                     else:
                         if len(result) > 0:
                             out.append(result.dict() if output_type == "dict" else result.flatten() if output_type == "list" else result)
                             result = Sample()
-            if len(result) > 0:
-                out.append(result.dict() if output_type == "dict" else result.flatten() if output_type == "list" else result)
+                if len(out) > 0:
+                    print(f"outbefore: {out}")  # Debug print
+                    if output_type in ("dict", "sample"):
+                        def merge_dicts(d1, d2):
+                            for k, v in d2.items():
+                                if k in d1:
+                                    if isinstance(d1[k], dict | Sample):
+                                        d1[k] = merge_dicts(d1[k], v)
+                                    elif isinstance(d1[k], list):
+                                        d1[k].extend([v] if not isinstance(v, list) else v)
+                                    elif isinstance(v, dict | Sample):
+                                        d1[k] = merge_dicts(v, d1[k])
+                                    elif isinstance(v, list):
+                                        d1[k] = v.extend([d1[k]])
+                                else:
+                                    d1[k] = v
+                            return d1
+                        out[-1] = reduce(merge_dicts, out[-1], {})
+                    else:
+                        def merge_lists(l1, l2):
+                            return l1.extend([l2] if not isinstance(l2, list) else l2)
+                        out[-1] = reduce(merge_lists, out[-1], [])
+                matches += 1
+                print(f"out: {out}")  # Debug print
+                print(f"matches: {matches}")  # Debug print
             flattened = out
 
 
@@ -598,44 +630,6 @@ class Sample(BaseModel):
         if output_type == "pt":
             return torch.tensor(flattened, dtype=torch.float32)
         return flattened
-
-    # def _flatten_values(self, flattened):
-    #     if isinstance(flattened, list):
-    #         return flattened
-    #     result = []
-    #     for v in flattened.values():
-    #         if isinstance(v, Sample):
-    #             result.extend(self._flatten_values(v))
-    #         elif isinstance(v, dict):
-    #             result.extend(self._flatten_values(Sample(**v)))
-    #         elif isinstance(v, (list, tuple)):
-    #             result.extend(v)
-    #         else:
-    #             result.append(v)
-    #     return result
-
-    # def group_values(self, flattened, to, sep="."):
-    #     grouped = Sample()
-    #     for pattern in to:
-    #         print(f"Processing pattern: {pattern}")  # Debug print
-    #         keys = pattern.split(sep)
-    #         value = self  # Start from the root object
-    #         for key in keys:
-    #             print(f"  Accessing key: {key}, Current value: {value}")  # Debug print
-    #             if isinstance(value, Sample) and hasattr(value, key):
-    #                 value = getattr(value, key)
-    #             elif isinstance(value, dict) and key in value:
-    #                 value = value[key]
-    #             else:
-    #                 print(f"  Key {key} not found in {value}")  # Debug print
-    #                 value = None
-    #                 break
-    #         if value is not None:
-    #             grouped[pattern] = value
-    #             print(f"  Added to grouped: {pattern} = {value}")  # Debug print
-    #         else:
-    #             print(f"  Value for {pattern} is None, not adding to grouped")  # Debug print
-    #     return grouped
 
 
     def setdefault(self, key: str, default: Any, nest=False) -> Any:
@@ -664,13 +658,34 @@ class Sample(BaseModel):
                     raise AttributeError(f"Invalid list index: {k}")
             elif not isinstance(obj, Sample) and not hasattr(obj, k):
                 new_obj = Sample()
-            if not hasattr(obj, k):
+                setattr(obj, k, new_obj)
+                obj = new_obj
+            elif hasattr(obj, k):
+                obj = getattr(obj, k)
+            else:
                 setattr(obj, k, Sample())
-            obj = getattr(obj, k)
+                obj = getattr(obj, k)
         if isinstance(obj, dict):
-            obj[keys[-1]] = default
-        else:
-            setattr(obj, keys[-1], default)
+            if keys[-1] == "*":
+                return obj.setdefault("*", default if isinstance(default, list) else [default])
+            return obj.setdefault(keys[-1], default)
+        if isinstance(obj, list):
+            if keys[-1] == "*":
+                return obj
+            try:
+                index = int(keys[-1])
+                if index >= len(obj):
+                    obj.extend([None] * (index - len(obj) + 1))
+                if obj[index] is None:
+                    obj[index] = default
+                return obj[index]
+            except ValueError:
+                raise AttributeError(f"Invalid list index: {keys[-1]}")
+        if not hasattr(obj, keys[-1]):
+            if keys[-1] == "*":
+                setattr(obj, keys[-1], default if isinstance(default, list) else [default])
+            else:
+                setattr(obj, keys[-1], default)
         return getattr(obj, keys[-1])
 
     def schema(self, include: Literal["all", "descriptions", "info", "simple"] = "info") -> Dict:
