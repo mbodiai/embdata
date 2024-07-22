@@ -421,8 +421,11 @@ class Sample(BaseModel):
             flat_data = list(one_d_array_or_dict.values())
         else:
             flat_data = list(one_d_array_or_dict)
+        print(f"Flat data: {flat_data}")
+        print(f"Schema: {schema}")
 
         def unflatten_recursive(schema_part, index=0):
+            print(f"Processing schema part: {schema_part}, index: {index}")
             if schema_part["type"] == "object":
                 result = {}
                 for prop, prop_schema in schema_part["properties"].items():
@@ -433,16 +436,20 @@ class Sample(BaseModel):
                     result = cls(**result)
                 elif schema_part.get("title", "").lower() == "sample":
                     result = Sample(**result)
+                print(f"Returning object: {result}, index: {index}")
                 return result, index
             if schema_part["type"] == "array":
                 items = []
                 for _e in range(schema_part.get("maxItems", len(flat_data) - index)):
                     value, index = unflatten_recursive(schema_part["items"], index)
                     items.append(value)
+                print(f"Returning array: {items}, index: {index}")
                 return items, index
+            print(f"Returning value: {flat_data[index]}, index: {index + 1}")
             return flat_data[index], index + 1
 
         unflattened_dict, _ = unflatten_recursive(schema)
+        print(f"Final unflattened dict: {unflattened_dict}")
         return cls(**unflattened_dict) if not isinstance(unflattened_dict, cls) else unflattened_dict
 
     @classmethod
