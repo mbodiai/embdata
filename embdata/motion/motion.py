@@ -106,7 +106,7 @@ def MotionField(  # noqa
         description=description,
         reference_frame=reference_frame,
         unit=unit,
-        **kwargs,
+        **kwargs
     )
 
 
@@ -314,31 +314,4 @@ class Motion(Coordinate):
                         msg = f"{k} item {v} is out of bounds {self.fields[k].bounds}"
                         raise ValueError(msg)
         return self
-
-
-class AnyMotionControl(Motion):
-    """Motion Control with arbitrary fields but minimal validation. Should not be subclassed. Subclass Motion instead for validation.
-
-    Pass in names, joints, and any other fields to create a motion control.
-
-    Example:
-        >>> class ArmControl(MotionControl):
-        ...     names: list[str] = MotionField(default_factory=list, description="Names of the joints.")
-        ...     joints: list[float] = MotionField(
-        ...         default_factory=lambda: np.zeros(3), bounds=[-1.0, 1.0], shape=(3,), description="Values of the joints."
-        ...     )
-        >>> arm_control = ArmControl(names=["shoulder", "elbow", "wrist"], joints=[0.1, 0.2])
-        Traceback (most recent call last):
-            ...
-        ValueError: Number of joints 2 does not match number of names 3
-        >>> arm_control = ArmControl(names=["shoulder", "elbow", "wrist"], joints=[3.0, 2.0, 1.0])
-        Traceback (most recent call last):
-            ...
-        ValueError: joints item 0 (3.0) is out of bounds [-1.0, 1.0]
-    """
-
-    model_config = ConfigDict(arbitrary_types_allowed=True, extra="allow", populate_by_name=True)
-
-    names: list[str] | None = None
-    joints: list[float] | NumpyArray | Any = None
 

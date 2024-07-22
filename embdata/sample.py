@@ -60,28 +60,25 @@ Examples:
 
 import copy
 import functools
-import json
 import logging
 import operator
 import re
 from enum import Enum
-from functools import lru_cache, cached_property
+from functools import cached_property, reduce
 from importlib import import_module
 from itertools import zip_longest
 from pathlib import Path
 from typing import Annotated, Any, Dict, Generator, List, Literal, Union, get_origin
-from functools import reduce, update_wrapper, wraps
+
 import numpy as np
 import torch
 from datasets import Dataset, Features, IterableDataset
 from gymnasium import spaces
 from pydantic import BaseModel, ConfigDict, Field, create_model
 from pydantic.fields import FieldInfo
-import wirerope
 
 from embdata.describe import describe, full_paths
 from embdata.features import to_features_dict
-import contextlib
 
 OneDimensional = Annotated[Literal["dict", "np", "pt", "list", "sample"], "Numpy, PyTorch, list, sample, or dict"]
 
@@ -200,6 +197,10 @@ class Sample(BaseModel):
         If the key is a string and contains a separator ('.' or '/'), the value is returned at the specified nested key.
         Otherwise, the value is returned as an attribute of the Sample object.
         """
+        if isinstance(key, int) and any(isinstance(self[k], list | tuple | Dataset | IterableDataset | np.ndarray) for k in self.keys()):
+            items = [self[k] for k in self.keys()]
+            return items[key]
+
         if self.__class__ == Sample:
             if isinstance(key, int):
                 if hasattr(self, "_items"):
@@ -238,7 +239,7 @@ class Sample(BaseModel):
 
         try:
             return getattr(self, key)
-        except AttributeError as e:
+        except (AttributeError, KeyError, TypeError) as e:
             if hasattr(self, "_extra"):
                 try:
                     if isinstance(key, str):
@@ -249,7 +250,7 @@ class Sample(BaseModel):
                         return getattr(self._extra, key)
                 except AttributeError:
                     pass
-            msg = f"'{key}' not found in Sample or its _extra attribute: {self}. Try using ['key'] instead if key contains special characters."
+            msg = f"Key: `{key}` not found in Sample {self}. Try using sample[key] instead if key is an integer or contains special characters."
             raise KeyError(msg) from e
 
     def __setattr__(self, key: str, value: Any) -> None:
@@ -1239,10 +1240,30 @@ class Sample(BaseModel):
         """Convert the Sample instance to a JSON string."""
         return self.model_dump_json()
 
+    def numpy(self) -> np.ndarray:
+        """Return the numpy array representation of the Sample instance."""
+        return self._numpy
+    
+    def tolist(self) -> list:
+        """Return the list representation of the Sample instance."""
+        return self._tolist
+    
+    def torch(self) -> torch.Tensor:
+        """Return the PyTorch tensor representation of the Sample instance."""
+        return self._torch
+
+    def json(self) -> str:
+        """Return the JSON string representation of the Sample instance."""
+        return self._json
+
     @cached_property
     def _features(self) -> Features:
         """Convert the Sample instance to a HuggingFace Features object."""
         return Features(self.infer_features_dict())
+
+    def features(self) -> Features:
+        """Return the HuggingFace Features object for the Sample instance."""
+        return self._features
 
     def dataset(self) -> Dataset:
         """Convert the Sample instance to a HuggingFace Dataset object."""

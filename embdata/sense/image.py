@@ -95,7 +95,8 @@ class Image(Sample):
 
     size: tuple[int, int] | tuple[int, int, int] | None = None
     mode: Literal["RGB", "RGBA", "L", "P", "CMYK", "YCbCr", "I", "F"] = "RGB"
-    pil: InstanceOf[PILImage] = Field(
+    pil: InstanceOf[PILImage] | None = Field(
+        default=None,
         repr=False,
         exclude=True,
         description="The image represented as a PIL Image object.",
@@ -517,7 +518,15 @@ class Image(Sample):
 
     def dump(self, *args, as_field: str | None = None, **kwargs) -> dict | Any:
         """Return a dict or a field of the image."""
-        return getattr(self, as_field) if as_field is not None else self.dict(*args, **kwargs)
+        if as_field is not None:
+            return getattr(self, as_field)
+        return {
+            "size": self.size,
+            "mode": self.mode,
+            "encoding": self.encoding,
+            "path": self.path,
+            "base64": self.base64
+        }
 
     def infer_features_dict(self) -> Features:
         """Infer features of the image."""

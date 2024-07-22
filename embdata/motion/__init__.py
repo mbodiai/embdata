@@ -1,6 +1,6 @@
+from . import motion
 from .motion import (
     AbsoluteMotionField,
-    AnyMotionControl,
     AnyMotionField,
     Motion,
     MotionField,
@@ -18,4 +18,6 @@ __all__ = [
     "VelocityMotionField",
     "TorqueMotionField",
     "AnyMotionField",
+    "motion",
 ]
+from .control import AnyMotionControl

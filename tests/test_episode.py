@@ -1,7 +1,11 @@
+import os
+import numpy as np
 import pytest
 from embdata.episode import Episode, TimeStep
 from embdata.sample import Sample
-
+from datasets import load_dataset
+from embdata.sense.image import Image
+from embdata.motion.control import AnyMotionControl
 
 @pytest.fixture
 def time_step():
@@ -152,9 +156,31 @@ def test_episode_set_item(time_step):
 
 
 def test_episode_push_to_hub(time_step):
-    episode = Episode(steps=[time_step, time_step, time_step])
+    episode = Episode(steps=[time_step, time_step, time_step], freq_hz=0.2)
     episode.dataset().push_to_hub("mbodiai/episode_test", private=True)
 
+def test_episode_from_ds(time_step):
+    ds = load_dataset("mbodiai/test_dumb", split="train").to_list()
+    episode = Episode(steps=ds)
+    assert len(episode.steps) == len(ds)
 
+def test_episode_from_zipped_ds(time_step):
+    obs = [Sample("observation1"), Sample("observation2")]
+    act = [Sample("action1"), Sample("action2")]
+    sup = [Sample("supervision1"), Sample("supervision2")]
+
+    episode = Episode(zip(obs, act, sup))
+    assert len(episode.steps) == len(obs)
+
+def test_episode_from_steps_image(time_step):
+    steps = [
+    {"observation": {"image": Image(array=np.zeros((224,224,3), dtype=np.uint8), dtype=np.uint8), "task": "command"},  "action": AnyMotionControl(joints=[0.5,3.3]).dict(), "state": {"joint": [0.5, 3.3]}},
+    {"observation": {"image": Image(array=np.zeros((224,224,3), dtype=np.uint8), dtype=np.uint8), "task": "command"}, "action": AnyMotionControl(joints=[0.5,3.3]).dict(), "state": {"joint": [0.5, 3.3]}},
+    {"observation": {"image":  Image(array=np.zeros((224,224,3), dtype=np.uint8), dtype=np.uint8), "task": "command"}, "action": AnyMotionControl(joints=[0.5,3.3]).dict(), "state": {"joint": [0.5, 3.3]}},
+    ]
+
+    episode = Episode(steps)
+    episode.dataset().push_to_hub("mbodiai/episode_testing3", private=True, token=os.getenv("HF_TOKEN"))
+    assert len(episode.steps) == 3
 if __name__ == "__main__":
     pytest.main(["-vv", __file__])

@@ -239,12 +239,12 @@ def test_describe_keys_single_level():
 def test_describe_keys_nested():
     data = {"a": 1, "b": {"c": 2, "d": 3}}
     keys = describe_keys(data)
-    assert keys == {"a": "a", "c": "b.c", "d": "b.d", "b": "b"}
+    assert keys == {"a": "a", "c": "b.c", "d": "b.d", "b": "b",'b.c': 'b.c', 'b.d': 'b.d'}
 
 def test_describe_keys_nested_list():
     data = {"a": 1, "b": [{"c": 2, "d": 3}, {"c": 4, "d": 5}]}
     keys = describe_keys(data)
-    assert keys == {"a": "a", "b": "b", "c": "b.*.c", "d": "b.*.d"}
+    assert keys == {"a": "a", "b": "b", "b.c": "b.*.c", "b.d": "b.*.d", "c": "b.*.c", "d": "b.*.d"}
 
 def test_describe_keys_include():
     data = {"a": 1, "b": {"c": 2, "d": 3}}

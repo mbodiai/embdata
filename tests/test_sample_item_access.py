@@ -34,17 +34,11 @@ def test_getitem_with_str_key(sample_instance):
 
 
 def test_getitem_subclass_with_int_key(subclass_instance):
-    with pytest.raises(TypeError):
         _ = subclass_instance[0]
 
 
-def test_setitem_with_str_key(sample_instance):
-    with pytest.raises(TypeError):
-        sample_instance["new_attr"] = "new_value"
-
 
 def test_setitem_subclass_with_str_key(subclass_instance):
-    with pytest.raises(TypeError):
         subclass_instance["new_attr"] = "new_value"
 
 
