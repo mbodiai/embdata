@@ -550,6 +550,17 @@ class Sample(BaseModel):
                 return pattern
         return None
 
+    @staticmethod
+    def match_wildcard(key, pattern, sep="."):
+        key_parts = key.split(sep)
+        pattern_parts = pattern.split(sep)
+        if len(key_parts) != len(pattern_parts):
+            return False
+        for k, p in zip(key_parts, pattern_parts):
+            if p != "*" and k != p:
+                return False
+        return True
+
     @lcache
     @staticmethod
     def _group_values(flattened, to, sep="."):
@@ -618,8 +629,8 @@ class Sample(BaseModel):
     def setdefault(self, key: str, default: Any) -> Any:
         """Set the default value for the attribute with the specified key."""
         if key not in self.__dict__:
-            self.__dict__[key] = default
-        return self.__dict__[key]
+            setattr(self, key, default)
+        return getattr(self, key)
 
     
     def schema(self, include: Literal["all", "descriptions", "info", "simple"] = "info") -> Dict:
