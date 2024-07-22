@@ -583,30 +583,30 @@ class Sample(BaseModel):
         if to is None:
             return flattened
         
-        result = {k: [] for k in to}
+        result = []
         current_group = {k: [] for k in to}
-        
+        num_tos = {k: 0 for k in to}
         for k, v in zip(keys, flattened):
             print(f"current_group: {current_group}, result: {result}")
             for i, ft in enumerate(full_to):
                 if ft in k:
                     current_group[to[i]].append(v)
+                    num_tos[to[i]] += 1
             
-            if all(len(values) > 0 for values in current_group.values()):
-                for key in to:
-                    result[key].append(current_group[key])
+            if all([num_to == num_tos[to[0]] for num_to in num_tos.values()]):
+                result.append(current_group)
                 current_group = {k: [] for k in to}
-        
-        # Handle any remaining items in current_group
-        if any(len(values) > 0 for values in current_group.values()):
-            for key in to:
-                if current_group[key]:
-                    result[key].append(current_group[key])
-        
+                num_tos = 0
         print(f"Result before output: {result}")  # Debug print
         
         if output_type == "dict":
-            out = [dict(zip(result.keys(), group)) for group in zip(*result.values())]
+            out = []
+            for i in range(len(result[to[0]])):
+                out_dict = {}
+                for key in to:
+                    value = result[key][i]
+                    out_dict[key] = value[0] if len(value) == 1 else value
+                out.append(out_dict)
         elif output_type == "list":
             out = [list(group) for group in zip(*result.values())]
         else:  # sample
