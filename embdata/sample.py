@@ -65,7 +65,7 @@ import logging
 import operator
 import re
 from enum import Enum
-from methodtools import lru_cache as mcache
+from functools import lru_cache
 from importlib import import_module
 from itertools import zip_longest
 from pathlib import Path
@@ -89,7 +89,7 @@ class CallableItems:
     def __init__(self, obj):
         self.obj = obj
 
-    @mcache
+    @lru_cache
     def __call__(self):
         if isinstance(self.obj, dict):
             yield from dict(self.obj).items()
@@ -104,8 +104,8 @@ class CallableItems:
     def __len__(self):
         return len(self.obj)
 
-    @mcache
-    def __getitem__(self, key):
+    @lru_cache
+    def __getitem__(self):
         return self.obj[key]
 
 class Sample(BaseModel):
@@ -1220,7 +1220,7 @@ class Sample(BaseModel):
         """Convert the Sample instance to a HuggingFace Features object."""
         return Features(self.infer_features_dict())
 
-    @mcache
+    @lru_cache
     def dataset(self) -> Dataset:
         """Convert the Sample instance to a HuggingFace Dataset object."""
         data = self
@@ -1236,7 +1236,7 @@ class Sample(BaseModel):
         msg = f"Unsupported data type {type(data)} for conversion to Dataset."
         raise ValueError(msg)
 
-    @mcache
+    @lru_cache
     def describe(self) -> str:
         """Return a string description of the Sample instance."""
         return describe(self, compact=True, name=self.__class__.__name__)
