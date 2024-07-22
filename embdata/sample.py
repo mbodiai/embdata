@@ -644,45 +644,35 @@ class Sample(BaseModel):
         grouped = []
         for pattern in to:
             keys = pattern.split(sep)
-            value = self
-            for key in keys:
-                if key == "*":
-                    if isinstance(value, list):
-                        value = [self._get_nested_value(item, keys[keys.index(key)+1:]) for item in value]
-                        break
-                elif isinstance(value, Sample) and hasattr(value, key):
-                    value = getattr(value, key)
-                elif isinstance(value, dict) and key in value:
-                    value = value[key]
-                else:
-                    value = None
-                    break
-            if value is not None:
-                grouped.append(value)
+            values = self._get_nested_value(flattened, keys)
+            grouped.append(values)
         return grouped
 
     def _get_nested_value(self, obj, keys):
-        for key in keys:
-            if isinstance(obj, dict) and key in obj:
-                obj = obj[key]
-            elif isinstance(obj, Sample) and hasattr(obj, key):
-                obj = getattr(obj, key)
-            else:
-                return None
-        return obj
+        if not keys:
+            return obj
+        key = keys[0]
+        if isinstance(obj, dict):
+            if key in obj:
+                return self._get_nested_value(obj[key], keys[1:])
+        elif isinstance(obj, list):
+            return [self._get_nested_value(item, keys) for item in obj]
+        elif isinstance(obj, Sample):
+            if hasattr(obj, key):
+                return self._get_nested_value(getattr(obj, key), keys[1:])
+        return None
 
     def process_grouped(self, grouped, to):
         if not grouped:
             return []
         
-        if isinstance(grouped[0], (int, float, str)):
-            return [{key: value for key, value in zip(to, grouped)}]
-        
         result = []
-        for i in range(len(grouped[0])):
+        for items in zip(*grouped):
             item = {}
-            for key, values in zip(to, grouped):
-                if isinstance(values, list):
+            for key, value in zip(to, items):
+                item[key] = value
+            result.append(item)
+        return result
                     item[key] = values[i]
                 else:
                     item[key] = values
