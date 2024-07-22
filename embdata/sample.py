@@ -105,7 +105,7 @@ class CallableItems:
         return len(self.obj)
 
     @lru_cache
-    def __getitem__(self):
+    def __getitem__(self, key):
         return self.obj[key]
 
 class Sample(BaseModel):
