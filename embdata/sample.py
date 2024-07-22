@@ -598,9 +598,9 @@ class Sample(BaseModel):
                         result.setdefault(to[i], []).append(v)
                 else:
                     if len(result) > 0:
-                    out.append(result.dict() if output_type == "dict" else result.flatten() if output_type == "list" else result)
+                        out.append(result.dict() if output_type == "dict" else result.flatten() if output_type == "list" else result)
                     result = Sample()
-    if len(out) > 0:
+        if len(out) > 0:
         print(f"outbefore: {out}")  # Debug print
         if output_type in ("dict", "sample"):
             def merge_dicts(d1, d2):
