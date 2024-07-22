@@ -703,7 +703,7 @@ class Sample(BaseModel):
                 obj = getattr(obj, k)
         if isinstance(obj, dict):
             if keys[-1] == '*':
-                return obj.setdefault('*', [])
+                return obj.setdefault('*', default if isinstance(default, list) else [default])
             return obj.setdefault(keys[-1], default)
         if isinstance(obj, list):
             if keys[-1] == '*':
@@ -719,7 +719,7 @@ class Sample(BaseModel):
                 raise AttributeError(f"Invalid list index: {keys[-1]}")
         if not hasattr(obj, keys[-1]):
             if keys[-1] == '*':
-                setattr(obj, keys[-1], [])
+                setattr(obj, keys[-1], default if isinstance(default, list) else [default])
             else:
                 setattr(obj, keys[-1], default)
         return getattr(obj, keys[-1])
