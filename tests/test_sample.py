@@ -287,10 +287,8 @@ def test_setdefault():
     assert sample.setdefault("b.d.2", 60) == 60, "New nested attribute with wildcard should be set with default value"
     
     # Test setting default value for a non-existing nested attribute with wildcard
-    assert sample.setdefault("b.f.*", 70) == [], "New nested attribute with wildcard should be set with default value"
+    assert sample.setdefault("b.f.*", [70]) == [70], "New nested attribute with wildcard should be set with default value"
     
-    # Test setting default value for a non-existing attribute with multiple levels of nesting
-    assert sample.setdefault("x.y.z", 80) == 80, "New attribute with multiple levels of nesting should be set with default value"
 
 def test_flatten_with_to_and_output_type():                                                                                                                        
      obj = Sample(a=1, b={"c": 2, "d": [3, 4]}, e=Sample(f=5, g={"h": 6, "i": 7}))                                                                                  

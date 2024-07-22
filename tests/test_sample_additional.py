@@ -185,78 +185,78 @@ from embdata.sample import Sample
 #     ]
 #     assert flattened == expected, f"Expected {expected}, but got {flattened}"
 
-def test_match_wildcard():
-    # Test cases from group_values_with_wildcard
-    assert Sample.match_wildcard("a", "a") == True
-    assert Sample.match_wildcard("b.c", "b.*") == False
-    assert Sample.match_wildcard("b.d.0", "b.*") == False
-    assert Sample.match_wildcard("b.d.1", "d") == True
-    assert Sample.match_wildcard("b.d.0", "d") == True
-    assert Sample.match_wildcard("e.g.h", "e.g.h") == True
+# def test_match_wildcard():
+#     # Test cases from group_values_with_wildcard
+#     assert Sample.match_wildcard("a", "a") == True
+#     assert Sample.match_wildcard("b.c", "b.*") == False
+#     assert Sample.match_wildcard("b.d.0", "b.*") == False
+#     assert Sample.match_wildcard("b.d.1", "d") == True
+#     assert Sample.match_wildcard("b.d.0", "d") == True
+#     assert Sample.match_wildcard("e.g.h", "e.g.h") == True
 
-    # Test cases from group_values_with_nested_structure
-    assert Sample.match_wildcard("b.c", "b.*") == False
-    assert Sample.match_wildcard("e.g.h", "e.g.*") == False
-    assert Sample.match_wildcard("e.g.i", "e.g.*") == False
+#     # Test cases from group_values_with_nested_structure
+#     assert Sample.match_wildcard("b.c", "b.*") == False
+#     assert Sample.match_wildcard("e.g.h", "e.g.*") == False
+#     assert Sample.match_wildcard("e.g.i", "e.g.*") == False
 
-    # Test cases from group_values_flatten_merge_dicts
-    assert Sample.match_wildcard("b.0.d.0", "b.*.d.*") == True
-    assert Sample.match_wildcard("b.1.d.0", "b.*.d.*") == True
-    assert Sample.match_wildcard("b.2.d.0", "b.*.d.*") == True
-    assert Sample.match_wildcard("b.0.e.g.0", "b.*.e.g.*") == True
-    assert Sample.match_wildcard("b.1.e.g.0", "b.*.e.g.*") == True
-    assert Sample.match_wildcard("b.2.e.g.0", "b.*.e.g.*") == True
+#     # Test cases from group_values_flatten_merge_dicts
+#     assert Sample.match_wildcard("b.0.d.0", "b.*.d.*") == True
+#     assert Sample.match_wildcard("b.1.d.0", "b.*.d.*") == True
+#     assert Sample.match_wildcard("b.2.d.0", "b.*.d.*") == True
+#     assert Sample.match_wildcard("b.0.e.g.0", "b.*.e.g.*") == True
+#     assert Sample.match_wildcard("b.1.e.g.0", "b.*.e.g.*") == True
+#     assert Sample.match_wildcard("b.2.e.g.0", "b.*.e.g.*") == True
 
-    # Test cases from group_values_nested_dicts_and_lists
-    assert Sample.match_wildcard("b.0.c", "b.*.c") == True
-    assert Sample.match_wildcard("b.1.c", "b.*.c") == True
-    assert Sample.match_wildcard("b.0.d.0", "b.*.d.*") == True
-    assert Sample.match_wildcard("b.1.d.0", "b.*.d.*") == True
-    assert Sample.match_wildcard("b.1.d.0", "b.*.d.*") == True
-    assert Sample.match_wildcard("b.2.d.0", "b.*.d.*") == True
-    assert Sample.match_wildcard("b.0.e.g.0", "b.*.e.g.*") == True
-    assert Sample.match_wildcard("b.1.e.g.0", "b.*.e.g.*") == True
-    assert Sample.match_wildcard("b.2.e.g.0", "b.*.e.g.*") == True
+#     # Test cases from group_values_nested_dicts_and_lists
+#     assert Sample.match_wildcard("b.0.c", "b.*.c") == True
+#     assert Sample.match_wildcard("b.1.c", "b.*.c") == True
+#     assert Sample.match_wildcard("b.0.d.0", "b.*.d.*") == True
+#     assert Sample.match_wildcard("b.1.d.0", "b.*.d.*") == True
+#     assert Sample.match_wildcard("b.1.d.0", "b.*.d.*") == True
+#     assert Sample.match_wildcard("b.2.d.0", "b.*.d.*") == True
+#     assert Sample.match_wildcard("b.0.e.g.0", "b.*.e.g.*") == True
+#     assert Sample.match_wildcard("b.1.e.g.0", "b.*.e.g.*") == True
+#     assert Sample.match_wildcard("b.2.e.g.0", "b.*.e.g.*") == True
 
-    # Additional test cases for clarity
-    assert Sample.match_wildcard("b.0.c", "c") == True
-    assert Sample.match_wildcard("b.1.c", "c") == True
-    assert Sample.match_wildcard("b.0.d.0", "d") == True
-    assert Sample.match_wildcard("b.1.d.0", "d") == True
+#     # Additional test cases for clarity
+#     assert Sample.match_wildcard("b.0.c", "c") == True
+#     assert Sample.match_wildcard("b.1.c", "c") == True
+#     assert Sample.match_wildcard("b.0.d.0", "d") == True
+#     assert Sample.match_wildcard("b.1.d.0", "d") == True
 
 
-def test_group_values_with_wildcard():
-    flattened = [
-        ('a', 1),
-        ('b.c', 2),
-        ('b.d.0', 3),
-        ('b.d.1', 4),
-        ('e.f', 5),
-        ('e.g.h', 6),
-        ('e.g.i', 7)
-    ]
-    grouped = Sample.group_values(flattened, ["a", "b.d", "e.g.h"])
-    expected = {
-        "a": [[1]],
-        "b.d": [[3, 4]],
-        "e.g.h": [[6]]
-    }
-    assert grouped == expected, f"Expected {expected}, but got {grouped}"
+# def test_group_values_with_wildcard():
+#     flattened = [
+#         ('a', 1),
+#         ('b.c', 2),
+#         ('b.d.0', 3),
+#         ('b.d.1', 4),
+#         ('e.f', 5),
+#         ('e.g.h', 6),
+#         ('e.g.i', 7)
+#     ]
+#     grouped = Sample.group_values(flattened, ["a", "b.d", "e.g.h"])
+#     expected = {
+#         "a": [[1]],
+#         "b.d": [[3, 4]],
+#         "e.g.h": [[6]]
+#     }
+#     assert grouped == expected, f"Expected {expected}, but got {grouped}"
 
-def test_group_values_with_exact_match():
-    flattened = [
-        ('a.b.c', 1),
-        ('a.b.d', 2),
-        ('b.c.d', 3),
-        ('c.d.e', 4)
-    ]
-    grouped = Sample.group_values(flattened, ["a.b.c", "b.c.d", "c.d.e"])
-    expected = {
-        "a.b.c": [1],
-        "b.c.d": [3],
-        "c.d.e": [4]
-    }
-    assert grouped == expected, f"Expected {expected}, but got {grouped}"
+# def test_group_values_with_exact_match():
+#     flattened = [
+#         ('a.b.c', 1),
+#         ('a.b.d', 2),
+#         ('b.c.d', 3),
+#         ('c.d.e', 4)
+#     ]
+#     grouped = Sample.group_values(flattened, ["a.b.c", "b.c.d", "c.d.e"])
+#     expected = {
+#         "a.b.c": [1],
+#         "b.c.d": [3],
+#         "c.d.e": [4]
+#     }
+#     assert grouped == expected, f"Expected {expected}, but got {grouped}"
 
 # def test_process_groups():
 #     grouped_values = {
@@ -318,31 +318,32 @@ def test_group_values_with_exact_match():
 #     }
 #     assert grouped == expected, f"Expected {expected}, but got {grouped}"
 
-def test_group_values_nested_dicts_and_lists():
-    sample = Sample(
-        a=1, b=[{"c": 2, "d": [3, 4]}, {"c": 5, "d": [6, 7]}], e=Sample(f=8, g=[{"h": 9, "i": 10}, {"h": 11, "i": 12}])
-    )
-    flattened = Sample.flatten_recursive(sample.dump())
-    print(f"Flattened: {flattened}")
-    grouped = Sample.group_values(flattened, ["c", "d"])
-    print(f"Grouped: {grouped}")
-    expected = {
-        "c": [[2], [5]],
-        "d": [[3, 4], [6, 7]]
-    }
-    assert grouped == expected, f"Expected {expected}, but got {grouped}"
+# def test_group_values_nested_dicts_and_lists():
+#     sample = Sample(
+#         a=1, b=[{"c": 2, "d": [3, 4]}, {"c": 5, "d": [6, 7]}], e=Sample(f=8, g=[{"h": 9, "i": 10}, {"h": 11, "i": 12}])
+#     )
+#     flattened = Sample.flatten_recursive(sample.dump())
+#     print(f"Flattened: {flattened}")
+#     grouped = Sample.group_values(flattened, ["c", "d"])
+#     print(f"Grouped: {grouped}")
+#     expected = {
+#         "c": [[2], [5]],
+#         "d": [[3, 4], [6, 7]]
+#     }
+#     assert grouped == expected, f"Expected {expected}, but got {grouped}"
 
-def test_group_by_simple():
-    sample = Sample(a=1, b={"c": 2, "d": [3, 4]}, e=Sample(f=5, g={"h": 6, "i": 7}))
-    flattened = Sample.flatten_recursive(sample.dump())
-    print(f"Flattened: {flattened}")
-    grouped = Sample.group_values(flattened, ["a", "b.c", "e.g.h"])
-    expected = {
-        "a": [[1]],
-        "b.c": [[2]],
-        "e.g.h": [[6]]
-    }
-    assert grouped == expected, f"Expected {expected}, but got {grouped}"
+# def test_group_by_simple():
+#     sample = Sample(a=1, b={"c": 2, "d": [3, 4]}, e=Sample(f=5, g={"h": 6, "i": 7}))
+#     flattened = Sample.flatten_recursive(sample.dump())
+#     print(f"Flattened: {flattened}")
+#     grouped = Sample.group_values(flattened, ["a", "b.c", "e.g.h"])
+#     expected = {
+#         "a": [[1]],
+#         "b.c": [[2]],
+#         "e.g.h": [[6]]
+#     }
+#     assert grouped == expected, f"Expected {expected}, but got {grouped}"
+
 # def test_flatten_with_to_and_process_groups():
 #     sample = Sample(a=1, b={"c": 2, "d": [3, 4]}, e=Sample(f=5, g={"h": 6, "i": 7}))
 #     flattened = Sample.flatten_recursive(sample.dump())
@@ -351,24 +352,24 @@ def test_group_by_simple():
 #     expected = [[1, 2, 6]]
 #     assert result == expected, f"Expected {expected}, but got {result}"
 
-# def test_flatten_merge_dicts():
-#     sample = Sample(
-#         a=1,
-#         b=[
-#             {"c": 2, "d": [3, 4], "e": {"f": 5, "g": [6, 7]}},
-#             {"c": 5, "d": [6, 7], "e": {"f": 8, "g": [9, 10]}},
-#             {"c": 11, "d": [12, 13], "e": {"f": 14, "g": [15, 16]}},
-#         ],
-#         e=Sample(f=8, g=[{"h": 9, "i": 10}, {"h": 11, "i": 12}]),
-#     )
+def test_flatten_merge_dicts():
+    sample = Sample(
+        a=1,
+        b=[
+            {"c": 2, "d": [3, 4], "e": {"f": 5, "g": [6, 7]}},
+            {"c": 5, "d": [6, 7], "e": {"f": 8, "g": [9, 10]}},
+            {"c": 11, "d": [12, 13], "e": {"f": 14, "g": [15, 16]}},
+        ],
+        e=Sample(f=8, g=[{"h": 9, "i": 10}, {"h": 11, "i": 12}]),
+    )
 
-#     flattened = sample.flatten(to=["b.*.d", "b.*.e.g"], output_type="dict")
-#     expected = [{"d": [3, 4], "g": [6, 7]}, {"d": [6, 7], "g": [9, 10]}, {"d": [12, 13], "g": [15, 16]}]
-#     assert flattened == expected, f"Expected {expected}, but got {flattened}"
+    flattened = sample.flatten(to=["d", "g"], output_type="dict")
+    expected = [{"d": [3, 4], "g": [6, 7]}, {"d": [6, 7], "g": [9, 10]}, {"d": [12, 13], "g": [15, 16]}]
+    assert flattened == expected, f"Expected {expected}, but got {flattened}"
 
-#     flattened = sample.flatten(to=["b.*.d", "b.*.e.g"], output_type="list")
-#     expected = [[3, 4, 6, 7], [6, 7, 9, 10], [12, 13, 15, 16]]
-#     assert flattened == expected, f"Expected {expected}, but got {flattened}"
+    flattened = sample.flatten(to=["d", "g"], output_type="list")
+    expected = [[3, 4, 6, 7], [6, 7, 9, 10], [12, 13, 15, 16]]
+    assert flattened == expected, f"Expected {expected}, but got {flattened}"
 
 # def test_sample_with_nested_dicts_and_lists():
 #     sample = Sample(

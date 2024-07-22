@@ -87,18 +87,21 @@ def describe_keys(ds: Any, sep: str = ".", show=False, path="") -> Dict[str, Any
     if not hasattr(ds, "items"):
         return ""
     for key, value in ds.items():
-        keys[key] = f"{path}{sep}{key}" if path else key
+        keys[key] = f"{path}{sep}{key}" if path and key not in keys  else key if key not in keys else keys[key]
+        key = keys[key]
         if isinstance(value, dict):
-            sub_keys = describe_keys(value, sep)
+            sub_keys = describe_keys(value, sep, False)
             if sub_keys:
                 for sub_key, sub_value in sub_keys.items():
                     keys[sub_key] = f"{key}{sep}{sub_value}"
+                    keys[f"{key}{sep}{sub_key}"] = f"{key}{sep}{sub_value}"
         elif isinstance(value, list | Dataset):
             if len(value) > 0:
-                sub_keys = describe_keys(value[0], sep)
+                sub_keys = describe_keys(value[0], sep, False)
                 if sub_keys:
                     for sub_key, sub_value in sub_keys.items():
                         keys[sub_key] = f"{key}{sep}*{sep}{sub_value}"
+                        keys[f"{key}{sep}{sub_key}"] = f"{key}{sep}*{sep}{sub_value}"
     if show:
         print(keys)
     return keys

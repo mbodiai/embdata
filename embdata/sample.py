@@ -348,6 +348,9 @@ class Sample(BaseModel):
         """Return the number of attributes in the Sample instance."""
         return len(list(self.items()))
 
+    def __contains__(self, key: str) -> bool:
+        """Check if the Sample instance contains the specified attribute."""
+        return key in [k for k, _ in self]
     def get(self, key: str, default: Any = None) -> Any:
         """Return the value of the attribute with the specified key or the default value if it does not exist."""
         try:
@@ -515,95 +518,39 @@ class Sample(BaseModel):
     #     return output_sample
     @staticmethod
     def _flatten_recursive(obj, ignore: None | set = None, non_numerical="allow", sep="."):
-        sample = Sample()
-
         def _flatten(obj, prefix=""):
             out = []
-            if isinstance(obj, dict):
+            keys = []
+            if isinstance(obj, Sample | dict):
                 for k, v in obj.items():
+                    # print(f"Processing key: {k}, value: {v}")  # Debug print
                     if k in ignore:
                         continue
                     new_key = f"{prefix}{k}" if prefix else k
-                    subout = _flatten(v, f"{new_key}{sep}")
+                    subout, subkeys = _flatten(v, f"{new_key}{sep}")
                     out.extend(subout)
+                    keys.extend(subkeys)
             elif isinstance(obj, list):
                 for i, v in enumerate(obj):
-                    subout = _flatten(v, f"{prefix}{i}{sep}")
+                    subout, subkeys = _flatten(v, f"{prefix}{i}{sep}")
                     out.extend(subout)
-            elif isinstance(obj, Sample):
-                subout = _flatten(obj.dict(), prefix)
-                out.extend(subout)
+                    keys.extend(subkeys)
             else:
                 if non_numerical == "forbid" and not isinstance(obj, int | float | np.number):
                     msg = f"Non-numerical value encountered: {obj}"
                     raise ValueError(msg)
                 if non_numerical == "ignore" and not isinstance(obj, int | float | np.number):
                     return []
-                out.append((prefix.rstrip(sep), obj))
-            return out
+                out.append(obj)
+                keys.append(prefix.rstrip(sep))
+            # print(f"out: {out}, keys: {keys}")  # Debug print
+            return out, keys
 
-        for k, v in _flatten(obj):
-            sample[k] = v
-        return sample
+        return _flatten(obj)
 
     @staticmethod
     def flatten_recursive(obj, ignore: None | set = None, non_numerical="allow", sep="."):
         return Sample._flatten_recursive(obj, ignore=ignore, non_numerical=non_numerical, sep=sep)
-
-    @staticmethod
-    def get_matched_key(patterns, key, sep="."):
-        for pattern in patterns:
-            if Sample.match_wildcard(key, pattern, sep):
-                return pattern
-        return None
-
-    @staticmethod
-    def match_wildcard(key, pattern, sep="."):
-        key_parts = key.split(sep)
-        pattern_parts = pattern.split(sep)
-        if len(key_parts) != len(pattern_parts):
-            return False
-        for k, p in zip(key_parts, pattern_parts):
-            if p != "*" and k != p:
-                return False
-        return True
-
-    @staticmethod
-    def _group_values(flattened, to, sep="."):
-        grouped = []
-        for pattern in to:
-            keys = pattern.split(sep)
-            value = Sample._get_nested_value(flattened, keys)
-            grouped.append(value)
-        return grouped
-
-    @staticmethod
-    def group_values(flattened, to, sep="."):
-        return Sample._group_values(flattened, to, sep=sep)
-
-    @staticmethod
-    def _get_nested_value(obj, keys):
-        for key in keys:
-            if isinstance(obj, (dict, Sample)):
-                obj = obj.get(key, None) if isinstance(obj, dict) else getattr(obj, key, None)
-                if obj is None:
-                    return None
-            elif isinstance(obj, list):
-                try:
-                    obj = [item[key] if isinstance(item, dict) else getattr(item, key) for item in obj]
-                except (KeyError, AttributeError):
-                    return None
-            else:
-                return None
-        return obj
-
-    @staticmethod
-    def _process_grouped(grouped, to):
-        return grouped
-
-    @staticmethod
-    def process_grouped(grouped, to):
-        return Sample._process_grouped(grouped, to)
 
     def flatten(
         self,
@@ -614,110 +561,122 @@ class Sample(BaseModel):
         to: str | List[str] | None = None,
     ) -> Dict[str, Any] | np.ndarray | torch.Tensor | List | Any:
         """Flatten the Sample instance into a strictly one-dimensional or two-dimensional structure."""
+        from embdata.describe import full_paths
+        to = [to] if isinstance(to, str) else to
+        full_to = full_paths(self, to).values() if to is not None else None
+        # print(f"fpaths: {full_to}")  # Debug print
         ignore = ignore or ()
+
+        # Replace integers with wildcard to allow for indexing. But only between separators or at the start/end.
+        def replace_ints_with_wildcard(s, sep="."):
+            # Pattern to match integers that are either at the start/end of the string or surrounded by the separator
+            pattern = rf"(?<=^{sep})\d+|(?<={sep})\d+(?={sep})|\d+(?={sep}|$)"
+            # Replace matched integers with a single wildcard, avoiding consecutive wildcards
+            return re.sub(pattern, "*", s).rstrip(f"{sep}*").lstrip(f"{sep}*")
+        flattened, keys = self.flatten_recursive(self, ignore=ignore, non_numerical=non_numerical, sep=sep)
+        keys = [replace_ints_with_wildcard(k, sep=sep) for k in keys]
+        # print(f"Flattened: {flattened}")  # Debug print
+        # print(f"Keys: {keys}")  # Debug print
         if to is not None:
-            to = [to] if isinstance(to, str) else to
-        
-        flattened = self.flatten_recursive(self, ignore=ignore, non_numerical=non_numerical, sep=sep)
-        
-        if to is not None:
-            grouped = self.group_values(flattened, to, sep=sep)
-            flattened = self.process_grouped(grouped, to)
-            
-            if output_type == "dict":
-                return flattened
-            return self._convert_output(flattened, output_type)
+            # print(f"to: {to}")  # Debug print
+            out =  []
+            result = Sample()
+            matches = 0
+            for k, v, kw in zip(keys, flattened, [replace_ints_with_wildcard(k, sep=sep) for k in keys]):
+                for i, ft in enumerate(full_to):
+                    # print(f"  Processing full_to: {ft}")  # Debug print
+                    if ft in kw:
+                        
+                        if kw == ft:
+                            result.setdefault(to[i], []).append(v)
+                            print(f"setting {v} to {to[i]}")  # Debug print
+                        else:
+                            print(f"appending {v} to {result}")  # Debug print
+                            result.setdefault(to[i], []).append(v)
+                    else:
+                        if len(result) > 0:
+                            out.append(result.dict() if output_type == "dict" else result.flatten() if output_type == "list" else result)
+                            result = Sample()
+                if len(out) > 0:
+                    print(f"outbefore: {out}")  # Debug print
+                    if output_type in ("dict", "sample"):
+                        def merge_dicts(d1, d2):
+                            for k, v in d2.items():
+                                if k in d1:
+                                    if isinstance(d1[k], dict | Sample):
+                                        d1[k] = merge_dicts(d1[k], v)
+                                    elif isinstance(d1[k], list):
+                                        d1[k].extend([v] if not isinstance(v, list) else v)
+                                    elif isinstance(v, dict | Sample):
+                                        d1[k] = merge_dicts(v, d1[k])
+                                    elif isinstance(v, list):
+                                        d1[k] = v.extend([d1[k]])
+                                else:
+                                    d1[k] = v
+                            return d1
+                        out[-1] = reduce(merge_dicts, out[-1], {})
+                    else:
+                        def merge_lists(l1, l2):
+                            return l1.extend([l2] if not isinstance(l2, list) else l2)
+                        out[-1] = reduce(merge_lists, out[-1], [])
+                matches += 1
+                print(f"out: {out}")  # Debug print
+                print(f"matches: {matches}")  # Debug print
+            flattened = out
 
-        if output_type == "dict":
-            return flattened.dict()
 
-        flattened_values = self._flatten_values(flattened)
-        return self._convert_output(flattened_values, output_type)
-
-    def _flatten_values(self, flattened):
-        if isinstance(flattened, list):
-            return flattened
-        result = []
-        for v in flattened.values():
-            if isinstance(v, Sample):
-                result.extend(self._flatten_values(v))
-            elif isinstance(v, dict):
-                result.extend(self._flatten_values(Sample(**v)))
-            elif isinstance(v, (list, tuple)):
-                result.extend(v)
-            else:
-                result.append(v)
-        return result
-
-    def _convert_output(self, data, output_type):
         if output_type == "np":
-            return np.array(data, dtype=object)
+            return np.array(flattened, dtype=object)
         if output_type == "pt":
-            return torch.tensor(data, dtype=torch.float32)
-        return data
+            return torch.tensor(flattened, dtype=torch.float32)
+        return flattened
 
-    def _flatten_values(self, flattened):
-        if isinstance(flattened, list):
-            return flattened
-        result = []
-        for v in flattened.values():
-            if isinstance(v, Sample):
-                result.extend(self._flatten_values(v))
-            elif isinstance(v, dict):
-                result.extend(self._flatten_values(Sample(**v)))
-            elif isinstance(v, (list, tuple)):
-                result.extend(v)
-            else:
-                result.append(v)
-        return result
+    # def _flatten_values(self, flattened):
+    #     if isinstance(flattened, list):
+    #         return flattened
+    #     result = []
+    #     for v in flattened.values():
+    #         if isinstance(v, Sample):
+    #             result.extend(self._flatten_values(v))
+    #         elif isinstance(v, dict):
+    #             result.extend(self._flatten_values(Sample(**v)))
+    #         elif isinstance(v, (list, tuple)):
+    #             result.extend(v)
+    #         else:
+    #             result.append(v)
+    #     return result
 
-    def group_values(self, flattened, to, sep="."):
-        grouped = []
-        for pattern in to:
-            keys = pattern.split(sep)
-            values = self._get_nested_value(flattened, keys)
-            grouped.append(values)
-        return grouped
+    # def group_values(self, flattened, to, sep="."):
+    #     grouped = Sample()
+    #     for pattern in to:
+    #         print(f"Processing pattern: {pattern}")  # Debug print
+    #         keys = pattern.split(sep)
+    #         value = self  # Start from the root object
+    #         for key in keys:
+    #             print(f"  Accessing key: {key}, Current value: {value}")  # Debug print
+    #             if isinstance(value, Sample) and hasattr(value, key):
+    #                 value = getattr(value, key)
+    #             elif isinstance(value, dict) and key in value:
+    #                 value = value[key]
+    #             else:
+    #                 print(f"  Key {key} not found in {value}")  # Debug print
+    #                 value = None
+    #                 break
+    #         if value is not None:
+    #             grouped[pattern] = value
+    #             print(f"  Added to grouped: {pattern} = {value}")  # Debug print
+    #         else:
+    #             print(f"  Value for {pattern} is None, not adding to grouped")  # Debug print
+    #     return grouped
 
-    def _get_nested_value(self, obj, keys):
-        if not keys:
-            return obj
-        key = keys[0]
-        if isinstance(obj, dict):
-            if key in obj:
-                return self._get_nested_value(obj[key], keys[1:])
-        elif isinstance(obj, list):
-            return [self._get_nested_value(item, keys) for item in obj]
-        elif isinstance(obj, Sample):
-            if hasattr(obj, key):
-                return self._get_nested_value(getattr(obj, key), keys[1:])
-        return None
 
-    def process_grouped(self, grouped, to):
-        if not grouped:
-            return []
-        
-        result = []
-        max_length = max(len(item) if isinstance(item, list) else 1 for item in grouped)
-        
-        for i in range(max_length):
-            item = {}
-            for key, value in zip(to, grouped):
-                if isinstance(value, list):
-                    if i < len(value):
-                        item[key] = value[i]
-                elif i == 0:
-                    item[key] = value
-            if item:
-                result.append(item)
-        
-        if len(result) == 1 and all(isinstance(v, list) for v in result[0].values()):
-            return [dict(zip(result[0].keys(), values)) for values in zip(*result[0].values())]
-        
-        return result
-
-    def setdefault(self, key: str, default: Any) -> Any:
+    def setdefault(self, key: str, default: Any, nest=False) -> Any:
         """Set the default value for the attribute with the specified key."""
+        if not nest:
+            if key in self:
+                return self[key]
+            self[key] = default
+            return default
         keys = key.split(".")
         obj = self
         for k in keys[:-1]:
@@ -1268,18 +1227,10 @@ class Sample(BaseModel):
         """Convert the Sample instance to a numpy array."""
         return self.flatten("np")
 
-    def numpy(self) -> np.ndarray:
-        """Convert the Sample instance to a numpy array."""
-        return self._numpy
-
     @cached_property
     def _tolist(self) -> list:
         """Convert the Sample instance to a list."""
         return self.flatten("list")
-
-    def tolist(self) -> list:
-        """Convert the Sample instance to a list."""
-        return self._tolist
 
     @cached_property
     def _torch(self) -> torch.Tensor:
@@ -1287,27 +1238,15 @@ class Sample(BaseModel):
         """Convert the Sample instance to a PyTorch tensor."""
         return self.flatten("pt")
 
-    def torch(self) -> torch.Tensor:
-        """Convert the Sample instance to a PyTorch tensor."""
-        return self._torch
-
     @cached_property
-    def _json(self) -> str:  # noqa: F811
+    def _json(self) -> str:
         """Convert the Sample instance to a JSON string."""
         return self.model_dump_json()
-
-    def json(self) -> str:
-        """Convert the Sample instance to a JSON string."""
-        return self._json
 
     @cached_property
     def _features(self) -> Features:
         """Convert the Sample instance to a HuggingFace Features object."""
         return Features(self.infer_features_dict())
-
-    def features(self) -> Features:
-        """Convert the Sample instance to a HuggingFace Features object."""
-        return self._features
 
     def dataset(self) -> Dataset:
         """Convert the Sample instance to a HuggingFace Dataset object."""
