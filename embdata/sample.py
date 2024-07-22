@@ -70,8 +70,7 @@ from importlib import import_module
 from itertools import zip_longest
 from pathlib import Path
 from typing import Annotated, Any, Dict, Generator, List, Literal, Union, get_origin
-from functools import cached_property, reduce, update_wrapper, wraps
-from functools import lru_cache as lcache
+from functools import reduce, update_wrapper, wraps
 import numpy as np
 import torch
 from datasets import Dataset, Features, IterableDataset
@@ -89,7 +88,6 @@ class CallableItems:
     def __init__(self, obj):
         self.obj = obj
 
-    @lru_cache
     def __call__(self):
         if isinstance(self.obj, dict):
             yield from dict(self.obj).items()
@@ -104,7 +102,6 @@ class CallableItems:
     def __len__(self):
         return len(self.obj)
 
-    @lru_cache
     def __getitem__(self, key):
         return self.obj[key]
 
@@ -513,7 +510,6 @@ class Sample(BaseModel):
 
     #     return output_sample
     @staticmethod
-    @lcache
     def _flatten_recursive(obj, ignore: None | set = None, non_numerical="allow", sep="."):
         sample = Sample()
 
@@ -549,7 +545,6 @@ class Sample(BaseModel):
     def flatten_recursive(obj, ignore: None | set = None, non_numerical="allow", sep="."):
        return Sample._flatten_recursive(obj, ignore=ignore, non_numerical=non_numerical, sep=sep)
 
-    @lcache
     @staticmethod
     def get_matched_key(patterns, key, sep="."):
         for pattern in patterns:
@@ -568,7 +563,6 @@ class Sample(BaseModel):
                 return False
         return True
 
-    @lcache
     @staticmethod
     def _group_values(flattened, to, sep="."):
         grouped = Sample()
@@ -584,7 +578,6 @@ class Sample(BaseModel):
     def group_values(flattened, to, sep="."):
       return Sample._group_values(flattened, to, sep=sep)
 
-    @lcache
     @staticmethod
     def _process_grouped(grouped, to):
         return grouped
@@ -1194,33 +1187,27 @@ class Sample(BaseModel):
         """
         return self.__class__.model_validate(self.space().sample())
 
-    @cached_property
     def numpy(self) -> "Sample":
         """Convert the Sample instance to a numpy array."""
         return self.flatten("np")
 
-    @cached_property
     def tolist(self) -> "Sample":
         """Convert the Sample instance to a list."""
         return self.flatten("list")
 
-    @cached_property
     def torch(self) -> "Sample":
         import_module("torch")
         """Convert the Sample instance to a PyTorch tensor."""
         return self.flatten("pt")
 
-    @cached_property
     def json(self) -> str:  # noqa: F811
         """Convert the Sample instance to a JSON string."""
         return self.model_dump_json()
 
-    @cached_property
     def features(self) -> Features:
         """Convert the Sample instance to a HuggingFace Features object."""
         return Features(self.infer_features_dict())
 
-    @lru_cache
     def dataset(self) -> Dataset:
         """Convert the Sample instance to a HuggingFace Dataset object."""
         data = self
@@ -1236,7 +1223,6 @@ class Sample(BaseModel):
         msg = f"Unsupported data type {type(data)} for conversion to Dataset."
         raise ValueError(msg)
 
-    @lru_cache
     def describe(self) -> str:
         """Return a string description of the Sample instance."""
         return describe(self, compact=True, name=self.__class__.__name__)
