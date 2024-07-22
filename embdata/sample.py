@@ -84,6 +84,7 @@ from embdata.features import to_features_dict
 
 OneDimensional = Annotated[Literal["dict", "np", "pt", "list", "sample"], "Numpy, PyTorch, list, sample, or dict"]
 
+
 class CallableItems:
     def __init__(self, obj):
         self.obj = obj
@@ -105,6 +106,7 @@ class CallableItems:
     def __getitem__(self, key):
         return self.obj[key]
 
+
 class Sample(BaseModel):
     """A base model class for serializing, recording, and manipulating arbitray data."""
 
@@ -115,9 +117,7 @@ class Sample(BaseModel):
         arbitrary_types_allowed=True,
         populate_by_name=True,
         from_attributes=True,
-        ignored_types=(wirerope.rope.MethodRopeMixin,wirerope.rope.WireRope),
     )
-
 
     def __init__(self, wrapped=None, **data):
         """A base model class for serializing, recording, and manipulating arbitray data.
@@ -169,7 +169,9 @@ class Sample(BaseModel):
                 data = {k: v for k, v in wrapped.model_dump() if not k.startswith("_")}
         elif isinstance(wrapped, dict):
             if not data:
-                data = {k: Sample(**v) if isinstance(v, dict) else v for k, v in wrapped.items() if not k.startswith("_")}
+                data = {
+                    k: Sample(**v) if isinstance(v, dict) else v for k, v in wrapped.items() if not k.startswith("_")
+                }
         elif self.__class__ == Sample:
             # Only the Sample class can wrap an arbitrary type.
             if isinstance(wrapped, list | tuple | np.ndarray | torch.Tensor | Dataset):
@@ -190,8 +192,6 @@ class Sample(BaseModel):
             self.items = CallableItems(data["_items"])
         self.__post_init__()
 
-
-    
     def __getitem__(self, key: str | int) -> Any:
         """Return the value of the attribute with the specified key.
 
@@ -200,7 +200,7 @@ class Sample(BaseModel):
         Otherwise, the value is returned as an attribute of the Sample object.
         """
         if self.__class__ == Sample:
-            if isinstance(key,int):
+            if isinstance(key, int):
                 if hasattr(self, "_items"):
                     return self._items[key]
                 if hasattr(self, "wrapped") and isinstance(self.wrapped, List | Dataset):
@@ -309,19 +309,20 @@ class Sample(BaseModel):
             self._extra.__getitem__ = self.__class__.__getitem__
             self._extra.__setitem__ = self.__class__.__setitem__
 
-    def __hash__(self) -> int:                                                                                                           
-        """Return a hash of the Sample instance."""                                                                                              
-        def hash_helper(obj):                                                                                                                    
-            if isinstance(obj, (list, tuple)):                                                                                                   
-                return hash(tuple(hash_helper(item) for item in obj))                                                                            
-            elif isinstance(obj, dict):                                                                                                          
-                return hash(tuple((k, hash_helper(v)) for k, v in sorted(obj.items())))                                                          
-            elif isinstance(obj, Sample):                                                                                                        
-                return hash(tuple(hash_helper(v) for v in obj.dump().values()))                                                                  
-            else:                                                                                                                                
-                return hash(obj)                                                                                                                 
-                                                                                                                                                  
-        return hash_helper(self.dump())   
+    def __hash__(self) -> int:
+        """Return a hash of the Sample instance."""
+
+        def hash_helper(obj):
+            if isinstance(obj, (list, tuple)):
+                return hash(tuple(hash_helper(item) for item in obj))
+            elif isinstance(obj, dict):
+                return hash(tuple((k, hash_helper(v)) for k, v in sorted(obj.items())))
+            elif isinstance(obj, Sample):
+                return hash(tuple(hash_helper(v) for v in obj.dump().values()))
+            else:
+                return hash(obj)
+
+        return hash_helper(self.dump())
 
     def _str(self, obj, prefix=""):
         if isinstance(obj, Path):
@@ -339,17 +340,14 @@ class Sample(BaseModel):
         """Return a string representation of the Sample instance."""
         return self._str(self, prefix="")
 
-    
     def __repr__(self) -> str:
         """Return a string representation of the Sample instance."""
         return str(self)
 
-    
     def __len__(self) -> int:
         """Return the number of attributes in the Sample instance."""
         return len(list(self.items()))
 
-    
     def get(self, key: str, default: Any = None) -> Any:
         """Return the value of the attribute with the specified key or the default value if it does not exist."""
         try:
@@ -357,8 +355,9 @@ class Sample(BaseModel):
         except KeyError:
             return default
 
-    
-    def _dump(self, exclude: set[str] | str | None = "None", as_field: str | None = None, recurse=True) -> Dict[str, Any] | Any:
+    def _dump(
+        self, exclude: set[str] | str | None = "None", as_field: str | None = None, recurse=True
+    ) -> Dict[str, Any] | Any:
         out = {}
         for k, v in self:
             if as_field is not None and k == as_field:
@@ -370,12 +369,14 @@ class Sample(BaseModel):
             if recurse and isinstance(v, Sample):
                 out[k] = v.dump(exclude=exclude, as_field=as_field, recurse=recurse) if recurse else v
             elif recurse and isinstance(v, list | tuple | Dataset) and len(v) > 0 and isinstance(v[0], Sample):
-                    out[k] = [item.dump(exclude, as_field, recurse) for item in v]
+                out[k] = [item.dump(exclude, as_field, recurse) for item in v]
             else:
                 out[k] = v
         return out
 
-    def dump(self, exclude: set[str] | str | None = Literal["None"], as_field: str | None = None, recurse=True) -> Dict[str, Any] | Any:
+    def dump(
+        self, exclude: set[str] | str | None = Literal["None"], as_field: str | None = None, recurse=True
+    ) -> Dict[str, Any] | Any:
         """Dump the Sample instance to a dictionary or value at a specific field if present.
 
         Args:
@@ -388,22 +389,18 @@ class Sample(BaseModel):
         """
         return self._dump(exclude=exclude, as_field=as_field, recurse=recurse)
 
-
     def values(self) -> Generator:
         for _, v in self:
             yield v
-
 
     def keys(self) -> Generator:
         for k, _ in self:
             yield k
 
-
     def items(self) -> Generator:
         yield from self
 
-
-    def dict(self, exclude: set[str] | None | str = "None", recurse=True) -> Dict[str, Any]: # noqa
+    def dict(self, exclude: set[str] | None | str = "None", recurse=True) -> Dict[str, Any]:  # noqa
         """Return a dictionary representation of the Sample instance.
 
         Args:
@@ -416,7 +413,11 @@ class Sample(BaseModel):
         """
         exclude = exclude or set()
         if not recurse:
-            return {k: v for k, v in self if k not in exclude and not k.startswith("_") and (v is not None or "None" not in exclude)}
+            return {
+                k: v
+                for k, v in self
+                if k not in exclude and not k.startswith("_") and (v is not None or "None" not in exclude)
+            }
         return self.dump(exclude=exclude, recurse=True)
 
     @classmethod
@@ -441,7 +442,11 @@ class Sample(BaseModel):
         schema = schema or cls().schema()
 
         if isinstance(one_d_array_or_dict, (list, np.ndarray, torch.Tensor)):
-            flat_data = one_d_array_or_dict.tolist() if isinstance(one_d_array_or_dict, (np.ndarray, torch.Tensor)) else one_d_array_or_dict
+            flat_data = (
+                one_d_array_or_dict.tolist()
+                if isinstance(one_d_array_or_dict, (np.ndarray, torch.Tensor))
+                else one_d_array_or_dict
+            )
             one_d_array_or_dict = {}
             index = 0
             for prop, prop_schema in schema["properties"].items():
@@ -471,7 +476,6 @@ class Sample(BaseModel):
 
         unflattened_dict = unflatten_recursive(schema, one_d_array_or_dict)
         return cls(**unflattened_dict) if not isinstance(unflattened_dict, cls) else unflattened_dict
-
 
     # def rearrange(self, pattern: str, **kwargs) -> Any:
     #     """Pack, unpack, flatten, select indices according to an einops-style pattern.
@@ -513,7 +517,7 @@ class Sample(BaseModel):
     def _flatten_recursive(obj, ignore: None | set = None, non_numerical="allow", sep="."):
         sample = Sample()
 
-        def _flatten(obj, prefix=''):
+        def _flatten(obj, prefix=""):
             out = []
             if isinstance(obj, dict):
                 for k, v in obj.items():
@@ -537,13 +541,14 @@ class Sample(BaseModel):
                     return []
                 out.append((prefix.rstrip(sep), obj))
             return out
+
         for k, v in _flatten(obj):
             sample[k] = v
         return sample
 
     @staticmethod
     def flatten_recursive(obj, ignore: None | set = None, non_numerical="allow", sep="."):
-       return Sample._flatten_recursive(obj, ignore=ignore, non_numerical=non_numerical, sep=sep)
+        return Sample._flatten_recursive(obj, ignore=ignore, non_numerical=non_numerical, sep=sep)
 
     @staticmethod
     def get_matched_key(patterns, key, sep="."):
@@ -576,7 +581,7 @@ class Sample(BaseModel):
 
     @staticmethod
     def group_values(flattened, to, sep="."):
-      return Sample._group_values(flattened, to, sep=sep)
+        return Sample._group_values(flattened, to, sep=sep)
 
     @staticmethod
     def _process_grouped(grouped, to):
@@ -585,7 +590,7 @@ class Sample(BaseModel):
     @staticmethod
     def process_grouped(grouped, to):
         return Sample._process_grouped(grouped, to)
-    
+
     def flatten(
         self,
         output_type: OneDimensional = "list",
@@ -599,7 +604,7 @@ class Sample(BaseModel):
         if to is not None:
             to = [to] if isinstance(to, str) else to
             to = full_paths(self, to, sep=sep).values()
-        
+
         flattened = self.flatten_recursive(self, ignore=ignore, non_numerical=non_numerical, sep=sep)
         if to is not None:
             grouped = self.group_values(flattened, to, sep=sep)
@@ -607,9 +612,9 @@ class Sample(BaseModel):
 
         if output_type == "dict":
             return flattened.dict()
-        
+
         flattened_values = self._flatten_values(flattened)
-        
+
         if output_type == "np":
             return np.array(flattened_values, dtype=object)
         if output_type == "pt":
@@ -654,17 +659,16 @@ class Sample(BaseModel):
         for pattern in to:
             result.append(grouped.get(pattern))
         return result
-    
 
     def setdefault(self, key: str, default: Any) -> Any:
         """Set the default value for the attribute with the specified key."""
-        keys = key.split('.')
+        keys = key.split(".")
         obj = self
         for k in keys[:-1]:
             if isinstance(obj, dict):
                 obj = obj.setdefault(k, {})
             elif isinstance(obj, list):
-                if k == '*':
+                if k == "*":
                     return obj
                 try:
                     index = int(k)
@@ -685,11 +689,11 @@ class Sample(BaseModel):
                 setattr(obj, k, Sample())
                 obj = getattr(obj, k)
         if isinstance(obj, dict):
-            if keys[-1] == '*':
-                return obj.setdefault('*', default if isinstance(default, list) else [default])
+            if keys[-1] == "*":
+                return obj.setdefault("*", default if isinstance(default, list) else [default])
             return obj.setdefault(keys[-1], default)
         if isinstance(obj, list):
-            if keys[-1] == '*':
+            if keys[-1] == "*":
                 return obj
             try:
                 index = int(keys[-1])
@@ -701,13 +705,12 @@ class Sample(BaseModel):
             except ValueError:
                 raise AttributeError(f"Invalid list index: {keys[-1]}")
         if not hasattr(obj, keys[-1]):
-            if keys[-1] == '*':
+            if keys[-1] == "*":
                 setattr(obj, keys[-1], default if isinstance(default, list) else [default])
             else:
                 setattr(obj, keys[-1], default)
         return getattr(obj, keys[-1])
 
-    
     def schema(self, include: Literal["all", "descriptions", "info", "simple"] = "info") -> Dict:
         """Returns a simplified json schema.
 
@@ -789,7 +792,7 @@ class Sample(BaseModel):
             if "items" in schema:
                 schema["items"] = simplify(schema["items"], obj[0])
                 schema["maxItems"] = len(obj)
-                if schema["items"].get("title"): # Use the object title instead.
+                if schema["items"].get("title"):  # Use the object title instead.
                     del schema["items"]["title"]
             if "type" in schema and "ndarray" in schema["type"]:
                 # Handle numpy arrays
@@ -818,7 +821,6 @@ class Sample(BaseModel):
 
         return simplify(schema, self)
 
-    
     def infer_features_dict(self) -> Dict[str, Any]:
         """Infers features from the data recusively."""
         feat_dict = {}
@@ -837,7 +839,6 @@ class Sample(BaseModel):
                 feat_dict[k] = to_features_dict(v)
         return feat_dict
 
-    
     def to(self, container: Any, **kwargs) -> Any:
         """Convert the Sample instance to a different container type.
 
@@ -887,13 +888,13 @@ class Sample(BaseModel):
             for k, v in self:
                 if isinstance(v, Sample):
                     self[k] = v.to(container, **kwargs)
-        except Exception as e: # noqa
+        except Exception as e:  # noqa
             try:
                 return container(self)
-            except Exception as e1: # noqa
+            except Exception as e1:  # noqa
                 try:
                     return container(self.dump(), **kwargs)
-                except Exception as e2: # noqa
+                except Exception as e2:  # noqa
                     msg = f"Unsupported container type: {container}"
                     raise ValueError(msg) from e
         return self
@@ -906,7 +907,6 @@ class Sample(BaseModel):
             Sample: The default value for the Sample instance.
         """
         return cls()
-
 
     @classmethod
     def space_for(
@@ -987,9 +987,13 @@ class Sample(BaseModel):
                 return cls.unpack_from(sampled)
         return cls(sampled)
 
-    
     @classmethod
-    def unpack_from(cls, samples: List[Union["Sample", Dict]], padding: Literal["truncate", "longest"] = "longest", pad_value: Any = None) -> "Sample":
+    def unpack_from(
+        cls,
+        samples: List[Union["Sample", Dict]],
+        padding: Literal["truncate", "longest"] = "longest",
+        pad_value: Any = None,
+    ) -> "Sample":
         """Pack a list of samples or dicts into a single sample with lists of samples for attributes.
 
         [Sample(a=1, b=4),  ->  Sample(a=[1, 2, 3],
@@ -1000,8 +1004,8 @@ class Sample(BaseModel):
 
         Args:
             samples: List of Sample objects or dictionaries to pack.
-            padding: Strategy for handling samples of different lengths. 
-                     "truncate" will truncate to the shortest sample, 
+            padding: Strategy for handling samples of different lengths.
+                     "truncate" will truncate to the shortest sample,
                      "longest" will pad shorter samples to match the longest.
             pad_value: Value to use for padding when padding="longest". If None, uses cls.default_value().
 
@@ -1031,14 +1035,22 @@ class Sample(BaseModel):
         if padding == "truncate":
             attributes = [attr for attr in attributes if all(attr in sample for sample in samples)]
 
-        return cls(**{attr: [sample.get(attr, pad_value) if isinstance(sample, dict) else getattr(sample, attr, pad_value) for sample in samples] for attr in attributes})
+        return cls(
+            **{
+                attr: [
+                    sample.get(attr, pad_value) if isinstance(sample, dict) else getattr(sample, attr, pad_value)
+                    for sample in samples
+                ]
+                for attr in attributes
+            }
+        )
 
-    
     def pack(
         self,
         to: Literal["dicts", "samples"] = "samples",
         padding: Literal["truncate", "longest"] = "truncate",
-        pad_value: Any = None) -> list["Sample"] | List[Dict[str, Any]]:
+        pad_value: Any = None,
+    ) -> list["Sample"] | List[Dict[str, Any]]:
         """Unpack the packed Sample object into a list of Sample objects or dictionaries.
 
         Sample(a=[1, 3, 5],   ->    [Sample(a=1, b=2),
@@ -1062,7 +1074,7 @@ class Sample(BaseModel):
         >>> Sample(a=[1, 3, 5], b=[2, 4, 6]).pack()
         [Sample(a=1, b=2), Sample(a=3, b=4), Sample(a=5, b=6)]
         """
-        if not any(isinstance(v, list) for k,v in self):
+        if not any(isinstance(v, list) for k, v in self):
             return []
 
         pad_value = pad_value if pad_value is not None else self.default_value()
@@ -1075,22 +1087,30 @@ class Sample(BaseModel):
             data = self
         max_length = max(len(v) if isinstance(v, list) else 1 for v in data.values())
 
-        unzipped = zip_longest(*[data[attr] if isinstance(data[attr], list) else [data[attr]] * max_length for attr in attributes], fillvalue=pad_value)
+        unzipped = zip_longest(
+            *[data[attr] if isinstance(data[attr], list) else [data[attr]] * max_length for attr in attributes],
+            fillvalue=pad_value,
+        )
         mapper = (lambda items: self.__class__(**dict(items))) if to == "samples" else dict
         return [mapper(zip(attributes, values, strict=False)) for values in unzipped]
 
     def unpack(self, to: Literal["dicts", "samples", "lists"] = "samples") -> List[Union["Sample", Dict]]:
-        return [[x.dump() if to == "dicts" else x for x in samples] for  _, samples in self]
+        return [[x.dump() if to == "dicts" else x for x in samples] for _, samples in self]
 
-    
     @classmethod
-    def pack_from(cls, *args, packed_field: str = "steps", padding: Literal["truncate", "longest"] = "truncate", pad_value: Any | None = None) -> "Sample":
+    def pack_from(
+        cls,
+        *args,
+        packed_field: str = "steps",
+        padding: Literal["truncate", "longest"] = "truncate",
+        pad_value: Any | None = None,
+    ) -> "Sample":
         """Pack an iterable of Sample objects or dictionaries into a single Sample object with a single list attribute of Samples.
 
         [Sample(a=1)], Sample(a=2)], -> Sample(steps=[Sample(a=1,b=1),
         [Sample(b=1), Sample(b=2)]                    Sample(a=2,b=2)])
 
-        This is equivalent to a zip operation on the list of samples (or transpose on Row, Col dimensions where 
+        This is equivalent to a zip operation on the list of samples (or transpose on Row, Col dimensions where
         Args:
             args: Iterable of Sample objects or dictionaries to pack.
             packed_field: The attribute name to pack the samples into.
@@ -1227,6 +1247,7 @@ class Sample(BaseModel):
         """Return a string description of the Sample instance."""
         return describe(self, compact=True, name=self.__class__.__name__)
 
+
 if __name__ == "__main__":
     import doctest
 
@@ -1234,4 +1255,3 @@ if __name__ == "__main__":
 
     logging.basicConfig(level=logging.DEBUG, force=True)
     s = Sample(x=1, y=2, z={"a": 3, "b": 4, "c": np.array([1, 2, 3])}, extra_field=5)
-
