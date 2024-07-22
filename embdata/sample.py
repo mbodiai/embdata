@@ -312,10 +312,19 @@ class Sample(BaseModel):
             self._extra.__getitem__ = self.__class__.__getitem__
             self._extra.__setitem__ = self.__class__.__setitem__
 
-    def __hash__(self) -> int:
-        """Return a hash of the Sample instance."""
-        return hash(tuple(self._str(self)))
-
+    def __hash__(self) -> int:                                                                                                           
+        """Return a hash of the Sample instance."""                                                                                              
+        def hash_helper(obj):                                                                                                                    
+             if isinstance(obj, (list, tuple)):                                                                                                   
+                 return hash(tuple(hash_helper(item) for item in obj))                                                                            
+             elif isinstance(obj, dict):                                                                                                          
+                 return hash(tuple((k, hash_helper(v)) for k, v in sorted(obj.items())))                                                          
+             elif isinstance(obj, Sample):                                                                                                        
+                 return hash(tuple(hash_helper(v) for v in obj.dump().values()))                                                                  
+             else:                                                                                                                                
+                 return hash(obj)                                                                                                                 
+                                                                                                                                                  
+         return hash_helper(self.dump())   
 
     def _str(self, obj, prefix=""):
         if isinstance(obj, Path):
@@ -413,44 +422,6 @@ class Sample(BaseModel):
             return {k: v for k, v in self if k not in exclude and not k.startswith("_") and (v is not None or "None" not in exclude)}
         return self.dump(exclude=exclude, recurse=True)
 
-
-    @classmethod
-    def _unflatten(cls, one_d_array_or_dict, schema=None) -> "Sample":
-        schema = schema or cls().schema()
-        if isinstance(one_d_array_or_dict, (list, np.ndarray, torch.Tensor)):
-            flat_data = list(one_d_array_or_dict)
-        elif isinstance(one_d_array_or_dict, dict):
-            flat_data = list(one_d_array_or_dict.values())
-        else:
-            raise ValueError(f"Unsupported type for unflattening: {type(one_d_array_or_dict)}")
-
-        def unflatten_recursive(schema_part, index=0):
-            if schema_part["type"] == "object":
-                result = {}
-                for prop, prop_schema in schema_part["properties"].items():
-                    if index < len(flat_data):
-                        value, index = unflatten_recursive(prop_schema, index)
-                        result[prop] = value
-                    elif not prop.startswith("_"):  # Skip properties starting with underscore
-                        result[prop] = unflatten_recursive(prop_schema, index)[0]
-                if schema_part.get("title", "").lower() == cls.__name__.lower():
-                    return cls(**result), index
-                elif schema_part.get("title", "").lower() == "sample":
-                    return Sample(**result), index
-                return result, index
-            if schema_part["type"] == "array":
-                items = []
-                for _ in range(schema_part.get("maxItems", len(flat_data) - index)):
-                    value, index = unflatten_recursive(schema_part["items"], index)
-                    items.append(value)
-                return items, index
-            if index < len(flat_data):
-                return flat_data[index], index + 1
-            return None, index
-
-        unflattened_dict, _ = unflatten_recursive(schema)
-        return cls(**unflattened_dict) if not isinstance(unflattened_dict, cls) else unflattened_dict
-
     @classmethod
     def unflatten(cls, one_d_array_or_dict, schema=None) -> "Sample":
         """Unflatten a one-dimensional array or dictionary into a Sample instance.
@@ -472,7 +443,34 @@ class Sample(BaseModel):
             >>> Sample.unflatten(flat_list, sample.schema())
             Sample(x=1, y=2, z={'a': 3, 'b': 4}, extra_field=5)
         """
-        return cls._unflatten(one_d_array_or_dict, schema)
+        schema = schema or cls().schema()
+        if isinstance(one_d_array_or_dict, dict):
+            flat_data = list(one_d_array_or_dict.values())
+        else:
+            flat_data = list(one_d_array_or_dict)
+
+        def unflatten_recursive(schema_part, index=0):
+            if schema_part["type"] == "object":
+                result = {}
+                for prop, prop_schema in schema_part["properties"].items():
+                    if not prop.startswith("_"):  # Skip properties starting with underscore
+                        value, index = unflatten_recursive(prop_schema, index)
+                        result[prop] = value
+                if schema_part.get("title", "").lower() == cls.__name__.lower():
+                    result = cls(**result)
+                elif schema_part.get("title", "").lower() == "sample":
+                    result = Sample(**result)
+                return result, index
+            if schema_part["type"] == "array":
+                items = []
+                for _e in range(schema_part.get("maxItems", len(flat_data) - index)):
+                    value, index = unflatten_recursive(schema_part["items"], index)
+                    items.append(value)
+                return items, index
+            return flat_data[index], index + 1
+
+        unflattened_dict, _ = unflatten_recursive(schema)
+        return cls(**unflattened_dict) if not isinstance(unflattened_dict, cls) else unflattened_dict
 
 
     # def rearrange(self, pattern: str, **kwargs) -> Any:
@@ -620,7 +618,7 @@ class Sample(BaseModel):
             return np.array(flattened_values, dtype=object)
         if output_type == "pt":
             return torch.tensor(flattened_values, dtype=torch.float32)
-        return flattened_values if to is None else [flattened_values]  # Return as a single list or nested list based on 'to'
+        return [flattened_values] if to is not None else flattened_values
 
     def _flatten_values(self, flattened):
         if isinstance(flattened, list):
