@@ -584,17 +584,24 @@ class Sample(BaseModel):
             return flattened
         
         result = {k: [] for k in to}
+        current_group = {k: [] for k in to}
+        
         for k, v in zip(keys, flattened):
             for i, ft in enumerate(full_to):
                 if ft in k:
-                    result[to[i]].append(v)
+                    current_group[to[i]].append(v)
+            
+            if all(len(values) > 0 for values in current_group.values()):
+                for key in to:
+                    result[key].append(current_group[key])
+                current_group = {k: [] for k in to}
         
         if output_type == "dict":
-            return [dict(zip(result.keys(), values)) for values in zip(*result.values())]
+            return [dict(zip(result.keys(), group)) for group in zip(*result.values())]
         elif output_type == "list":
-            return [list(values) for values in zip(*result.values())]
+            return [list(group) for group in zip(*result.values())]
         else:  # sample
-            return [Sample(**dict(zip(result.keys(), values))) for values in zip(*result.values())]
+            return [Sample(**dict(zip(result.keys(), group))) for group in zip(*result.values())]
 
 
         if output_type == "np":
