@@ -954,7 +954,7 @@ class Sample(BaseModel):
                     dtype = type(value)
                     low, high = bounds or (-np.inf, np.inf)
                     return spaces.Box(low=low, high=high, shape=shape, dtype=dtype)
-                value = np.asarray(value)
+                value = np.asarray(value, dtype=float)
                 shape = shape or value.shape
                 dtype = dtype or value.dtype
                 if bounds is None:
