@@ -584,8 +584,8 @@ class Sample(BaseModel):
             return flattened
         
         result = []
-        current_group = {k: [] for k in to}
-        num_tos = {k: 0 for k in to}
+        current_group = Sample({k: [] for k in to})
+        num_tos = Sample({k: 0 for k in to})
         for k, v in zip(keys, flattened):
             print(f"current_group: {current_group}, result: {result}")
             for i, ft in enumerate(full_to):
@@ -594,27 +594,15 @@ class Sample(BaseModel):
                     num_tos[to[i]] += 1
             
             if all([num_to == num_tos[to[0]] for num_to in num_tos.values()]):
-                result.append(current_group)
-                current_group = {k: [] for k in to}
-                num_tos = 0
+                if all(len(current_group[to[i]]) > 0 for i in range(len(to))):
+                    current_group = current_group.dict() if output_type == "dict" else current_group
+                    if output_type not in ["dict", "sample"]:
+                        current_group = reduce(operator.iadd, current_group.values(), [])
+                    result.append(current_group)
+                current_group = Sample({k: [] for k in to})
+                num_tos = Sample({k: 0 for k in to})
         print(f"Result before output: {result}")  # Debug print
-        
-        if output_type == "dict":
-            out = []
-            for i in range(len(result[to[0]])):
-                out_dict = {}
-                for key in to:
-                    value = result[key][i]
-                    out_dict[key] = value[0] if len(value) == 1 else value
-                out.append(out_dict)
-        elif output_type == "list":
-            out = [list(group) for group in zip(*result.values())]
-        else:  # sample
-            out = [Sample(**dict(zip(result.keys(), group))) for group in zip(*result.values())]
-        
-        print(f"Final output: {out}")  # Debug print
-        return out
-
+        flattened = result
 
         if output_type == "np":
             return np.array(flattened, dtype=object)
@@ -622,6 +610,14 @@ class Sample(BaseModel):
             return torch.tensor(flattened, dtype=torch.float32)
         return flattened
 
+    def squeeze(self):
+        for k, v in self:
+            if isinstance(v, Sample):
+                setattr(self, k, v.squeeze())
+            if isinstance(v, list) and len(v) == 1:
+                setattr(self, k, v[0])
+            if isinstance(v, dict) and len(v) == 1:
+                setattr(self, k, next(iter(v.values())))
 
     def setdefault(self, key: str, default: Any, nest=True) -> Any:
         """Set the default value for the attribute with the specified key."""
