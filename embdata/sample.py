@@ -604,11 +604,17 @@ class Sample(BaseModel):
         if to is not None:
             to = [to] if isinstance(to, str) else to
             to = list(full_paths(self, to, sep=sep).values())
-
+        
+        print(f"Flattening with to={to}")  # Debug print
+        
         flattened = self.flatten_recursive(self, ignore=ignore, non_numerical=non_numerical, sep=sep)
+        print(f"Flattened: {flattened}")  # Debug print
+        
         if to is not None:
             grouped = self.group_values(flattened, to, sep=sep)
+            print(f"Grouped: {grouped}")  # Debug print
             flattened = self.process_grouped(grouped, to)
+            print(f"Processed: {flattened}")  # Debug print
             return [flattened]  # Wrap in a list to match the expected output
 
         if output_type == "dict":
@@ -640,18 +646,24 @@ class Sample(BaseModel):
     def group_values(self, flattened, to, sep="."):
         grouped = Sample()
         for pattern in to:
+            print(f"Processing pattern: {pattern}")  # Debug print
             keys = pattern.split(sep)
             value = flattened
             for key in keys:
+                print(f"  Accessing key: {key}, Current value: {value}")  # Debug print
                 if isinstance(value, Sample) and hasattr(value, key):
                     value = getattr(value, key)
                 elif isinstance(value, dict) and key in value:
                     value = value[key]
                 else:
+                    print(f"  Key {key} not found in {value}")  # Debug print
                     value = None
                     break
             if value is not None:
                 grouped[pattern] = value
+                print(f"  Added to grouped: {pattern} = {value}")  # Debug print
+            else:
+                print(f"  Value for {pattern} is None, not adding to grouped")  # Debug print
         return grouped
 
     def _get_nested_value(self, obj, keys):
@@ -665,7 +677,9 @@ class Sample(BaseModel):
         return obj
 
     def process_grouped(self, grouped, to):
-        return [grouped.get(pattern) for pattern in to if grouped.get(pattern) is not None]
+        result = [grouped.get(pattern) for pattern in to if grouped.get(pattern) is not None]
+        print(f"Process grouped result: {result}")  # Debug print
+        return result
 
     def setdefault(self, key: str, default: Any) -> Any:
         """Set the default value for the attribute with the specified key."""
