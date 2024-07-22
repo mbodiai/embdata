@@ -603,7 +603,6 @@ class Sample(BaseModel):
         ignore = ignore or ()
         if to is not None:
             to = [to] if isinstance(to, str) else to
-            to = list(full_paths(self, to, sep=sep).values())
         
         print(f"Flattening with to={to}")  # Debug print
         
@@ -648,7 +647,7 @@ class Sample(BaseModel):
         for pattern in to:
             print(f"Processing pattern: {pattern}")  # Debug print
             keys = pattern.split(sep)
-            value = flattened
+            value = self  # Start from the root object
             for key in keys:
                 print(f"  Accessing key: {key}, Current value: {value}")  # Debug print
                 if isinstance(value, Sample) and hasattr(value, key):
@@ -677,7 +676,7 @@ class Sample(BaseModel):
         return obj
 
     def process_grouped(self, grouped, to):
-        result = [grouped.get(pattern) for pattern in to if grouped.get(pattern) is not None]
+        result = [grouped.get(pattern) for pattern in to]
         print(f"Process grouped result: {result}")  # Debug print
         return result
 
