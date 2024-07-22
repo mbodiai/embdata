@@ -571,17 +571,27 @@ class Sample(BaseModel):
     @staticmethod
     def _group_values(flattened, to, sep="."):
         grouped = Sample()
-        for k, v in flattened.items():
-            matched_key = Sample.get_matched_key(to, k, sep)
-            if matched_key is not None:
-                if matched_key not in grouped:
-                    grouped[matched_key] = []
-                grouped[matched_key].append(v)
+        for pattern in to:
+            keys = pattern.split(sep)
+            value = Sample._get_nested_value(flattened, keys)
+            if value is not None:
+                grouped[pattern] = value
         return grouped
 
     @staticmethod
     def group_values(flattened, to, sep="."):
         return Sample._group_values(flattened, to, sep=sep)
+
+    @staticmethod
+    def _get_nested_value(obj, keys):
+        for key in keys:
+            if isinstance(obj, dict) and key in obj:
+                obj = obj[key]
+            elif isinstance(obj, Sample) and hasattr(obj, key):
+                obj = getattr(obj, key)
+            else:
+                return None
+        return obj
 
     @staticmethod
     def _process_grouped(grouped, to):
@@ -669,16 +679,18 @@ class Sample(BaseModel):
             return []
         
         result = []
-        for items in zip_longest(*grouped, fillvalue=None):
+        items = [grouped[key] for key in to]
+        max_length = max(len(item) if isinstance(item, list) else 1 for item in items)
+        
+        for i in range(max_length):
             item = {}
             for key, value in zip(to, items):
-                if value is not None:
-                    if isinstance(value, list):
-                        for i, v in enumerate(value):
-                            item[f"{key}_{i}"] = v
-                    else:
-                        item[key] = value
-            if item:  # Only append non-empty items
+                if isinstance(value, list):
+                    if i < len(value):
+                        item[key] = value[i]
+                elif i == 0:
+                    item[key] = value
+            if item:
                 result.append(item)
         return result
 
@@ -1230,30 +1242,30 @@ class Sample(BaseModel):
         return self.__class__.model_validate(self.space().sample())
 
     @cached_property
-    def _numpy(self) -> "Sample":
+    def _numpy(self) -> np.ndarray:
         """Convert the Sample instance to a numpy array."""
         return self.flatten("np")
 
-    def numpy(self) -> "Sample":
+    def numpy(self) -> np.ndarray:
         """Convert the Sample instance to a numpy array."""
         return self._numpy
 
     @cached_property
-    def _tolist(self) -> "Sample":
+    def _tolist(self) -> list:
         """Convert the Sample instance to a list."""
         return self.flatten("list")
 
-    def tolist(self) -> "Sample":
+    def tolist(self) -> list:
         """Convert the Sample instance to a list."""
         return self._tolist
 
     @cached_property
-    def _torch(self) -> "Sample":
+    def _torch(self) -> torch.Tensor:
         import_module("torch")
         """Convert the Sample instance to a PyTorch tensor."""
         return self.flatten("pt")
 
-    def torch(self) -> "Sample":
+    def torch(self) -> torch.Tensor:
         """Convert the Sample instance to a PyTorch tensor."""
         return self._torch
 
