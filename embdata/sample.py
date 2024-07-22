@@ -604,16 +604,11 @@ class Sample(BaseModel):
         if to is not None:
             to = [to] if isinstance(to, str) else to
         
-        print(f"Flattening with to={to}")  # Debug print
-        
         flattened = self.flatten_recursive(self, ignore=ignore, non_numerical=non_numerical, sep=sep)
-        print(f"Flattened: {flattened}")  # Debug print
         
         if to is not None:
             grouped = self.group_values(flattened, to, sep=sep)
-            print(f"Grouped: {grouped}")  # Debug print
             flattened = self.process_grouped(grouped, to)
-            print(f"Processed: {flattened}")  # Debug print
             
             if output_type == "dict":
                 return [{k: v for k, v in zip(to, flattened)}]
