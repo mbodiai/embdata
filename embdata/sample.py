@@ -418,53 +418,28 @@ class Sample(BaseModel):
     def _unflatten(cls, one_d_array_or_dict, schema=None) -> "Sample":
         schema = schema or cls().schema()
         if isinstance(one_d_array_or_dict, dict):
-            flat_data = list(one_d_array_or_dict.values())
+            flat_data = one_d_array_or_dict
         else:
-            flat_data = list(one_d_array_or_dict)
-        print(f"Flat data: {flat_data}")
-        print(f"Schema: {schema}")
+            flat_data = {str(i): v for i, v in enumerate(one_d_array_or_dict)}
 
-        def unflatten_recursive(schema_part, index=0):
-            print(f"Processing schema part: {schema_part}, index: {index}")
+        def unflatten_recursive(schema_part, data):
             if schema_part["type"] == "object":
                 result = {}
                 for prop, prop_schema in schema_part["properties"].items():
-                    if not prop.startswith("_"):  # Skip properties starting with underscore
-                        value, index = unflatten_recursive(prop_schema, index)
-                        result[prop] = value
+                    if prop in data:
+                        result[prop] = unflatten_recursive(prop_schema, data[prop])
+                    elif not prop.startswith("_"):  # Skip properties starting with underscore
+                        result[prop] = unflatten_recursive(prop_schema, {})
                 if schema_part.get("title", "").lower() == cls.__name__.lower():
-                    result = cls(**result)
+                    return cls(**result)
                 elif schema_part.get("title", "").lower() == "sample":
-                    result = Sample(**result)
-                print(f"Returning object: {result}, index: {index}")
-                return result, index
+                    return Sample(**result)
+                return result
             if schema_part["type"] == "array":
-                items = []
-                for _e in range(schema_part.get("maxItems", len(flat_data) - index)):
-                    value, index = unflatten_recursive(schema_part["items"], index)
-                    items.append(value)
-                print(f"Returning array: {items}, index: {index}")
-                return items, index
-            if index < len(flat_data):
-                value = flat_data[index]
-                if isinstance(value, dict) and schema_part["type"] == "object":
-                    result = {}
-                    for prop, prop_schema in schema_part["properties"].items():
-                        if prop in value:
-                            result[prop], _ = unflatten_recursive(prop_schema, 0)
-                        else:
-                            result[prop], _ = unflatten_recursive(prop_schema, index)
-                            index += 1
-                    print(f"Returning nested value: {result}, index: {index}")
-                    return result, index
-                print(f"Returning value: {value}, index: {index + 1}")
-                return value, index + 1
-            else:
-                print(f"Index out of range, returning default value, index: {index}")
-                return schema_part.get("default"), index
+                return [unflatten_recursive(schema_part["items"], item) for item in data]
+            return data
 
-        unflattened_dict, _ = unflatten_recursive(schema)
-        print(f"Final unflattened dict: {unflattened_dict}")
+        unflattened_dict = unflatten_recursive(schema, flat_data)
         return cls(**unflattened_dict) if not isinstance(unflattened_dict, cls) else unflattened_dict
 
     @classmethod
