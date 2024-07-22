@@ -692,9 +692,14 @@ class Sample(BaseModel):
                     obj = obj[index]
                 except ValueError:
                     raise AttributeError(f"Invalid list index: {k}")
-            elif not hasattr(obj, k):
-                setattr(obj, k, Sample())
+            elif not isinstance(obj, Sample) and not hasattr(obj, k):
+                new_obj = Sample()
+                setattr(obj, k, new_obj)
+                obj = new_obj
+            elif hasattr(obj, k):
+                obj = getattr(obj, k)
             else:
+                setattr(obj, k, Sample())
                 obj = getattr(obj, k)
         if isinstance(obj, dict):
             if keys[-1] == '*':
