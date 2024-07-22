@@ -584,10 +584,15 @@ class Sample(BaseModel):
     @staticmethod
     def _get_nested_value(obj, keys):
         for key in keys:
-            if isinstance(obj, dict) and key in obj:
-                obj = obj[key]
-            elif isinstance(obj, Sample) and hasattr(obj, key):
-                obj = getattr(obj, key)
+            if isinstance(obj, (dict, Sample)):
+                obj = obj.get(key, None) if isinstance(obj, dict) else getattr(obj, key, None)
+                if obj is None:
+                    return None
+            elif isinstance(obj, list):
+                try:
+                    obj = [item[key] if isinstance(item, dict) else getattr(item, key) for item in obj]
+                except (KeyError, AttributeError):
+                    return None
             else:
                 return None
         return obj
@@ -705,6 +710,10 @@ class Sample(BaseModel):
                     item[key] = value
             if item:
                 result.append(item)
+        
+        if len(result) == 1 and all(isinstance(v, list) for v in result[0].values()):
+            return [dict(zip(result[0].keys(), values)) for values in zip(*result[0].values())]
+        
         return result
 
     def setdefault(self, key: str, default: Any) -> Any:
