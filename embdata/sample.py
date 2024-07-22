@@ -597,7 +597,7 @@ class Sample(BaseModel):
                         print(f"appending {v} to {result}")  # Debug print
                         result.setdefault(to[i], []).append(v)
                 else:
-                if len(result) > 0:
+                    if len(result) > 0:
                     out.append(result.dict() if output_type == "dict" else result.flatten() if output_type == "list" else result)
                     result = Sample()
     if len(out) > 0:
