@@ -426,10 +426,8 @@ class Sample(BaseModel):
     def unflatten(cls, one_d_array_or_dict, schema=None) -> "Sample":
         """Unflatten a one-dimensional array or dictionary into a Sample instance.
 
-        If a dictionary is provided, its keys are used.
-
         Args:
-            one_d_array_or_dict: A one-dimensional array or dictionary to unflatten.
+            one_d_array_or_dict: A one-dimensional array, dictionary, or tensor to unflatten.
             schema: A dictionary representing the JSON schema. Defaults to using the class's schema.
 
         Returns:
@@ -444,6 +442,20 @@ class Sample(BaseModel):
             Sample(x=1, y=2, z={'a': 3, 'b': 4}, extra_field=5)
         """
         schema = schema or cls().schema()
+
+        if isinstance(one_d_array_or_dict, (list, np.ndarray, torch.Tensor)):
+            flat_data = one_d_array_or_dict.tolist() if isinstance(one_d_array_or_dict, (np.ndarray, torch.Tensor)) else one_d_array_or_dict
+            one_d_array_or_dict = {}
+            index = 0
+            for prop, prop_schema in schema["properties"].items():
+                if prop_schema["type"] == "object":
+                    one_d_array_or_dict[prop] = {}
+                    for sub_prop in prop_schema["properties"]:
+                        one_d_array_or_dict[prop][sub_prop] = flat_data[index]
+                        index += 1
+                else:
+                    one_d_array_or_dict[prop] = flat_data[index]
+                    index += 1
 
         def unflatten_recursive(schema_part, data):
             if schema_part["type"] == "object":
