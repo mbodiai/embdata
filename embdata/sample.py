@@ -612,7 +612,7 @@ class Sample(BaseModel):
             
             if output_type == "dict":
                 return flattened
-            return [list(item.values()) for item in flattened]
+            return flattened
 
         if output_type == "dict":
             return flattened.dict()
