@@ -426,7 +426,7 @@ class Sample(BaseModel):
     def unflatten(cls, one_d_array_or_dict, schema=None) -> "Sample":
         """Unflatten a one-dimensional array or dictionary into a Sample instance.
 
-        If a dictionary is provided, its keys are ignored.
+        If a dictionary is provided, its keys are used.
 
         Args:
             one_d_array_or_dict: A one-dimensional array or dictionary to unflatten.
@@ -437,39 +437,30 @@ class Sample(BaseModel):
 
         Examples:
             >>> sample = Sample(x=1, y=2, z={"a": 3, "b": 4}, extra_field=5)
-            >>> flat_list = sample.flatten()
-            >>> print(flat_list)
-            [1, 2, 3, 4, 5]
-            >>> Sample.unflatten(flat_list, sample.schema())
+            >>> flat_dict = sample.flatten(output_type="dict")
+            >>> print(flat_dict)
+            {'x': 1, 'y': 2, 'z': {'a': 3, 'b': 4}, 'extra_field': 5}
+            >>> Sample.unflatten(flat_dict, sample.schema())
             Sample(x=1, y=2, z={'a': 3, 'b': 4}, extra_field=5)
         """
         schema = schema or cls().schema()
-        if isinstance(one_d_array_or_dict, dict):
-            flat_data = list(one_d_array_or_dict.values())
-        else:
-            flat_data = list(one_d_array_or_dict)
 
-        def unflatten_recursive(schema_part, index=0):
+        def unflatten_recursive(schema_part, data):
             if schema_part["type"] == "object":
                 result = {}
                 for prop, prop_schema in schema_part["properties"].items():
-                    if not prop.startswith("_"):  # Skip properties starting with underscore
-                        value, index = unflatten_recursive(prop_schema, index)
-                        result[prop] = value
+                    if not prop.startswith("_") and prop in data:  # Skip properties starting with underscore
+                        result[prop] = unflatten_recursive(prop_schema, data[prop])
                 if schema_part.get("title", "").lower() == cls.__name__.lower():
                     result = cls(**result)
                 elif schema_part.get("title", "").lower() == "sample":
                     result = Sample(**result)
-                return result, index
+                return result
             if schema_part["type"] == "array":
-                items = []
-                for _e in range(schema_part.get("maxItems", len(flat_data) - index)):
-                    value, index = unflatten_recursive(schema_part["items"], index)
-                    items.append(value)
-                return items, index
-            return flat_data[index], index + 1
+                return [unflatten_recursive(schema_part["items"], item) for item in data]
+            return data
 
-        unflattened_dict, _ = unflatten_recursive(schema)
+        unflattened_dict = unflatten_recursive(schema, one_d_array_or_dict)
         return cls(**unflattened_dict) if not isinstance(unflattened_dict, cls) else unflattened_dict
 
 
