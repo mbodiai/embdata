@@ -672,7 +672,9 @@ class Sample(BaseModel):
         return obj
 
     def process_grouped(self, grouped, to):
-        result = [grouped.get(pattern) for pattern in to]
+        if not grouped:
+            return []
+        result = [{key.split('.')[-1]: item.get(key.split('.')[-1]) for key in to if key.split('.')[-1] in item} for item in grouped]
         print(f"Process grouped result: {result}")  # Debug print
         return result
 
