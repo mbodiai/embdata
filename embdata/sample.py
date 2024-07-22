@@ -604,18 +604,18 @@ class Sample(BaseModel):
         if to is not None:
             to = [to] if isinstance(to, str) else to
         
-        flattened = self.flatten_recursive(self, ignore=ignore, non_numerical=non_numerical, sep=sep)
+        flattened = self._flatten_recursive(self, ignore=ignore, non_numerical=non_numerical, sep=sep)
         
         if to is not None:
-            grouped = self.group_values(flattened, to, sep=sep)
-            flattened = self.process_grouped(grouped, to)
+            grouped = self._group_values(flattened, to, sep=sep)
+            flattened = self._process_grouped(grouped, to)
             
             if output_type == "dict":
                 return flattened
             return [list(item.values()) for item in flattened]
 
         if output_type == "dict":
-            return flattened.dict()
+            return flattened
 
         flattened_values = self._flatten_values(flattened)
 
