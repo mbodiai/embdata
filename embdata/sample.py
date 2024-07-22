@@ -446,11 +446,16 @@ class Sample(BaseModel):
                 print(f"Returning array: {items}, index: {index}")
                 return items, index
             if index < len(flat_data):
-                print(f"Returning value: {flat_data[index]}, index: {index + 1}")
-                return flat_data[index], index + 1
+                value = flat_data[index]
+                if isinstance(value, dict):
+                    nested_result, _ = unflatten_recursive(schema_part, 0)
+                    print(f"Returning nested value: {nested_result}, index: {index + 1}")
+                    return nested_result, index + 1
+                print(f"Returning value: {value}, index: {index + 1}")
+                return value, index + 1
             else:
-                print(f"Index out of range, returning None, index: {index}")
-                return None, index
+                print(f"Index out of range, returning default value, index: {index}")
+                return schema_part.get("default"), index
 
         unflattened_dict, _ = unflatten_recursive(schema)
         print(f"Final unflattened dict: {unflattened_dict}")
@@ -625,7 +630,7 @@ class Sample(BaseModel):
             return np.array(flattened_values, dtype=object)
         if output_type == "pt":
             return torch.tensor(flattened_values, dtype=torch.float32)
-        return [flattened_values]  # Return as a list of lists
+        return flattened_values  # Return as a single list
 
     def _flatten_values(self, flattened):
         result = []
@@ -639,9 +644,15 @@ class Sample(BaseModel):
 
     def setdefault(self, key: str, default: Any) -> Any:
         """Set the default value for the attribute with the specified key."""
-        if not hasattr(self, key):
-            setattr(self, key, default)
-        return getattr(self, key)
+        keys = key.split('.')
+        obj = self
+        for k in keys[:-1]:
+            if not hasattr(obj, k):
+                setattr(obj, k, Sample())
+            obj = getattr(obj, k)
+        if not hasattr(obj, keys[-1]):
+            setattr(obj, keys[-1], default)
+        return getattr(obj, keys[-1])
 
     
     def schema(self, include: Literal["all", "descriptions", "info", "simple"] = "info") -> Dict:
