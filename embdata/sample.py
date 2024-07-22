@@ -534,7 +534,8 @@ class Sample(BaseModel):
                 out.append((prefix.rstrip(sep), obj))
             return out
         
-        for k, v in _flatten(obj):
+        flattened = _flatten(obj)
+        for k, v in flattened:
             sample[k] = v
         return sample
 
@@ -587,11 +588,11 @@ class Sample(BaseModel):
         ignore = ignore or ()
         if to is not None:
             to = [to] if isinstance(to, str) else to
-            to = full_paths(self, to, sep=sep).values()
+            to = list(full_paths(self, to, sep=sep).values())
         
         flattened = self._flatten_recursive(self, ignore=ignore, non_numerical=non_numerical, sep=sep)
         if to is not None:
-            grouped = self._group_values(flattened, to, sep=sep)
+            grouped = self._group_values(flattened, to)
             flattened = self._process_grouped(grouped, to)
 
         if output_type == "dict":
