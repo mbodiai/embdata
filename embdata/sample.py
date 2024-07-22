@@ -611,8 +611,8 @@ class Sample(BaseModel):
             flattened = self.process_grouped(grouped, to)
             
             if output_type == "dict":
-                return flattened
-            return flattened  # No need to wrap in a list anymore
+                return [{k: v for k, v in zip(to, item)} for item in flattened]
+            return flattened
 
         if output_type == "dict":
             return flattened.dict()
