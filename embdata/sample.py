@@ -570,12 +570,11 @@ class Sample(BaseModel):
 
     @staticmethod
     def _group_values(flattened, to, sep="."):
-        grouped = Sample()
+        grouped = []
         for pattern in to:
             keys = pattern.split(sep)
             value = Sample._get_nested_value(flattened, keys)
-            if value is not None:
-                grouped[pattern] = value
+            grouped.append(value)
         return grouped
 
     @staticmethod
@@ -694,12 +693,11 @@ class Sample(BaseModel):
             return []
         
         result = []
-        items = [grouped.get(key, []) for key in to]
-        max_length = max(len(item) if isinstance(item, list) else 1 for item in items)
+        max_length = max(len(item) if isinstance(item, list) else 1 for item in grouped)
         
         for i in range(max_length):
             item = {}
-            for key, value in zip(to, items):
+            for key, value in zip(to, grouped):
                 if isinstance(value, list):
                     if i < len(value):
                         item[key] = value[i]
