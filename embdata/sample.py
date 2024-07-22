@@ -641,26 +641,24 @@ class Sample(BaseModel):
         return result
 
     def group_values(self, flattened, to, sep="."):
-        grouped = Sample()
-        for pattern in to:
-            print(f"Processing pattern: {pattern}")  # Debug print
-            keys = pattern.split(sep)
-            value = self  # Start from the root object
-            for key in keys:
-                print(f"  Accessing key: {key}, Current value: {value}")  # Debug print
-                if isinstance(value, Sample) and hasattr(value, key):
-                    value = getattr(value, key)
-                elif isinstance(value, dict) and key in value:
-                    value = value[key]
-                else:
-                    print(f"  Key {key} not found in {value}")  # Debug print
-                    value = None
-                    break
-            if value is not None:
-                grouped[pattern] = value
-                print(f"  Added to grouped: {pattern} = {value}")  # Debug print
-            else:
-                print(f"  Value for {pattern} is None, not adding to grouped")  # Debug print
+        grouped = []
+        for item in self.b:  # Iterate over the list in 'b'
+            group = {}
+            for pattern in to:
+                keys = pattern.split(sep)
+                value = item
+                for key in keys[1:]:  # Skip the first key ('b')
+                    if key == "*":
+                        continue
+                    if isinstance(value, dict) and key in value:
+                        value = value[key]
+                    else:
+                        value = None
+                        break
+                if value is not None:
+                    group[keys[-1]] = value
+            if group:
+                grouped.append(group)
         return grouped
 
     def _get_nested_value(self, obj, keys):
