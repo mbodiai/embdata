@@ -593,14 +593,20 @@ class Sample(BaseModel):
             
             if all(len(values) > 0 for values in current_group.values()):
                 for key in to:
-                    result[key].append(current_group[key])
+                    if len(current_group[key]) == 1:
+                        result[key].append(current_group[key][0])
+                    else:
+                        result[key].append(current_group[key])
                 current_group = {k: [] for k in to}
         
         # Handle any remaining items in current_group
         if any(len(values) > 0 for values in current_group.values()):
             for key in to:
                 if current_group[key]:
-                    result[key].append(current_group[key])
+                    if len(current_group[key]) == 1:
+                        result[key].append(current_group[key][0])
+                    else:
+                        result[key].append(current_group[key])
         
         if output_type == "dict":
             return [dict(zip(result.keys(), group)) for group in zip(*result.values())]
