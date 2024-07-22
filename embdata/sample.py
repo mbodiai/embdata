@@ -448,9 +448,12 @@ class Sample(BaseModel):
             if index < len(flat_data):
                 value = flat_data[index]
                 if isinstance(value, dict):
-                    nested_result, _ = unflatten_recursive(schema_part, 0)
-                    print(f"Returning nested value: {nested_result}, index: {index + 1}")
-                    return nested_result, index + 1
+                    result = {}
+                    for prop, prop_schema in schema_part["properties"].items():
+                        if prop in value:
+                            result[prop] = value[prop]
+                    print(f"Returning nested value: {result}, index: {index + 1}")
+                    return result, index + 1
                 print(f"Returning value: {value}, index: {index + 1}")
                 return value, index + 1
             else:
@@ -647,9 +650,14 @@ class Sample(BaseModel):
         keys = key.split('.')
         obj = self
         for k in keys[:-1]:
-            if not hasattr(obj, k):
+            if isinstance(obj, dict):
+                obj = obj.setdefault(k, {})
+            elif not hasattr(obj, k):
                 setattr(obj, k, Sample())
-            obj = getattr(obj, k)
+            else:
+                obj = getattr(obj, k)
+        if isinstance(obj, dict):
+            return obj.setdefault(keys[-1], default)
         if not hasattr(obj, keys[-1]):
             setattr(obj, keys[-1], default)
         return getattr(obj, keys[-1])
