@@ -228,5 +228,28 @@ def test_describe_compact(data):
     }
 
 
+from embdata.describe import describe_keys
+from embdata.describe import full_paths
+
+def test_describe_keys_single_level():
+    data = {"a": 1, "b": 2, "c": 3}
+    keys = describe_keys(data)
+    assert keys == {"a": "a", "b": "b", "c": "c"}
+
+def test_describe_keys_nested():
+    data = {"a": 1, "b": {"c": 2, "d": 3}}
+    keys = describe_keys(data)
+    assert keys == {"a": "a", "c": "b.c", "d": "b.d", "b": "b"}
+
+def test_describe_keys_nested_list():
+    data = {"a": 1, "b": [{"c": 2, "d": 3}, {"c": 4, "d": 5}]}
+    keys = describe_keys(data)
+    assert keys == {"a": "a", "b": "b", "c": "b.*.c", "d": "b.*.d"}
+
+def test_describe_keys_include():
+    data = {"a": 1, "b": {"c": 2, "d": 3}}
+    keys = full_paths(data, keys=["a", "c"])
+    assert keys == {"a": "a", "c": "b.c"}
+
 if __name__ == "__main__":
     pytest.main([__file__, "-vv"])

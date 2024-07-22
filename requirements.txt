@@ -1,5 +1,7 @@
 datasets==2.20.0
+einops==0.8.0
 gymnasium==0.29.1
+importlib-resources==6.4.0
 matplotlib==3.9.1
 numpy==1.26.4
 opencv-python==4.10.0.84
@@ -10,5 +12,7 @@ rerun-sdk==0.17.0
 rich==13.7.1
 scikit-learn
 shapely==2.0.4
-torch
-torchvision
+torch==2.3.1
+torchvision==0.18.1
+transformers==4.42.4
+methodtools==0.4.7

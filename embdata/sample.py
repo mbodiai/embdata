@@ -63,21 +63,24 @@ import functools
 import json
 import logging
 import operator
-from pathlib import Path
 import re
 from enum import Enum
+from methodtools import lru_cache as mcache
 from importlib import import_module
 from itertools import zip_longest
+from pathlib import Path
 from typing import Annotated, Any, Dict, Generator, List, Literal, Union, get_origin
-
+from functools import cached_property, reduce, update_wrapper, wraps
+from functools import lru_cache as lcache
 import numpy as np
 import torch
 from datasets import Dataset, Features, IterableDataset
 from gymnasium import spaces
 from pydantic import BaseModel, ConfigDict, Field, create_model
 from pydantic.fields import FieldInfo
+import wirerope
 
-from embdata.describe import describe, describe_keys
+from embdata.describe import describe, full_paths
 from embdata.features import to_features_dict
 
 OneDimensional = Annotated[Literal["dict", "np", "pt", "list", "sample"], "Numpy, PyTorch, list, sample, or dict"]
@@ -86,6 +89,7 @@ class CallableItems:
     def __init__(self, obj):
         self.obj = obj
 
+    @mcache
     def __call__(self):
         if isinstance(self.obj, dict):
             yield from dict(self.obj).items()
@@ -100,6 +104,7 @@ class CallableItems:
     def __len__(self):
         return len(self.obj)
 
+    @mcache
     def __getitem__(self, key):
         return self.obj[key]
 
@@ -113,7 +118,9 @@ class Sample(BaseModel):
         arbitrary_types_allowed=True,
         populate_by_name=True,
         from_attributes=True,
+        ignored_types=(wirerope.rope.MethodRopeMixin,wirerope.rope.WireRope),
     )
+
 
     def __init__(self, wrapped=None, **data):
         """A base model class for serializing, recording, and manipulating arbitray data.
@@ -181,13 +188,13 @@ class Sample(BaseModel):
         elif isinstance(wrapped, spaces.Space):
             data.update(self.from_space(wrapped).model_dump())
 
-        # print(f"data: {describe(data)}")
         super().__init__(**data)
         if "_items" in data:
             self.items = CallableItems(data["_items"])
         self.__post_init__()
 
 
+    @mcache()
     def __getitem__(self, key: str | int) -> Any:
         """Return the value of the attribute with the specified key.
 
@@ -307,7 +314,8 @@ class Sample(BaseModel):
 
     def __hash__(self) -> int:
         """Return a hash of the Sample instance."""
-        return hash(tuple(self.dump().values()))
+        return hash(tuple(self._str(self)))
+
 
     def _str(self, obj, prefix=""):
         if isinstance(obj, Path):
@@ -325,10 +333,17 @@ class Sample(BaseModel):
         """Return a string representation of the Sample instance."""
         return self._str(self, prefix="")
 
+    @mcache()
     def __repr__(self) -> str:
         """Return a string representation of the Sample instance."""
         return str(self)
 
+    @mcache()
+    def __len__(self) -> int:
+        """Return the number of attributes in the Sample instance."""
+        return len(list(self.items()))
+
+    @mcache()
     def get(self, key: str, default: Any = None) -> Any:
         """Return the value of the attribute with the specified key or the default value if it does not exist."""
         try:
@@ -336,17 +351,8 @@ class Sample(BaseModel):
         except KeyError:
             return default
 
-    def dump(self, exclude: set[str] | str | None = Literal["None"], as_field: str | None = None, recurse=True) -> Dict[str, Any] | Any:
-        """Dump the Sample instance to a dictionary or value at a specific field if present.
-
-        Args:
-            exclude (set[str], optional): Attributes to exclude. Defaults to "None". Indicating to exclude None values.
-            as_field (str, optional): The attribute to return as a field. Defaults to None.
-            recurse (bool, optional): Whether to convert nested Sample instances to dictionaries. Defaults to True.
-
-        Returns:
-            Dict[str, Any]: Dictionary representation of the Sample object.
-        """
+    @mcache()
+    def _dump(self, exclude: set[str] | str | None = "None", as_field: str | None = None, recurse=True) -> Dict[str, Any] | Any:
         out = {}
         for k, v in self:
             if as_field is not None and k == as_field:
@@ -363,16 +369,33 @@ class Sample(BaseModel):
                 out[k] = v
         return out
 
+    def dump(self, exclude: set[str] | str | None = Literal["None"], as_field: str | None = None, recurse=True) -> Dict[str, Any] | Any:
+        """Dump the Sample instance to a dictionary or value at a specific field if present.
+
+        Args:
+            exclude (set[str], optional): Attributes to exclude. Defaults to "None". Indicating to exclude None values.
+            as_field (str, optional): The attribute to return as a field. Defaults to None.
+            recurse (bool, optional): Whether to convert nested Sample instances to dictionaries. Defaults to True.
+
+        Returns:
+            Dict[str, Any]: Dictionary representation of the Sample object.
+        """
+        return self._dump(exclude=exclude, as_field=as_field, recurse=recurse)
+
+
     def values(self) -> Generator:
         for _, v in self:
             yield v
+
 
     def keys(self) -> Generator:
         for k, _ in self:
             yield k
 
+
     def items(self) -> Generator:
         yield from self
+
 
     def dict(self, exclude: set[str] | None | str = "None", recurse=True) -> Dict[str, Any]: # noqa
         """Return a dictionary representation of the Sample instance.
@@ -390,27 +413,9 @@ class Sample(BaseModel):
             return {k: v for k, v in self if k not in exclude and not k.startswith("_") and (v is not None or "None" not in exclude)}
         return self.dump(exclude=exclude, recurse=True)
 
+
     @classmethod
-    def unflatten(cls, one_d_array_or_dict, schema=None) -> "Sample":
-        """Unflatten a one-dimensional array or dictionary into a Sample instance.
-
-        If a dictionary is provided, its keys are ignored.
-
-        Args:
-            one_d_array_or_dict: A one-dimensional array or dictionary to unflatten.
-            schema: A dictionary representing the JSON schema. Defaults to using the class's schema.
-
-        Returns:
-            Sample: The unflattened Sample instance.
-
-        Examples:
-            >>> sample = Sample(x=1, y=2, z={"a": 3, "b": 4}, extra_field=5)
-            >>> flat_list = sample.flatten()
-            >>> print(flat_list)
-            [1, 2, 3, 4, 5]
-            >>> Sample.unflatten(flat_list, sample.schema())
-            Sample(x=1, y=2, z={'a': 3, 'b': 4}, extra_field=5)
-        """
+    def _unflatten(cls, one_d_array_or_dict, schema=None) -> "Sample":
         schema = schema or cls().schema()
         if isinstance(one_d_array_or_dict, dict):
             flat_data = list(one_d_array_or_dict.values())
@@ -439,6 +444,29 @@ class Sample(BaseModel):
 
         unflattened_dict, _ = unflatten_recursive(schema)
         return cls(**unflattened_dict) if not isinstance(unflattened_dict, cls) else unflattened_dict
+
+    @classmethod
+    def unflatten(cls, one_d_array_or_dict, schema=None) -> "Sample":
+        """Unflatten a one-dimensional array or dictionary into a Sample instance.
+
+        If a dictionary is provided, its keys are ignored.
+
+        Args:
+            one_d_array_or_dict: A one-dimensional array or dictionary to unflatten.
+            schema: A dictionary representing the JSON schema. Defaults to using the class's schema.
+
+        Returns:
+            Sample: The unflattened Sample instance.
+
+        Examples:
+            >>> sample = Sample(x=1, y=2, z={"a": 3, "b": 4}, extra_field=5)
+            >>> flat_list = sample.flatten()
+            >>> print(flat_list)
+            [1, 2, 3, 4, 5]
+            >>> Sample.unflatten(flat_list, sample.schema())
+            Sample(x=1, y=2, z={'a': 3, 'b': 4}, extra_field=5)
+        """
+        return cls._unflatten(one_d_array_or_dict, schema)
 
 
     # def rearrange(self, pattern: str, **kwargs) -> Any:
@@ -477,51 +505,44 @@ class Sample(BaseModel):
     #             setattr(output_sample, key, rearranged_data[..., i].tolist())
 
     #     return output_sample
-
     @staticmethod
-    def flatten_recursive(obj, ignore=set(), non_numerical="allow", sep="."):
+    @lcache
+    def _flatten_recursive(obj, ignore: None | set = None, non_numerical="allow", sep="."):
+        sample = Sample()
+
         def _flatten(obj, prefix=''):
-            items = []
+            out = []
             if isinstance(obj, dict):
                 for k, v in obj.items():
                     if k in ignore:
                         continue
                     new_key = f"{prefix}{k}" if prefix else k
-                    items.extend(_flatten(v, f"{new_key}{sep}"))
+                    subout = _flatten(v, f"{new_key}{sep}")
+                    out.extend(subout)
             elif isinstance(obj, list):
                 for i, v in enumerate(obj):
-                    items.extend(_flatten(v, f"{prefix}{i}{sep}"))
+                    subout = _flatten(v, f"{prefix}{i}{sep}")
+                    out.extend(subout)
             elif isinstance(obj, Sample):
-                items.extend(_flatten(obj.dump(), prefix))
+                subout = _flatten(obj.dict(), prefix)
+                out.extend(subout)
             else:
                 if non_numerical == "forbid" and not isinstance(obj, int | float | np.number):
                     msg = f"Non-numerical value encountered: {obj}"
                     raise ValueError(msg)
                 if non_numerical == "ignore" and not isinstance(obj, int | float | np.number):
                     return []
-                items.append((prefix.rstrip(sep), obj))
-            return items
-        return _flatten(obj)
+                out.append((prefix.rstrip(sep), obj))
+            return out
+        for k, v in _flatten(obj):
+            sample[k] = v
+        return sample
 
     @staticmethod
-    def match_wildcard(key, pattern, sep="."):
-        if '*' not in pattern:
-            return key == pattern or key.endswith(f"{sep}{pattern}")
+    def flatten_recursive(obj, ignore: None | set = None, non_numerical="allow", sep="."):
+       return Sample._flatten_recursive(obj, ignore=ignore, non_numerical=non_numerical, sep=sep)
 
-        key_parts = key.split(sep)
-        pattern_parts = pattern.split(sep)
-
-        if len(pattern_parts) > len(key_parts):
-            return False
-
-        i = len(key_parts) - len(pattern_parts)
-        for k, p in zip(key_parts[i:], pattern_parts):
-            if p == '*':
-                continue
-            if k != p:
-                return False
-        return True
-
+    @lcache
     @staticmethod
     def get_matched_key(patterns, key, sep="."):
         for pattern in patterns:
@@ -529,35 +550,38 @@ class Sample(BaseModel):
                 return pattern
         return None
 
+    @lcache
+    @staticmethod
+    def _group_values(flattened, to, sep="."):
+        grouped = Sample()
+        for k, v in flattened.items():
+            matched_key = Sample.get_matched_key(to, k, sep)
+            if matched_key is not None:
+                if matched_key not in grouped:
+                    grouped[matched_key] = []
+                grouped[matched_key].append(v)
+        return grouped
 
     @staticmethod
-    def group_values(flattened, to, sep=".", output_type="list"):
-        grouped_values = {}
-        for k, v in flattened:
-            for pattern in to:
-                if Sample.match_wildcard(k, pattern, sep):
-                    if pattern not in grouped_values:
-                        grouped_values[pattern] = []
-                    if not grouped_values[pattern] or k.count(sep) != pattern.count(sep):
-                        grouped_values[pattern].append([])
-                    grouped_values[pattern][-1].append(v)
+    def group_values(flattened, to, sep="."):
+      return Sample._group_values(flattened, to, sep=sep)
 
-        # Flatten single-element lists
-        for k, v in grouped_values.items():
-            if len(v) == 1:
-                grouped_values[k] = v[0]
-            elif all(len(sublist) == 1 for sublist in v):
-                grouped_values[k] = [sublist[0] for sublist in v]
+    @lcache
+    @staticmethod
+    def _process_grouped(grouped, to):
+        return grouped
 
-        return grouped_values if output_type != "sample" else Sample(**grouped_values)
-
+    @staticmethod
+    def process_grouped(grouped, to):
+        return Sample._process_grouped(grouped, to)
+    
     def flatten(
         self,
         output_type: OneDimensional = "list",
         non_numerical: Literal["ignore", "forbid", "allow"] = "allow",
-        ignore: set[str] = set(),
+        ignore: tuple[str] | None = None,
         sep: str = ".",
-        to: str | set[str] | List[str] | None = None,
+        to: str | List[str] | None = None,
     ) -> Dict[str, Any] | np.ndarray | torch.Tensor | List | Any:
         """Flatten the Sample instance into a strictly one-dimensional or two-dimensional structure.
 
@@ -616,43 +640,28 @@ class Sample(BaseModel):
                 of the keys in 'to'.
 
         """
-        flattened = self.flatten_recursive(self.dump(), ignore, non_numerical, sep)
-
-        if to:
-            grouped_values = self.group_values(flattened, to, sep)
-            processed = self.process_groups(grouped_values)
-
-            if output_type == "dict":
-                return [dict(zip(to, values)) for values in processed]
-            
-            if output_type == "list":
-                return processed[0] if len(processed) == 1 else processed
-            elif output_type == "np":
-                return np.array(processed)
-            elif output_type == "pt":
-                import torch
-                return torch.tensor(processed)
-            else:
-                raise ValueError(f"Unsupported output_type: {output_type}")
+        ignore = ignore or ()
+        if to is not None:
+            to = [to] if isinstance(to, str) else to
+            to = full_paths(self, to, sep=sep).values()
+        
+        # Returns a Sample
+        flattened = self.flatten_recursive(self, ignore=ignore, non_numerical=non_numerical, sep=sep)
+        if to is not None:
+            grouped = self.group_values(flattened, to, sep=sep)
+            flattened = self.process_grouped(grouped, to) # Returns a Sample
 
         if output_type == "dict":
-            return dict(flattened)
-        
-        values = [item[1] for item in flattened]
-
-        if output_type == "list":
-            return values
-        elif output_type == "np":
-            return np.array(values)
-        elif output_type == "pt":
-            import torch
-            return torch.tensor(values)
-        elif output_type == "sample":
-            return Sample(**dict(flattened))
-        else:
-            raise ValueError(f"Unsupported output_type: {output_type}")
-
+            return flattened.dict()
+        print(f"flattened: {flattened}")
+        flattened = list(flattened.values())
+        if output_type == "np":
+            return np.array(flattened)
+        if output_type == "pt":
+            return torch.tensor(flattened)
+        return flattened
     
+
     def setdefault(self, key: str, default: Any) -> Any:
         """Set the default value for the attribute with the specified key."""
         def get_nested(x, key):
@@ -664,7 +673,7 @@ class Sample(BaseModel):
                 y = x.get(key, None)
             elif hasattr(x, key):
                 y =  getattr(x, key)
-            x.key = Sample() if x is None else x
+            y.key = Sample() if x is None else x
             return x.key
 
         obj = self
@@ -676,6 +685,7 @@ class Sample(BaseModel):
         obj[key] = default
         return obj[key]
 
+    @mcache()
     def schema(self, include: Literal["all", "descriptions", "info", "simple"] = "info") -> Dict:
         """Returns a simplified json schema.
 
@@ -786,6 +796,7 @@ class Sample(BaseModel):
 
         return simplify(schema, self)
 
+    @mcache()
     def infer_features_dict(self) -> Dict[str, Any]:
         """Infers features from the data recusively."""
         feat_dict = {}
@@ -804,6 +815,7 @@ class Sample(BaseModel):
                 feat_dict[k] = to_features_dict(v)
         return feat_dict
 
+    @mcache()
     def to(self, container: Any, **kwargs) -> Any:
         """Convert the Sample instance to a different container type.
 
@@ -872,6 +884,7 @@ class Sample(BaseModel):
             Sample: The default value for the Sample instance.
         """
         return cls()
+
 
     @classmethod
     def space_for(
@@ -952,6 +965,7 @@ class Sample(BaseModel):
                 return cls.unpack_from(sampled)
         return cls(sampled)
 
+    @mcache()
     @classmethod
     def unpack_from(cls, samples: List[Union["Sample", Dict]], padding: Literal["truncate", "longest"] = "longest", pad_value: Any = None) -> "Sample":
         """Pack a list of samples or dicts into a single sample with lists of samples for attributes.
@@ -997,7 +1011,7 @@ class Sample(BaseModel):
 
         return cls(**{attr: [sample.get(attr, pad_value) if isinstance(sample, dict) else getattr(sample, attr, pad_value) for sample in samples] for attr in attributes})
 
-
+    @mcache()
     def pack(
         self,
         to: Literal["dicts", "samples"] = "samples",
@@ -1046,6 +1060,7 @@ class Sample(BaseModel):
     def unpack(self, to: Literal["dicts", "samples", "lists"] = "samples") -> List[Union["Sample", Dict]]:
         return [[x.dump() if to == "dicts" else x for x in samples] for  _, samples in self]
 
+    @mcache()
     @classmethod
     def pack_from(cls, *args, packed_field: str = "steps", padding: Literal["truncate", "longest"] = "truncate", pad_value: Any | None = None) -> "Sample":
         """Pack an iterable of Sample objects or dictionaries into a single Sample object with a single list attribute of Samples.
@@ -1070,7 +1085,7 @@ class Sample(BaseModel):
         if not args:
             msg = "Cannot pack an empty list of samples"
             raise ValueError(msg)
-        if len(args) == 1 and isinstance(args[0], (list, tuple)):
+        if len(args) == 1 and isinstance(args[0], list | tuple):
             args = args[0]
         if not all(isinstance(arg, Sample | dict) for arg in args):
             msg = "All arguments must be Sample objects or dictionaries"
@@ -1150,27 +1165,33 @@ class Sample(BaseModel):
         """
         return self.__class__.model_validate(self.space().sample())
 
+    @cached_property
     def numpy(self) -> "Sample":
         """Convert the Sample instance to a numpy array."""
         return self.flatten("np")
 
+    @cached_property
     def tolist(self) -> "Sample":
         """Convert the Sample instance to a list."""
         return self.flatten("list")
 
+    @cached_property
     def torch(self) -> "Sample":
         import_module("torch")
         """Convert the Sample instance to a PyTorch tensor."""
         return self.flatten("pt")
 
+    @cached_property
     def json(self) -> str:  # noqa: F811
         """Convert the Sample instance to a JSON string."""
         return self.model_dump_json()
 
+    @cached_property
     def features(self) -> Features:
         """Convert the Sample instance to a HuggingFace Features object."""
         return Features(self.infer_features_dict())
 
+    @mcache
     def dataset(self) -> Dataset:
         """Convert the Sample instance to a HuggingFace Dataset object."""
         data = self
@@ -1186,6 +1207,7 @@ class Sample(BaseModel):
         msg = f"Unsupported data type {type(data)} for conversion to Dataset."
         raise ValueError(msg)
 
+    @mcache
     def describe(self) -> str:
         """Return a string description of the Sample instance."""
         return describe(self, compact=True, name=self.__class__.__name__)

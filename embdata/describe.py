@@ -51,6 +51,9 @@ def as_table(ds: Any, sep: str = ".", show=True) -> Dict[str, Any]:
     return ds
 
 
+def full_paths(ds: Any, keys, sep: str = ".", show=False) -> Dict[str, Any]:
+    return {k:v for k, v in describe_keys(ds, sep, show).items() if k in keys}
+
 def describe_keys(ds: Any, sep: str = ".", show=False, path="") -> Dict[str, Any]:
     """Describe the keys of a nested dictionary or dataset.
 
