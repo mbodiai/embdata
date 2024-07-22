@@ -380,7 +380,9 @@ class Sample(BaseModel):
         self, exclude: set[str] | str | None = "None", as_field: str | None = None, recurse=True
     ) -> Dict[str, Any] | Any:
         out = {}
+        exclude = set() if exclude is None else exclude if isinstance(exclude, set) else {exclude}
         for k, v in self:
+            print(f"k: {k}, v:T {type(v)}, exclude: {exclude}, as_field: {as_field}, {'None' in exclude}, {v is None}")
             if as_field is not None and k == as_field:
                 return v
             if exclude and "None" in exclude and v is None:
@@ -393,10 +395,10 @@ class Sample(BaseModel):
                 out[k] = [item.dump(exclude, as_field, recurse) for item in v]
             else:
                 out[k] = v
-        return out
+        return {k: v for k, v in out.items() if v is not None or "None" not in exclude}
 
     def dump(
-        self, exclude: set[str] | str | None = Literal["None"], as_field: str | None = None, recurse=True
+        self, exclude: set[str] | str | None = "None", as_field: str | None = None, recurse=True
     ) -> Dict[str, Any] | Any:
         """Dump the Sample instance to a dictionary or value at a specific field if present.
 
@@ -428,7 +430,6 @@ class Sample(BaseModel):
                 ignore.add(k.split(".")[0])
             elif "/" in k:
                 ignore.add(k.split("/")[0])
-        print(f"ignore: {ignore}")  # Debug print
         for k, _ in self:
             if k not in ignore:
                 yield k
