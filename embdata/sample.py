@@ -640,9 +640,31 @@ class Sample(BaseModel):
         for v in flattened.values():
             if isinstance(v, Sample):
                 result.extend(self._flatten_values(v))
+            elif isinstance(v, dict):
+                result.extend(self._flatten_values(Sample(**v)))
+            elif isinstance(v, (list, tuple)):
+                result.extend(v)
             else:
                 result.append(v)
         return result
+
+    def group_values(self, flattened, to, sep="."):
+        grouped = Sample()
+        for pattern in to:
+            value = self._get_nested_value(flattened, pattern.split(sep))
+            if value is not None:
+                grouped[pattern] = value
+        return grouped
+
+    def _get_nested_value(self, obj, keys):
+        for key in keys:
+            if isinstance(obj, dict) and key in obj:
+                obj = obj[key]
+            elif hasattr(obj, key):
+                obj = getattr(obj, key)
+            else:
+                return None
+        return obj
     
 
     def setdefault(self, key: str, default: Any) -> Any:
