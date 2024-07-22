@@ -65,13 +65,13 @@ import logging
 import operator
 import re
 from enum import Enum
-from methodtools import lru_cache as mcache, cached_property as mcached_property
+from methodtools import lru_cache as mcache
 from importlib import import_module
 from itertools import zip_longest
 from pathlib import Path
 from typing import Annotated, Any, Dict, Generator, List, Literal, Union, get_origin
 from functools import cached_property, reduce, update_wrapper, wraps
-from functools import lru_cache as lcache
+from functools import lru_cache as lcache, cached_property as mcached_property
 import numpy as np
 import torch
 from datasets import Dataset, Features, IterableDataset
