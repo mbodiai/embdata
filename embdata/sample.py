@@ -676,17 +676,16 @@ class Sample(BaseModel):
             return []
         
         if isinstance(grouped[0], (int, float, str)):
-            return [{key.split('.')[-1]: value for key, value in zip(to, grouped)}]
+            return [{key: value for key, value in zip(to, grouped)}]
         
         result = []
         for i in range(len(grouped[0])):
             item = {}
             for key, values in zip(to, grouped):
-                parts = key.split('.')
-                if '*' in parts:
-                    item[parts[-1]] = values[i] if isinstance(values, list) else values
+                if isinstance(values, list):
+                    item[key] = values[i]
                 else:
-                    item[key] = values[i] if isinstance(values, list) else values
+                    item[key] = values
             result.append(item)
         return result
 
