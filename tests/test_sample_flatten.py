@@ -23,7 +23,7 @@ def sample_instance():
 def test_flatten_default(sample_instance):
     result = sample_instance.flatten()
     assert isinstance(result, list)
-    assert result == [1, 2.0, "test", 1, 2, 3, 11, "two", 5, 1, 2, 3, 4, 5, 6]
+    assert np.array_equal(result == [1, 2.0, "test", 1, 2, 3, 11, "two", 5, 1, 2, 3, 4, 5, 6])
 
 
 def test_flatten_to_dict(sample_instance):

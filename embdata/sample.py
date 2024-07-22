@@ -246,7 +246,6 @@ class Sample(BaseModel):
                         sep = "." if "." in key else "/"
                         keys = key.replace("*", "").replace(f"{sep}{sep}", sep).split(sep)
                         key = "__nest__".join(keys)
-                        print(f"self._extra: {self._extra}, keys: {self._extra.keys()}")
                         return getattr(self._extra, key)
                 except AttributeError:
                     pass
@@ -306,7 +305,7 @@ class Sample(BaseModel):
                 __doc__=self.__class__.__doc__,
                 __config__=self.model_config,
                 **{
-                    k.replace(".", "__nest__"): Annotated[
+                    k.replace(".", "__nest__").replace("*", "all"): Annotated[
                         list[type(v[0])] if isinstance(v, list) and len(v) > 0 else type(v),
                         Field(default_factory=lambda: v),
                     ]
@@ -382,7 +381,6 @@ class Sample(BaseModel):
         out = {}
         exclude = set() if exclude is None else exclude if isinstance(exclude, set) else {exclude}
         for k, v in self:
-            print(f"k: {k}, v:T {type(v)}, exclude: {exclude}, as_field: {as_field}, {'None' in exclude}, {v is None}")
             if as_field is not None and k == as_field:
                 return v
             if exclude and "None" in exclude and v is None:
@@ -565,7 +563,6 @@ class Sample(BaseModel):
             keys = []
             if isinstance(obj, Sample | dict):
                 for k, v in obj.items():
-                    # print(f"Processing key: {k}, value: {v}")  # Debug print
                     if k in ignore:
                         continue
                     new_key = f"{prefix}{k}" if prefix else k
@@ -585,7 +582,6 @@ class Sample(BaseModel):
                     return []
                 out.append(obj)
                 keys.append(prefix.rstrip(sep))
-            # print(f"out: {out}, keys: {keys}")  # Debug print
             return out, keys
 
         return _flatten(obj)
@@ -606,51 +602,39 @@ class Sample(BaseModel):
         from embdata.describe import full_paths
         to = [to] if isinstance(to, str) else to
         full_to = full_paths(self, to).values() if to is not None else None
-        # print(f"fpaths: {full_to}")  # Debug print
         ignore = ignore or ()
 
-        # Replace integers with wildcard to allow for indexing. But only between separators or at the start/end.
         def replace_ints_with_wildcard(s, sep="."):
             # Pattern to match integers that are either at the start/end of the string or surrounded by the separator
             pattern = rf"(?<=^{sep})\d+|(?<={sep})\d+(?={sep})|\d+(?={sep}|$)"
-            # Replace matched integers with a single wildcard, avoiding consecutive wildcards
             return re.sub(pattern, "*", s).rstrip(f"{sep}*").lstrip(f"{sep}*")
+
         flattened, keys = self.flatten_recursive(self, ignore=ignore, non_numerical=non_numerical, sep=sep)
         keys = [replace_ints_with_wildcard(k, sep=sep) for k in keys]
-        # print(f"Flattened: {flattened}")  # Debug print
-        # print(f"Keys: {keys}")  # Debug print
-        if to is None:
-            return flattened
-        
-        result = []
-        current_group = {k: [] for k in to}
-        num_tos = {k: 0 for k in to}
-        for k, v in zip(keys, flattened):
-            print(f"current_group: {current_group}, result: {result}")
-            for i, ft in enumerate(full_to):
-                if ft in k:
-                    current_group[to[i]].append(v)
-                    num_tos[to[i]] += 1
-            
-            print(f"current_group: {current_group}, num_tos: {num_tos}")  # Debug print
-            print(f"num to values: {list(num_tos.values())}")  # Debug print
-            if all(num_to == num_tos[to[0]] for num_to in num_tos.values()):
-                print(f"entered if statement")  # Debug print
-                print(f"current_group: {[len(current_group[to[i]]) for i in range(len(to))]}")  # Debug print
-                if all(len(current_group[to[i]]) > 0 for i in range(len(to))):
-                    ignore = {k for k in {k.split(sep)[0] for k in keys if sep in k}}
-                    ignore = {k for k in ignore if k not in to}
-                    current_group = {k: v[0] if len(v) == 1 else v for k, v in current_group.items() if k not in ignore}
-                    if output_type not in ["dict", "sample"]:
-                        try:
-                            current_group = reduce(operator.iadd, current_group.values(), [])
-                        except TypeError:
-                            current_group = list(current_group.values())
-                    result.append(Sample(**current_group) if output_type == "sample" else current_group)
-                current_group = Sample({k: [] for k in to})
-                num_tos = Sample({k: 0 for k in to})
-        print(f"Result before output: {result}")  # Debug print
-        flattened = result
+        if to is not None:
+            result = []
+            current_group = {k: [] for k in to}
+            num_tos = {k: 0 for k in to}
+            for k, v in zip(keys, flattened, strict=False):
+                for i, ft in enumerate(full_to):
+                    if ft in k:
+                        current_group[to[i]].append(v)
+                        num_tos[to[i]] += 1
+
+                if all(num_to == num_tos[to[0]] for num_to in num_tos.values()):
+                    if all(len(current_group[to[i]]) > 0 for i in range(len(to))):
+                        ignore = set({k.split(sep)[0] for k in keys if sep in k})
+                        ignore = {k for k in ignore if k not in to}
+                        current_group = {k: v[0] if len(v) == 1 else v for k, v in current_group.items() if k not in ignore}
+                        if output_type not in ["dict", "sample"]:
+                            try:
+                                current_group = reduce(operator.iadd, current_group.values(), [])
+                            except TypeError:
+                                current_group = list(current_group.values())
+                        result.append(Sample(**current_group) if output_type == "sample" else current_group)
+                    current_group = Sample({k: [] for k in to})
+                    num_tos = Sample({k: 0 for k in to})
+            flattened = result
 
         if output_type == "np":
             return np.array(flattened, dtype=object)
@@ -694,12 +678,12 @@ class Sample(BaseModel):
                     raise AttributeError(f"Invalid list index: {k}")
             elif not isinstance(obj, Sample) and not hasattr(obj, k):
                 new_obj = Sample()
-                setattr(obj, k, new_obj)
+                obj[k] = new_obj
                 obj = new_obj
             elif hasattr(obj, k):
                 obj = getattr(obj, k)
             else:
-                setattr(obj, k, Sample())
+                obj[k] = Sample()
                 obj = getattr(obj, k)
         if isinstance(obj, dict):
             if keys[-1] == "*":
