@@ -315,16 +315,16 @@ class Sample(BaseModel):
     def __hash__(self) -> int:                                                                                                           
         """Return a hash of the Sample instance."""                                                                                              
         def hash_helper(obj):                                                                                                                    
-             if isinstance(obj, (list, tuple)):                                                                                                   
-                 return hash(tuple(hash_helper(item) for item in obj))                                                                            
-             elif isinstance(obj, dict):                                                                                                          
-                 return hash(tuple((k, hash_helper(v)) for k, v in sorted(obj.items())))                                                          
-             elif isinstance(obj, Sample):                                                                                                        
-                 return hash(tuple(hash_helper(v) for v in obj.dump().values()))                                                                  
-             else:                                                                                                                                
-                 return hash(obj)                                                                                                                 
+            if isinstance(obj, (list, tuple)):                                                                                                   
+                return hash(tuple(hash_helper(item) for item in obj))                                                                            
+            elif isinstance(obj, dict):                                                                                                          
+                return hash(tuple((k, hash_helper(v)) for k, v in sorted(obj.items())))                                                          
+            elif isinstance(obj, Sample):                                                                                                        
+                return hash(tuple(hash_helper(v) for v in obj.dump().values()))                                                                  
+            else:                                                                                                                                
+                return hash(obj)                                                                                                                 
                                                                                                                                                   
-         return hash_helper(self.dump())   
+        return hash_helper(self.dump())   
 
     def _str(self, obj, prefix=""):
         if isinstance(obj, Path):
