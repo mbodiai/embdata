@@ -603,12 +603,13 @@ class Sample(BaseModel):
         ignore = ignore or ()
         if to is not None:
             to = [to] if isinstance(to, str) else to
-            to = full_paths(self, to, sep=sep).values()
+            to = list(full_paths(self, to, sep=sep).values())
 
         flattened = self.flatten_recursive(self, ignore=ignore, non_numerical=non_numerical, sep=sep)
         if to is not None:
             grouped = self.group_values(flattened, to, sep=sep)
             flattened = self.process_grouped(grouped, to)
+            return [flattened]  # Wrap in a list to match the expected output
 
         if output_type == "dict":
             return flattened.dict()
@@ -642,7 +643,9 @@ class Sample(BaseModel):
             keys = pattern.split(sep)
             value = flattened
             for key in keys:
-                if isinstance(value, Sample) and key in value:
+                if isinstance(value, Sample) and hasattr(value, key):
+                    value = getattr(value, key)
+                elif isinstance(value, dict) and key in value:
                     value = value[key]
                 else:
                     value = None
@@ -662,7 +665,7 @@ class Sample(BaseModel):
         return obj
 
     def process_grouped(self, grouped, to):
-        return [grouped.get(pattern) for pattern in to]
+        return [grouped.get(pattern) for pattern in to if grouped.get(pattern) is not None]
 
     def setdefault(self, key: str, default: Any) -> Any:
         """Set the default value for the attribute with the specified key."""
