@@ -445,8 +445,12 @@ class Sample(BaseModel):
                     items.append(value)
                 print(f"Returning array: {items}, index: {index}")
                 return items, index
-            print(f"Returning value: {flat_data[index]}, index: {index + 1}")
-            return flat_data[index], index + 1
+            if index < len(flat_data):
+                print(f"Returning value: {flat_data[index]}, index: {index + 1}")
+                return flat_data[index], index + 1
+            else:
+                print(f"Index out of range, returning None, index: {index}")
+                return None, index
 
         unflattened_dict, _ = unflatten_recursive(schema)
         print(f"Final unflattened dict: {unflattened_dict}")
@@ -621,7 +625,7 @@ class Sample(BaseModel):
             return np.array(flattened_values, dtype=object)
         if output_type == "pt":
             return torch.tensor(flattened_values, dtype=torch.float32)
-        return flattened_values
+        return [flattened_values]  # Return as a list of lists
 
     def _flatten_values(self, flattened):
         result = []
@@ -635,7 +639,7 @@ class Sample(BaseModel):
 
     def setdefault(self, key: str, default: Any) -> Any:
         """Set the default value for the attribute with the specified key."""
-        if key not in self.__dict__:
+        if not hasattr(self, key):
             setattr(self, key, default)
         return getattr(self, key)
 
