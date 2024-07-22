@@ -587,33 +587,33 @@ class Sample(BaseModel):
         current_group = {k: [] for k in to}
         
         for k, v in zip(keys, flattened):
+            print(f"current_group: {current_group}, result: {result}")
             for i, ft in enumerate(full_to):
                 if ft in k:
                     current_group[to[i]].append(v)
             
             if all(len(values) > 0 for values in current_group.values()):
                 for key in to:
-                    if len(current_group[key]) == 1:
-                        result[key].append(current_group[key][0])
-                    else:
-                        result[key].append(current_group[key])
+                    result[key].append(current_group[key])
                 current_group = {k: [] for k in to}
         
         # Handle any remaining items in current_group
         if any(len(values) > 0 for values in current_group.values()):
             for key in to:
                 if current_group[key]:
-                    if len(current_group[key]) == 1:
-                        result[key].append(current_group[key][0])
-                    else:
-                        result[key].append(current_group[key])
+                    result[key].append(current_group[key])
+        
+        print(f"Result before output: {result}")  # Debug print
         
         if output_type == "dict":
-            return [dict(zip(result.keys(), group)) for group in zip(*result.values())]
+            out = [dict(zip(result.keys(), group)) for group in zip(*result.values())]
         elif output_type == "list":
-            return [list(group) for group in zip(*result.values())]
+            out = [list(group) for group in zip(*result.values())]
         else:  # sample
-            return [Sample(**dict(zip(result.keys(), group))) for group in zip(*result.values())]
+            out = [Sample(**dict(zip(result.keys(), group))) for group in zip(*result.values())]
+        
+        print(f"Final output: {out}")  # Debug print
+        return out
 
 
         if output_type == "np":
