@@ -619,7 +619,7 @@ class Sample(BaseModel):
             return np.array(flattened_values, dtype=object)
         if output_type == "pt":
             return torch.tensor(flattened_values, dtype=torch.float32)
-        return [flattened_values] if to is not None else flattened_values
+        return flattened_values
 
     def _flatten_values(self, flattened):
         if isinstance(flattened, list):
@@ -639,7 +639,14 @@ class Sample(BaseModel):
     def group_values(self, flattened, to, sep="."):
         grouped = Sample()
         for pattern in to:
-            value = self._get_nested_value(flattened, pattern.split(sep))
+            keys = pattern.split(sep)
+            value = flattened
+            for key in keys:
+                if isinstance(value, Sample) and key in value:
+                    value = value[key]
+                else:
+                    value = None
+                    break
             if value is not None:
                 grouped[pattern] = value
         return grouped
@@ -655,10 +662,7 @@ class Sample(BaseModel):
         return obj
 
     def process_grouped(self, grouped, to):
-        result = []
-        for pattern in to:
-            result.append(grouped.get(pattern))
-        return result
+        return [grouped.get(pattern) for pattern in to]
 
     def setdefault(self, key: str, default: Any) -> Any:
         """Set the default value for the attribute with the specified key."""
