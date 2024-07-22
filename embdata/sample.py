@@ -582,52 +582,19 @@ class Sample(BaseModel):
         # print(f"Keys: {keys}")  # Debug print
         if to is None:
             return flattened
-        # print(f"to: {to}")  # Debug print
-        out = []
-        result = Sample()
-        matches = 0
-        for k, v, kw in zip(keys, flattened, [replace_ints_with_wildcard(k, sep=sep) for k in keys]):
+        
+        result = {k: [] for k in to}
+        for k, v in zip(keys, flattened):
             for i, ft in enumerate(full_to):
-                # print(f"  Processing full_to: {ft}")  # Debug print
-                if ft in kw:
-                    if kw == ft:
-                        result.setdefault(to[i], []).append(v)
-                        print(f"setting {v} to {to[i]}")  # Debug print
-                    else:
-                        print(f"appending {v} to {result}")  # Debug print
-                        result.setdefault(to[i], []).append(v)
-                else:
-                    if len(result) > 0:
-                        out.append(result.dict() if output_type == "dict" else result.flatten() if output_type == "list" else result)
-                    result = Sample()
-        if len(out) > 0:
-            print(f"outbefore: {out}")  # Debug print
-        if output_type in ("dict", "sample"):
-            def merge_dicts(d1, d2):
-                if not isinstance(d2, dict):
-                    return d1
-                for k, v in d2.items():
-                    if k in d1:
-                        if isinstance(d1[k], dict | Sample):
-                            d1[k] = merge_dicts(d1[k], v)
-                        elif isinstance(d1[k], list):
-                            d1[k].extend([v] if not isinstance(v, list) else v)
-                        elif isinstance(v, dict | Sample):
-                            d1[k] = merge_dicts(v, d1[k])
-                        elif isinstance(v, list):
-                            d1[k] = v.extend([d1[k]])
-                    else:
-                        d1[k] = v
-                return d1
-            out[-1] = reduce(merge_dicts, out[-1], {})
-        else:
-            def merge_lists(l1, l2):
-                return l1.extend([l2] if not isinstance(l2, list) else l2)
-            out[-1] = reduce(merge_lists, out[-1], [])
-            matches += 1
-            print(f"out: {out}")  # Debug print
-            print(f"matches: {matches}")  # Debug print
-        flattened = out
+                if ft in k:
+                    result[to[i]].append(v)
+        
+        if output_type == "dict":
+            return [dict(zip(result.keys(), values)) for values in zip(*result.values())]
+        elif output_type == "list":
+            return [list(values) for values in zip(*result.values())]
+        else:  # sample
+            return [Sample(**dict(zip(result.keys(), values))) for values in zip(*result.values())]
 
 
         if output_type == "np":
