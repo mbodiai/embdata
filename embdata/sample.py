@@ -637,7 +637,7 @@ class Sample(BaseModel):
         return flattened
 
 
-    def setdefault(self, key: str, default: Any, nest=False) -> Any:
+    def setdefault(self, key: str, default: Any, nest=True) -> Any:
         """Set the default value for the attribute with the specified key."""
         if not nest:
             if key in self:
