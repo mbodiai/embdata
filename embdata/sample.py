@@ -447,7 +447,7 @@ class Sample(BaseModel):
                 return items, index
             if index < len(flat_data):
                 value = flat_data[index]
-                if isinstance(value, dict):
+                if isinstance(value, dict) and "properties" in schema_part:
                     result = {}
                     for prop, prop_schema in schema_part["properties"].items():
                         if prop in value:
@@ -633,7 +633,7 @@ class Sample(BaseModel):
             return np.array(flattened_values, dtype=object)
         if output_type == "pt":
             return torch.tensor(flattened_values, dtype=torch.float32)
-        return flattened_values  # Return as a single list
+        return flattened_values if to is None else [flattened_values]  # Return as a single list or nested list based on 'to'
 
     def _flatten_values(self, flattened):
         result = []
@@ -674,12 +674,26 @@ class Sample(BaseModel):
         for k in keys[:-1]:
             if isinstance(obj, dict):
                 obj = obj.setdefault(k, {})
+            elif isinstance(obj, list):
+                if k == '*':
+                    return obj
+                try:
+                    index = int(k)
+                    if index >= len(obj):
+                        obj.extend([None] * (index - len(obj) + 1))
+                    if obj[index] is None:
+                        obj[index] = {}
+                    obj = obj[index]
+                except ValueError:
+                    raise AttributeError(f"Invalid list index: {k}")
             elif not hasattr(obj, k):
                 setattr(obj, k, Sample())
             else:
                 obj = getattr(obj, k)
         if isinstance(obj, dict):
             return obj.setdefault(keys[-1], default)
+        if isinstance(obj, list) and keys[-1] == '*':
+            return obj
         if not hasattr(obj, keys[-1]):
             setattr(obj, keys[-1], default)
         return getattr(obj, keys[-1])
