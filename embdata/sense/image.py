@@ -27,7 +27,6 @@ The image can be resized to and from any size, compressed, and converted to and 
 image = Image("path/to/image.png", size=new_size_tuple).save("path/to/new/image.jpg")
 image.save("path/to/new/image.jpg", quality=5)
 
-TODO: Implement Lazy attribute loading for the image data.
 """
 
 import base64 as base64lib
@@ -61,7 +60,7 @@ from embdata.ndarray import NumpyArray
 from embdata.sample import Sample
 
 ImageLikeArray = NumpyArray[3,Any, Any, np.uint8] | NumpyArray[Any, Any, 3, np.uint8]
-SupportsImage = NumpyArray[3,...,np.uint8] | InstanceOf[PILImage] | InstanceOf[Base64Str] | InstanceOf[AnyUrl] | InstanceOf[FilePath] | InstanceOf[bytes]
+SupportsImage = NumpyArray[3,...,np.uint8] | InstanceOf[PILImage] | InstanceOf[Base64Str] | InstanceOf[AnyUrl] | InstanceOf[FilePath] | InstanceOf[bytes] | "Image" | InstanceOf[io.BytesIO]
 
 HIGHEST_QUALITY = 10
 
@@ -105,10 +104,10 @@ class Image(Sample):
     path: FilePath | None = None
 
     @staticmethod
-    def supports(arg: SupportsImage) -> bool:
+    def supports(arg: SupportsImage) -> bool: # type: ignore # noqa
         """Check if the input argument is a supported image type."""
         @validate_call
-        def _supports(arg: SupportsImage) -> bool: # noqa
+        def _supports(arg: SupportsImage) -> bool: # type: ignore # noqa
             """Check if the input argument is a supported image type."""
             return True
         try:
@@ -139,9 +138,10 @@ class Image(Sample):
 
     @computed_field
     @cached_property
-    def bytes(self) -> SupportsBytes:
+    def bytes(self) -> io.BytesIO:
         """The bytes object of the image."""
-        return self.pil.tobytes()
+        buffer = io.BytesIO()
+        return self.pil.save(buffer, format=self.encoding.upper())
 
     @model_serializer(when_used="json")
     def omit_array_pil(self) -> dict:
@@ -188,6 +188,9 @@ class Image(Sample):
         kwargs["array"] = array
         kwargs["base64"] = base64
         kwargs["bytes"] = bytes
+        if isinstance(arg, Image):
+            kwargs.update(arg.dump())
+            arg = None
         kwargs = self.dispatch_arg(arg, **kwargs)
         super().__init__(**kwargs)
 
@@ -252,6 +255,7 @@ class Image(Sample):
             "encoding": encoding.lower(),
         }
 
+
     @dispatch_arg.register
     @classmethod
     def init_dict(cls, arg: dict, **kwargs) -> None:
@@ -260,16 +264,29 @@ class Image(Sample):
             kwargs = cls.dispatch_arg(**kwargs)
         return kwargs
 
-    @dispatch_arg.register(SupportsBytes)
+    @dispatch_arg.register(io.BytesIO)
     @classmethod
-    def init_bytes(
+    def init_bytesio(
         cls,
-        arg: SupportsImage | None = None,
+        arg: SupportsImage | None = None, # type: ignore
         size: Tuple[int, int]| None = None,
         encoding="jpeg",
         mode: Literal["RGB", "RGBA", "L", "P", "CMYK", "YCbCr", "I", "F"] | None = "RGB",
         **kwargs) -> None:
-        kwargs.update(cls.pil_to_data(PILModule.open(io.BytesIO(arg)), encoding, size, mode))
+        kwargs.update(cls.pil_to_data(PILModule.open(arg, formats=[encoding.upper()]), encoding, size, mode))
+        return kwargs
+    
+    @dispatch_arg.register(SupportsBytes)
+    @classmethod
+    def init_bytes(
+        cls,
+        arg: SupportsImage | None = None, # type: ignore
+        size: Tuple[int, int]| None = None,
+        encoding="jpeg",
+        mode: Literal["RGB", "RGBA", "L", "P", "CMYK", "YCbCr", "I", "F"] | None = "RGB",
+        **kwargs) -> None:
+        buffer = io.BytesIO(arg)
+        kwargs.update(cls.pil_to_data(PILModule.frombytes(arg, mode="r", size=size, data=arg), encoding, size, mode))
         return kwargs
 
     @dispatch_arg.register(np.ndarray)

@@ -15,6 +15,7 @@ Example:
 
 
 import os
+
 from datasets import get_dataset_config_info, get_dataset_config_names, load_dataset
 from rich import print_json
 
@@ -95,7 +96,9 @@ if __name__ == "__main__":
 
     # ds = get_hf_dataset("taco_play")
 
-    ds = load_dataset("mbodiai/test_dumb3", split="train").take(2)
+    ds = load_dataset("haosulab/ManiSkill", split="all")
+    describe(ds)
+    freq = input()
     # describe(ds)
     episode = Episode(steps=ds.to_list(), freq_hz=5)
     episode.dataset().push_to_hub("mbodiai/test_dumb3", token=os.getenv("HF_TOKEN"))

@@ -4,6 +4,7 @@
 # https://opensource.org/licenses/MIT
 
 
+import logging
 from typing import Any, Dict
 
 import numpy as np
@@ -110,4 +111,5 @@ def to_features_dict(indict: Any, exclude_keys: set | None = None) -> Dict[str, 
         return HFImage()
 
     msg = f"Cannot infer schema from {type(indict)}"
-    raise ValueError(msg)
+    logging.warning(msg)
+    return Value("string")

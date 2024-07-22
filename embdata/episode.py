@@ -7,15 +7,15 @@ from typing import Any, Callable, Dict, Iterable, Iterator, List, Literal
 
 import numpy as np
 import rerun as rr
+from rich import print_json
 import torch
 from datasets import Dataset, Features, Sequence, Value
 from datasets import Image as HFImage
 from pydantic import ConfigDict, Field, PrivateAttr, model_validator
 from rerun.archetypes import Image as RRImage
-from rich import print_json
 from torchvision import transforms
-
 from embdata.describe import describe
+from embdata.features import to_features_dict
 from embdata.motion import Motion
 from embdata.motion.control import AnyMotionControl, RelativePoseHandControl
 from embdata.sample import Sample
@@ -77,19 +77,23 @@ class TimeStep(Sample):
     @classmethod
     def from_dicts(cls, values: Dict[str, Any], image_keys: str | set | None = "image") -> "TimeStep":
         obs = values.get("observation")
-        if not isinstance(obs, Sample):
-            obs = Sample(obs)
         act = values.get("action")
-        if not isinstance(act, Sample):
-            act = Sample(act)
         sta = values.get("state")
-        if not isinstance(sta, Sample):
-            sta = Sample(sta)
+        supervision = values.get("supervision")
+
+        Obs = cls._observation_class.get_default()
+        Act = cls._action_class.get_default()  # noqa: N806, SLF001
+        Sta = cls._state_class.get_default()  # noqa: N806, SLF001
+
+        obs = Obs(**convert_images(obs, image_keys)) if obs is not None else None
+        act = Act(**convert_images(act, image_keys)) if act is not None else None
+        sta = Sta(**convert_images(sta, image_keys)) if sta is not None else None
+        supervision = convert_images(supervision) if supervision is not None else None
         return cls(
-            observation=obs, 
+            observation=obs,
             action=act,
-            state=sta, 
-            supervision=values.get("supervision"),
+            state=sta,
+            supervision=supervision,
             **{k: v for k, v in values.items() if k not in ["observation", "action", "state", "supervision"]},
         )
 
@@ -99,17 +103,32 @@ class TimeStep(Sample):
         action: Sample | Dict | np.ndarray,
         state: Sample | Dict | np.ndarray | None = None, 
         supervision: Any | None = None, 
-        episode_idx: int = 0, step_idx: int = 0, 
-        timestamp: float | None = None, **kwargs) -> None:
-        Obs = self.__class__._observation_class.get_default()  # noqa: N806, SLF001
-        Act = self.__class__._action_class.get_default()  # noqa: N806, SLF001
-        Sta = self.__class__._state_class.get_default()  # noqa: N806, SLF001
+        episode_idx: int | None = 0,
+        step_idx: int | None = 0,
+        timestamp: float | None = None, **kwargs):
 
-        observation = Obs(**convert_images(observation)) if observation is not None else None
-        action = Act(**convert_images(action)) if action is not None else None
-        state = Sta(**convert_images(state)) if state is not None else None
-        supervision = convert_images(supervision) if supervision is not None else None
-        super().__init__(observation=observation, action=action, state=state, supervision=supervision, episode_idx=episode_idx, step_idx=step_idx, timestamp=timestamp, **kwargs)
+        if all([isinstance(observation, dict), isinstance(action, dict), isinstance(state, dict)]):
+            self.from_dicts({
+                "observation": observation, 
+                "action":action,
+                "state":state,
+                "supervision": supervision,
+                "episode_idx": episode_idx,
+                "step_idx": step_idx,
+                "timestamp": timestamp,
+                **kwargs,
+            })
+            return
+        super().__init__(  # noqa: PLE0101
+            observation=observation,
+            action=action,
+            state=state, 
+            supervision=supervision, 
+            episode_idx=episode_idx, 
+            step_idx=step_idx, 
+            timestamp=timestamp, 
+             **kwargs)
+
 
 
 class ImageTask(Sample):
@@ -117,8 +136,9 @@ class ImageTask(Sample):
     image: Image
     task: str
 
-    def __init__(self, image: Image | SupportsImage, task: str) -> None:
+    def __init__(self, image: Image | SupportsImage, task: str) -> None: # type: ignore
         super().__init__(image=image, task=task)
+
 class VisionMotorStep(TimeStep):
     """Time step for vision-motor tasks."""
     _observation_class: type[ImageTask] = PrivateAttr(default=ImageTask)
@@ -133,29 +153,40 @@ class Episode(Sample):
     episode_id: str | int | None = None
     steps: list[TimeStep] = Field(default_factory=list)
     metadata: Sample | Any | None = None
-    freq_hz: int | None = None
+    freq_hz: int | float | None = None
     _action_class: type[Sample] = PrivateAttr(default=Sample)
     _state_class: type[Sample] = PrivateAttr(default=Sample)
     _observation_class: type[Sample] = PrivateAttr(default=Sample)
     _step_class: type[TimeStep] = PrivateAttr(default=TimeStep)
-    _image_keys: str | set[str] = PrivateAttr(default="image")
+    image_keys: str | list[str] = "image"
     _rr_thread: Thread | None = PrivateAttr(default=None)
 
-    @model_validator(mode="after")
-    def set_classes(self) -> "Episode":
-        self._observation_class = get_iter_class("observation", self.steps)
-        self._action_class = get_iter_class("action", self.steps)
-        self._state_class = get_iter_class("state", self.steps)
-        return self
+    # @model_validator(mode="after")
+    # def set_classes(self) -> "Episode":
+    #     self._observation_class = get_iter_class("observation", self.steps)
+    #     self._action_class = get_iter_class("action", self.steps)
+    #     self._state_class = get_iter_class("state", self.steps)
+    #     return self
 
     @staticmethod
     def concat(episodes: List["Episode"]) -> "Episode":
         return sum(episodes, Episode(steps=[]))
 
     @classmethod
-    def from_observations_actions(cls, observations: List[Sample], actions: List[Sample]) -> "Episode":
-        steps = [TimeStep(observation=o, action=a) for o, a in zip(observations, actions)]
-        return cls(steps=steps)
+    def from_observations_actions_states(cls, 
+        observations: List[Sample | Dict | np.ndarray], 
+        actions: List[Sample | Dict | np.ndarray], 
+        states: List[Sample | Dict | np.ndarray] | None = None,
+        supervision: List[Sample | Dict | np.ndarray] | None = None,
+     **kwargs) -> "Episode":
+
+        Step = cls._step_class.get_default()  # noqa: N806, SLF001
+        observations = observations or []
+        actions = actions or []
+        states = states or []
+        supervision = supervision or []
+        steps = [Step(observation=o, action=a, state=s, supervision=sup) for o, a,s,sup in zip_longest(observations, actions, states, supervision)]
+        return cls(steps=steps, **kwargs)
 
     def __init__(
         self,
@@ -165,37 +196,78 @@ class Episode(Sample):
         supervision_key: str | None = "supervision",
         metadata: Sample | Any | None = None,
         freq_hz: int | None = None,
+        **kwargs,
     ) -> None:
         if not hasattr(steps, "__iter__"):
             msg = "Steps must be an iterable"
             raise ValueError(msg)
-        steps = list(steps)
+        steps = list(steps) if not isinstance(steps, list) else steps
 
         Step = self.__class__._step_class.get_default()  # noqa: N806, SLF001
 
-        if steps and not isinstance(steps[0], TimeStep):
+        if steps and not isinstance(steps[0], TimeStep | Dict | Sample):
             if isinstance(steps[0], dict) and observation_key in steps[0] and action_key in steps[0]:
                 steps = [Step(observation=step[observation_key], action=step[action_key], supervision=step.get(supervision_key)) for step in steps]
             elif isinstance(steps[0], tuple):
-                steps = [Step(observation=step[0], action=step[1], supervision=step[2] if len(step) > 2 else None) for step in steps]
-            else:
-                steps = [Step.from_dicts(step) if isinstance(step, dict) else Step(**step) for step in steps]
+                steps = [Step(observation=step[0], action=step[1], state=step[2] if len(step) > 2 else None, supervision=step[3] if len(step) > 3 else None) for step in steps]
 
-        super().__init__(steps=steps, metadata=metadata)
+
+        super().__init__(steps=steps, metadata=metadata, freq_hz=freq_hz, **kwargs)
         self.freq_hz = freq_hz
 
     @classmethod
-    def from_list(cls, steps: List[Dict], observation_key: str, action_key: str, supervision_key: str | None = None):
+    def from_list(cls, steps: List[Dict],  observation_key: str, action_key: str, state_key: str | None = None, supervision_key: str | None = None, freq_hz: int | None = None, **kwargs) -> "Episode":
         Step = cls._step_class.get_default()
+        observation_key = observation_key or "observation"
+        action_key = action_key or "action"
+        state_key = state_key or "state"
+        supervision_key = supervision_key or "supervision"
+        freq_hz = freq_hz or 1
         processed_steps = [
             Step(
-                observation=step[observation_key],
-                action=step[action_key],
-                supervision=step.get(supervision_key) if supervision_key else None
+                observation= step.get(observation_key),
+                action=step.get(action_key),
+                state=step.get(state_key),
+                supervision=step.get(supervision_key),
+                timestamp=freq_hz / i,
+                **{k: v for k, v in step.items() if k not in [observation_key, action_key, state_key, supervision_key]},
             )
-            for step in steps
+            for i, step in enumerate(steps)
         ]
-        return cls(steps=processed_steps)
+        return cls(steps=processed_steps, freq_hz=freq_hz, observation_key=observation_key, action_key=action_key, state_key=state_key, supervision_key=supervision_key, **kwargs)
+
+    def dataset(self) -> Dataset:
+        if self.steps is None or len(self.steps) == 0:
+            msg = "Episode has no steps"
+            raise ValueError(msg)
+
+        features = {**self.steps[0].infer_features_dict(),**to_features_dict(self.steps[0].model_info())}
+        data = []
+        for step in self.steps:
+            model_info = step.model_info()
+            step = step.dump(as_field="pil") # noqa
+            image = step.get(self.image_keys[0] if isinstance(self.image_keys, list) else self.image_keys, None)
+            step_idx = step.pop("step_idx", None)
+            episode_idx = step.pop("episode_idx", None)
+            timestamp = step.pop("timestamp", None)
+            data.append({
+                "image": image,
+                "episode_idx": episode_idx,
+                "step_idx": step_idx,
+                "timestamp": timestamp,
+                **step,
+                **model_info,
+            })
+
+        feat = Features({
+            "image": HFImage(), 
+            "episode_idx": Value("int64"), 
+            "step_idx": Value("int64"), 
+            "timestamp": Value("float32"),
+             **features,
+        })
+        describe(feat)
+        return Dataset.from_list(data, features=feat)
 
     def __repr__(self) -> str:
         if not hasattr(self, "stats"):
@@ -306,7 +378,7 @@ class Episode(Sample):
               TimeStep(observation=Sample(value=3), action=Sample(value=30))
             ])
         """
-        return Episode(steps=[step for step in self.steps if condition(step)])
+        return Episode(steps=[step for step in self.steps if condition(step)], metadata=self.metadata)
 
     def iter(self) -> Iterator[TimeStep]:
         """Iterate over the steps in the episode.
@@ -424,14 +496,6 @@ class Episode(Sample):
                 groups[key_value] = []
             groups[key_value].append(step)
         return groups
-
-    def dataset(self) -> Dataset:
-        if self.steps is None or len(self.steps) == 0:
-            msg = "Episode has no steps"
-            raise ValueError(msg)
-        data = [step.dump(as_field="pil") for step in self.steps]
-        features = self.steps[0].features()
-        return Dataset.from_list(data, features=features)
 
     def lerobot(self) -> "LeRobotDataset":
         """Convert the episode to LeRobotDataset compatible format.

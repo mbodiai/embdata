@@ -311,7 +311,7 @@ class Motion(Coordinate):
                     v = [v] # noqa
                 for i, vv in enumerate(v):
                     if isinstance(vv, int | float) and not bounds[0] <= vv <= bounds[1]:
-                        msg = f"{k} item {v} is out of bounds {self.fields[k].bounds}"
+                        msg = f"{k} item {v} is out of bounds {self.field_info(k).get('bounds')}"
                         raise ValueError(msg)
         return self
 

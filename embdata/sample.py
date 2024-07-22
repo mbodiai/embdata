@@ -71,11 +71,13 @@ from pathlib import Path
 from typing import Annotated, Any, Dict, Generator, List, Literal, Union, get_origin
 
 import numpy as np
+from rich import print_json
 import torch
 from datasets import Dataset, Features, IterableDataset
 from gymnasium import spaces
 from pydantic import BaseModel, ConfigDict, Field, create_model
 from pydantic.fields import FieldInfo
+from pydantic.main import TupleGenerator
 
 from embdata.describe import describe, full_paths
 from embdata.features import to_features_dict
@@ -368,11 +370,17 @@ class Sample(BaseModel):
     def __contains__(self, key: str) -> bool:
         """Check if the Sample instance contains the specified attribute."""
         return key in list(self.keys())
+
     def get(self, key: str, default: Any = None) -> Any:
         """Return the value of the attribute with the specified key or the default value if it does not exist."""
         try:
             return self[key]
-        except KeyError:
+        except (AttributeError, KeyError, TypeError):
+            if default is None:
+                try:
+                    return self.setdefault(key, default)
+                except (AttributeError, KeyError, TypeError):
+                    return default
             return default
 
     def _dump(
@@ -818,6 +826,12 @@ class Sample(BaseModel):
 
         return simplify(schema, self)
 
+    def __iter__(self) -> TupleGenerator:
+        yield from [(k, v) for (k, v) in self.__dict__.items() if not k.startswith("_")]
+        if hasattr(self, "_extra"):
+            yield from [(k, v) for (k, v) in self._extra.__dict__.items() if not k.startswith("_")]
+
+
     def infer_features_dict(self) -> Dict[str, Any]:
         """Infers features from the data recusively."""
         feat_dict = {}
@@ -1158,8 +1172,7 @@ class Sample(BaseModel):
         out = {}
         for key, value in dict(self).items():
             info = self.field_info(key) if not isinstance(value, Sample) else value.model_info()
-            if info:
-                out[key] = info
+            out[key] = info if info else {"type": type(value).__name__}
         return out
 
     def field_info(self, key: str) -> Dict[str, Any]:
