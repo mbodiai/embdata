@@ -447,11 +447,11 @@ class Sample(BaseModel):
                 return items, index
             if index < len(flat_data):
                 value = flat_data[index]
-                if isinstance(value, dict) and "properties" in schema_part:
+                if isinstance(value, dict) and schema_part["type"] == "object":
                     result = {}
                     for prop, prop_schema in schema_part["properties"].items():
                         if prop in value:
-                            result[prop] = value[prop]
+                            result[prop], _ = unflatten_recursive(prop_schema, 0)
                     print(f"Returning nested value: {result}, index: {index + 1}")
                     return result, index + 1
                 print(f"Returning value: {value}, index: {index + 1}")
@@ -660,11 +660,17 @@ class Sample(BaseModel):
         for key in keys:
             if isinstance(obj, dict) and key in obj:
                 obj = obj[key]
-            elif hasattr(obj, key):
+            elif isinstance(obj, Sample) and hasattr(obj, key):
                 obj = getattr(obj, key)
             else:
                 return None
         return obj
+
+    def process_grouped(self, grouped, to):
+        result = []
+        for pattern in to:
+            result.append(grouped.get(pattern))
+        return result
     
 
     def setdefault(self, key: str, default: Any) -> Any:
@@ -692,8 +698,18 @@ class Sample(BaseModel):
                 obj = getattr(obj, k)
         if isinstance(obj, dict):
             return obj.setdefault(keys[-1], default)
-        if isinstance(obj, list) and keys[-1] == '*':
-            return obj
+        if isinstance(obj, list):
+            if keys[-1] == '*':
+                return obj
+            try:
+                index = int(keys[-1])
+                if index >= len(obj):
+                    obj.extend([None] * (index - len(obj) + 1))
+                if obj[index] is None:
+                    obj[index] = default
+                return obj[index]
+            except ValueError:
+                raise AttributeError(f"Invalid list index: {keys[-1]}")
         if not hasattr(obj, keys[-1]):
             setattr(obj, keys[-1], default)
         return getattr(obj, keys[-1])
