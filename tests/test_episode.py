@@ -3,11 +3,11 @@ import os
 from PIL import Image as PILModule
 import numpy as np
 import pytest
-from embdata.episode import Episode, TimeStep
+from embdata.episode import Episode, TimeStep, VisionMotorStep, ImageTask
 from embdata.sample import Sample
 from datasets import load_dataset
 from embdata.sense.image import Image
-from embdata.motion.control import AnyMotionControl
+from embdata.motion.control import AnyMotionControl, RelativePoseHandControl
 
 @pytest.fixture
 def time_step():
@@ -203,6 +203,24 @@ def test_episode_push_real_data(time_step):
     )], freq_hz=5)
 
     episode.dataset().push_to_hub("mbodiai/episode_test22", private=True)
+
+def test_episode_vision_motor_step_dataset():
+    episode = Episode([])
+    episode.append(
+        VisionMotorStep(
+            episode_idx=0,
+            step_idx=0,
+            observation=ImageTask(image=Image(size=(224,224)), task="task"),
+            action=RelativePoseHandControl(),
+            state=Sample(),
+        )
+    )
+    episode.dataset()
+
+def test_dataset_to_episode():
+    episode = Episode(steps=[time_step, time_step, time_step])
+    dataset = episode.dataset()
+    episode = Episode(steps=dataset.to_list())
 
 if __name__ == "__main__":
     pytest.main(["-vv", __file__])
