@@ -17,7 +17,7 @@ import numpy as np
 import json
 from pathlib import Path
 from tempfile import TemporaryDirectory
-from embdata.motion import AnyMotionControl
+from embdata.motion.control import AnyMotionControl
 from embdata.motion.control import (
     HandControl,
     HeadControl,
@@ -184,16 +184,17 @@ def test_bounds():
         grasp: float = MotionField(
             default=0,
             description="Openness of the robot hand. 0 is closed, 1 is open.",
+            bounds=(0, 1),
         )
     
     xarm = XarmHandControl()
-    assert xarm.model_field_info("pose")["_bounds"] == (-0.3, 0.4)
-    assert xarm.model_field_info("pose")["_bounds"] == (-0.4, 0.4)
-    assert xarm.model_field_info("pose")["_bounds"] == (-0.175, 0.4)
-    assert xarm.model_field_info("pose")["_bounds"] == (-np.pi/2, np.pi/2)
-    assert xarm.model_field_info("pose")["_bounds"] == (-np.pi/2, np.pi/2)
-    assert xarm.model_field_info("pose")["_bounds"] == (-np.pi, np.pi)
-    assert xarm.model_field_info("grasp")["_bounds"] == (0, 1)
+    assert xarm.pose.field_info("x")["bounds"] == (-0.3, 0.4)
+    assert xarm.pose.field_info("y")["bounds"] == (-0.4, 0.4)
+    assert xarm.pose.field_info("z")["bounds"] == (-0.175, 0.4)
+    assert xarm.pose.field_info("roll")["bounds"] == (-np.pi/2, np.pi/2)
+    assert xarm.pose.field_info("pitch")["bounds"] == (-np.pi/2, np.pi/2)
+    assert xarm.pose.field_info("yaw")["bounds"] == (-np.pi, np.pi)
+    assert xarm.field_info("grasp")["bounds"] == (0, 1)
 
 if __name__ == "__main__":
     pytest.main([__file__, "-vv"])

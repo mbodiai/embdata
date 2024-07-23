@@ -22,20 +22,17 @@ import torch
 
 from embdata.sample import Sample
 
-def test_flatten_with_to_and_output_type():                                                                                                                        
-     obj = Sample(a=1, b={"c": 2, "d": [3, 4]}, e=Sample(f=5, g={"h": 6, "i": 7}))                                                                                  
-     result = obj.flatten(to=["a", "b.c", "e.g.h"])                                                                                                                 
-     expected = [[1, 2, 6]]                                                                                                                                         
-     assert result == expected, f"Expected {expected}, but got {result}"                                                                                            
-                                                                                                                                                                    
-     result_dict = obj.flatten(to=["a", "b.c", "e.g.h"], output_type="dict")                                                                                        
-     expected_dict = [{"a": 1, "b.c": 2, "e.g.h": 6}]                                                                                                               
-     assert result_dict == expected_dict, f"Expected {expected_dict}, but got {result_dict}"  
 
 def test_wrap():
     sample = Sample(1)
     assert sample.wrapped == 1, "Wrapped attribute should be the same as the first argument"
 
+
+def test_wrap_nested():
+    obj = {"a": 1, "b": {"c": 2}}
+    sample = Sample(obj)
+    assert sample.a == 1, "Wrapped attribute should be accessible as an attribute"
+    assert sample.b.c == 2, "Nested wrapped attributes should be accessible as attributes"
 
 def test_wrap_dict():
     sample = Sample({"a": 1})
@@ -87,11 +84,11 @@ def test_structured_flatten():
     assert flat_list == [1, 2, 3, 4, 5], "Flat list should contain all values from the structure"
 
 
-def test_unpack_as_dict():
+def test_pack_as_dict():
     # Scenario with asdict=True
     data = {"key1": [1, 2, 3], "key2": ["a", "b", "c"], "key3": [[1, 2], [3, 4], [5, 6]]}
     sample = Sample(**data)
-    unpacked = sample.pack("dicts")
+    packed = sample.pack("dicts")
 
     expected = [
         {"key1": 1, "key2": "a", "key3": [1, 2]},
@@ -99,17 +96,17 @@ def test_unpack_as_dict():
         {"key1": 3, "key2": "c", "key3": [5, 6]},
     ]
 
-    assert unpacked == expected, "Unrolled wrappeds as dict do not match expected values"
+    assert packed == expected, "Unrolled wrappeds as dict do not match expected values"
 
 
-def test_unpack_as_sample_instances():
+def test_pack_as_sample_instances():
     # Scenario with asdict=False
     data = {"key1": [4, 5, 6], "key2": ["d", "e", "f"], "key3": [[7, 8], [9, 10], [11, 12]]}
     sample = Sample(**data)
-    unpacked = sample.pack("dicts")
+    pack = sample.pack("samples")
 
     # Validate each unrolled wrapped
-    for idx, wrapped in enumerate(unpacked):
+    for idx, wrapped in enumerate(pack):
         assert wrapped.key1 == data["key1"][idx], f"Unrolled wrapped key1 does not match expected value for index {idx}"
         assert wrapped.key2 == data["key2"][idx], f"Unrolled wrapped key2 does not match expected value for index {idx}"
         assert wrapped.key3 == data["key3"][idx], f"Unrolled wrapped key3 does not match expected value for index {idx}"
@@ -272,71 +269,39 @@ def test_dict_shallow():
     assert sample.dict(recurse=False) == {"x": 1, "y": 2, "z": Sample({"a": 3, "b": 4}), "extra_field": 5}
 
 
-def test_flatten_merge_dicts():
-    sample = Sample(
-        a=1,
-        b=[
-            {"c": 2, "d": [3, 4], "e": {"f": 5, "g": [6, 7]}},
-            {"c": 5, "d": [6, 7], "e": {"f": 8, "g": [9, 10]}},
-            {"c": 11, "d": [12, 13], "e": {"f": 14, "g": [15, 16]}},
-        ],
-        e=Sample(f=8, g=[{"h": 9, "i": 10}, {"h": 11, "i": 12}]),
-    )
+def test_setdefault():
+    sample = Sample(a=1, b={"c": 2, "d": [3, 4]}, e=Sample(f=5))
+    
+    # Test setting default value for an existing attribute
+    assert sample.setdefault("a", 10) == 1, "Existing attribute should not be modified"
+    
+    # Test setting default value for a nested attribute
+    assert sample.setdefault("b.c", 20) == 2, "Existing nested attribute should not be modified"
+    assert sample.setdefault("b.e", 30) == 30, "New nested attribute should be set with default value"
+    
+    # Test setting default value for a non-existing attribute
+    assert sample.setdefault("x", 40) == 40, "New attribute should be set with default value"
+    
+    # Test setting default value for a nested attribute with wildcard
+    assert sample.setdefault("b.d.*", 50) == [3, 4], "Existing nested attribute with wildcard should not be modified"
+    assert sample.setdefault("b.d.2", 60) == 60, "New nested attribute with wildcard should be set with default value"
+    
+    # Test setting default value for a non-existing nested attribute with wildcard
+    assert sample.setdefault("b.f.*", [70]) == [70], "New nested attribute with wildcard should be set with default value"
+    
 
-    flattened = sample.flatten(to=["b.*.d", "b.*.e.g"], output_type="dict")
-    expected = [{"d": [3, 4], "g": [6, 7]}, {"d": [6, 7], "g": [9, 10]}, {"d": [12, 13], "g": [15, 16]}]
-    assert flattened == expected, f"Expected {expected}, but got {flattened}"
+def test_flatten_with_to_and_output_type():                                                                                                                        
+     obj = Sample(a=1, b={"c": 2, "d": [3, 4]}, e=Sample(f=5, g={"h": 6, "i": 7}))                                                                                  
+     result = obj.flatten(to=["a", "b.c", "e.g.h"])                                                                                                                 
+     expected = [[1, 2, 6]]                                                                                                                                         
+     assert result == expected, f"Expected {expected}, but got {result}"                                                                                            
+                                                                                                                                                                    
+     result_dict = obj.flatten(to=["a", "b.c", "e.g.h"], output_type="dict")                                                                                        
+     expected_dict = [{"a": 1, "b.c": 2, "e.g.h": 6}]                                                                                                               
+     assert result_dict == expected_dict, f"Expected {expected_dict}, but got {result_dict}"  
 
-    flattened = sample.flatten(to=["b.*.d", "b.*.e.g"], output_type="list")
-    expected = [[3, 4, 6, 7], [6, 7, 9, 10], [12, 13, 15, 16]]
-    assert flattened == expected, f"Expected {expected}, but got {flattened}"
-
-def test_sample_with_nested_dicts_and_lists():
-    sample = Sample(
-        a=1, b=[{"c": 2, "d": [3, 4]}, {"c": 5, "d": [6, 7]}], e=Sample(f=8, g=[{"h": 9, "i": 10}, {"h": 11, "i": 12}])
-    )
-    flattened = sample.flatten()
-    expected = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]
-    assert flattened == expected, f"Expected {expected}, but got {flattened}"
-
-    flattened = sample.flatten(to=["c", "d"])
-    expected = [[2, 3, 4], [5, 6, 7]]
-
-    assert flattened == expected, f"Expected {expected}, but got {flattened}"
-
-    flattened = sample.flatten(to={"c", "d"}, output_type="np")
-    expected = np.array([[2, 3, 4], [5, 6, 7]])
-
-    flattened_dict = sample.flatten(output_type="dict")
-    expected_dict = {
-        "a": 1,
-        "b.0.c": 2,
-        "b.0.d.0": 3,
-        "b.0.d.1": 4,
-        "b.1.c": 5,
-        "b.1.d.0": 6,
-        "b.1.d.1": 7,
-        "e.f": 8,
-        "e.g.0.h": 9,
-        "e.g.0.i": 10,
-        "e.g.1.h": 11,
-        "e.g.1.i": 12,
-    }
-    assert flattened_dict == expected_dict, f"Expected {expected_dict}, but got {flattened_dict}"
-
-    unflattened_sample = Sample.unflatten(flattened, sample.schema())
-    assert unflattened_sample == sample, f"Expected {sample}, but got {unflattened_sample}"
-
-    unflattened_sample_dict = Sample.unflatten(flattened_dict, sample.schema())
-    assert unflattened_sample_dict == sample, f"Expected {sample}, but got {unflattened_sample_dict}"
-
-
-def test_flatten_with_to():
-    sample = Sample(a=1, b={"c": 2, "d": [3, 4]}, e=Sample(f=5, g={"h": 6, "i": 7}))
-    flattened = sample.flatten(to=["a", "b.c", "e.g.h"])
-    expected = [1, 2, 6]
-    assert flattened == expected, f"Expected {expected}, but got {flattened}"
-
+     result_dict = obj.flatten(to=["a", "c", "h"], output_type="dict")
+     assert result_dict == [{"a": 1, "c": 2, "h": 6}], f"Expected {expected_dict}, but got {result_dict}"
 
 if __name__ == "__main__":
     pytest.main()

@@ -28,17 +28,13 @@ from . import episode, motion, sample, sense, trajectory
 from .episode import Episode, ImageTask, TimeStep, VisionMotorStep
 from .motion import Motion
 from .sample import Sample
-from .sense.image import Image
-from .trajectory import Trajectory
 
 __all__ = [
     "Episode",
     "TimeStep",
     "ImageTask",
     "VisionMotorStep",
-    "Image",
     "Sample",
-    "Trajectory",
     "Motion",
     "episode",
     "motion",

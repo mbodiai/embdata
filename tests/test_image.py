@@ -77,7 +77,7 @@ def test_base64_encode():
 
 def test_repr():
     array = np.random.randint(0, 256, (480, 640, 3), dtype=np.uint8)
-    img = Image(array=array)
+    img = Image(array)
     dumped_data = img.__repr__()
     assert "base64" in dumped_data
     assert "array" not in dumped_data

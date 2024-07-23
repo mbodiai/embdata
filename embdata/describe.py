@@ -8,7 +8,7 @@ from typing import Any, Dict
 
 import numpy as np
 from datasets import Dataset
-from rich import print, table
+from rich import print, print_json, table
 from rich.console import Console
 
 
@@ -51,6 +51,9 @@ def as_table(ds: Any, sep: str = ".", show=True) -> Dict[str, Any]:
     return ds
 
 
+def full_paths(ds: Any, keys, sep: str = ".", show=False) -> Dict[str, Any]:
+    return {k:v for k, v in describe_keys(ds, sep, show).items() if k in keys}
+
 def describe_keys(ds: Any, sep: str = ".", show=False, path="") -> Dict[str, Any]:
     """Describe the keys of a nested dictionary or dataset.
 
@@ -84,18 +87,21 @@ def describe_keys(ds: Any, sep: str = ".", show=False, path="") -> Dict[str, Any
     if not hasattr(ds, "items"):
         return ""
     for key, value in ds.items():
-        keys[key] = f"{path}{sep}{key}" if path else key
+        keys[key] = f"{path}{sep}{key}" if path and key not in keys  else key if key not in keys else keys[key]
+        key = keys[key]
         if isinstance(value, dict):
-            sub_keys = describe_keys(value, sep)
+            sub_keys = describe_keys(value, sep, False)
             if sub_keys:
                 for sub_key, sub_value in sub_keys.items():
                     keys[sub_key] = f"{key}{sep}{sub_value}"
+                    keys[f"{key}{sep}{sub_key}"] = f"{key}{sep}{sub_value}"
         elif isinstance(value, list | Dataset):
             if len(value) > 0:
-                sub_keys = describe_keys(value[0], sep)
+                sub_keys = describe_keys(value[0], sep, False)
                 if sub_keys:
                     for sub_key, sub_value in sub_keys.items():
                         keys[sub_key] = f"{key}{sep}*{sep}{sub_value}"
+                        keys[f"{key}{sep}{sub_key}"] = f"{key}{sep}*{sep}{sub_value}"
     if show:
         print(keys)
     return keys
@@ -147,18 +153,18 @@ def describe(ds: Any, name: str = "", compact: bool = True, show=True, check_ful
 
     if isinstance(ds, list | Dataset) and ds:
         if check_full:
-            schemas = {str(describe(item, compact=compact, show=False)) for item in ds}
+            schemas = {str(describe(item, compact=compact, show=False, name=name)) for item in ds}
             if len(schemas) != 1:
                 msg = f"Items in list are not of the same type: {schemas}. Pass `check_full=False` to ignore."
                 raise ValueError(msg)
-        schema["items"] = describe(ds[0], compact=compact, show=False)
+        schema["items"] = describe(ds[0], compact=compact, show=False, name=name)
     elif isinstance(ds, dict) and not compact:
-        schema["properties"] = {key: describe(value, key, compact, show=False) for key, value in ds.items()}
+        schema["properties"] = {key: describe(value, key, compact, show=False, name=name) for key, value in ds.items()}
     elif isinstance(ds, dict) and compact:
         schema = {key: describe(value, key, compact, show=False) for key, value in ds.items()}
 
     if show:
-        print(schema)
+        print_json(data=schema)
     return schema
 
 

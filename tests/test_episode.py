@@ -1,8 +1,13 @@
+import io
+import os
+from PIL import Image as PILModule
+import numpy as np
 import pytest
 from embdata.episode import Episode, TimeStep, VisionMotorStep, ImageTask
 from embdata.sample import Sample
-from embdata import Image
-from embdata.motion.control import RelativePoseHandControl
+from datasets import load_dataset
+from embdata.sense.image import Image
+from embdata.motion.control import AnyMotionControl, RelativePoseHandControl
 
 @pytest.fixture
 def time_step():
@@ -83,7 +88,7 @@ def test_episode_concatenate(time_step):
 def test_episode_from_observations_actions(time_step):
     observations = [Sample("observation1"), Sample("observation2")]
     actions = [Sample("action1"), Sample("action2")]
-    episode = Episode.from_observations_actions(observations, actions)
+    episode = Episode.from_observations_actions_states(observations, actions)
     assert len(episode) == 2
     assert episode[0].observation == observations[0]
     assert episode[0].action == actions[0]
@@ -104,6 +109,7 @@ def test_episode_from_list(time_step):
     assert episode[1].observation == steps[1]["observation"]
     assert episode[1].action == steps[1]["action"]
     assert episode[1].supervision == steps[1]["supervision"]
+
 
 
 def test_episode_trajectory(time_step):
@@ -153,9 +159,50 @@ def test_episode_set_item(time_step):
 
 
 def test_episode_push_to_hub(time_step):
-    episode = Episode(steps=[time_step, time_step, time_step])
+    episode = Episode(steps=[time_step, time_step, time_step], freq_hz=0.2)
     episode.dataset().push_to_hub("mbodiai/episode_test", private=True)
 
+def test_episode_from_ds(time_step):
+    ds = load_dataset("mbodiai/test_dumb", split="train").to_list()
+    episode = Episode(steps=ds)
+    assert len(episode.steps) == len(ds)
+
+def test_episode_from_zipped_ds(time_step):
+    obs = [Sample("observation1"), Sample("observation2")]
+    act = [Sample("action1"), Sample("action2")]
+    sup = [Sample("supervision1"), Sample("supervision2")]
+
+    episode = Episode(zip(obs, act, sup))
+    assert len(episode.steps) == len(obs)
+
+def test_episode_from_steps_image(time_step):
+    steps = [
+    {"observation": {"image": Image(array=np.zeros((224,224,3), dtype=np.uint8), dtype=np.uint8), "task": "command"},  "action": AnyMotionControl(joints=[0.5,3.3]).dict(), "state": {"joint": [0.5, 3.3]}},
+    {"observation": {"image": Image(array=np.zeros((224,224,3), dtype=np.uint8), dtype=np.uint8), "task": "command"}, "action": AnyMotionControl(joints=[0.5,3.3]).dict(), "state": {"joint": [0.5, 3.3]}},
+    {"observation": {"image":  Image(array=np.zeros((224,224,3), dtype=np.uint8), dtype=np.uint8), "task": "command"}, "action": AnyMotionControl(joints=[0.5,3.3]).dict(), "state": {"joint": [0.5, 3.3]}},
+    ]
+
+    episode = Episode(steps)
+    episode.dataset().push_to_hub("mbodiai/episode_testing3", private=True, token=os.getenv("HF_TOKEN"))
+    assert len(episode.steps) == 3
+
+def test_episode_push_real_data(time_step):
+    from embdata.episode import Episode, VisionMotorStep, ImageTask
+    from embdata.motion.control import MobileSingleHandControl, Pose, PlanarPose, HandControl
+    buffer = io.BytesIO()
+    img = PILModule.new("RGB", (224, 224), (255, 0, 0))
+    img.save(buffer, format="JPEG")
+    obs = ImageTask(image={"bytes":buffer}, task="command")
+    act = MobileSingleHandControl(base=PlanarPose(x=0.1, y=0.2, theta=0.3), hand=HandControl([0,1,2,3,4,5,0.1]), head=[0.1, 0.2])
+    state = Pose.unflatten(np.zeros(6))
+    episode = Episode(steps=[VisionMotorStep(
+        observation=obs,
+        action=act,
+        state=state
+    ) for _ in range(10
+    )], freq_hz=5)
+
+    episode.dataset().push_to_hub("mbodiai/episode_test22", private=True)
 
 def test_episode_vision_motor_step_dataset():
     episode = Episode([])

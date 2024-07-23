@@ -4,6 +4,7 @@
 # https://opensource.org/licenses/MIT
 
 
+import logging
 from typing import Any, Dict
 
 import numpy as np
@@ -93,7 +94,8 @@ def to_features_dict(indict: Any, exclude_keys: set | None = None) -> Dict[str, 
 
     if isinstance(indict, list | tuple | np.ndarray):
         if len(indict) == 0:
-            raise ValueError("Cannot infer schema from empty list")
+            msg = "Cannot infer schema from empty list"
+            raise ValueError(msg)
         return [to_features_dict(indict[0])]
 
     if isinstance(indict, dict):
@@ -101,8 +103,13 @@ def to_features_dict(indict: Any, exclude_keys: set | None = None) -> Dict[str, 
         for key, value in indict.items():
             if key in exclude_keys:
                 continue
-            out_dict[key] = to_features_dict(value)
+            out_dict[key] = to_features_dict(value, exclude_keys)
         return out_dict
+    if hasattr(indict, "pil"):
+        return HFImage()
     if isinstance(indict, PILImage):
         return HFImage()
-    raise ValueError(f"Cannot infer schema from {type(indict)}")
+
+    msg = f"Cannot infer schema from {type(indict)}"
+    logging.warning(msg)
+    return Value("string")
