@@ -43,10 +43,10 @@ Example:
     You can also use the RelativeMotionField and VelocityMotionField or TorqueMotionField for different types of motions.
 """
 
-from typing import Any, Dict
+from typing import Any, TypeAlias
 
 import numpy as np
-from pydantic import ConfigDict, model_validator
+from pydantic import ConfigDict
 
 from embdata.geometry import PlanarPose, Pose
 from embdata.motion import AbsoluteMotionField, Motion, MotionField, RelativeMotionField
@@ -111,9 +111,13 @@ class HandControl(Motion):
         description="Openness of the robot hand. 0 is closed, 1 is open.",
     )
 
-
-    def __init__(self, arg: NumpyArray[6, float] | NumpyArray[7, float] | list[float] | None = None, 
-        pose: Pose | NumpyArray[6, float] | None = None, grasp: float | None = None, **kwargs: Any) -> None:
+    def __init__(
+        self,
+        arg: NumpyArray[6, float] | NumpyArray[7, float] | list[float] | None = None,
+        pose: Pose | NumpyArray[6, float] | None = None,
+        grasp: float | None = None,
+        **kwargs: Any,
+    ) -> None:
         """Initialize the HandControl with a pose and grasp state. Can be initialized with a 6D or 7D list or array.
 
         For extra precision, initializing with Pose and float values is recommended.
@@ -125,6 +129,10 @@ class HandControl(Motion):
         if grasp is not None:
             kwargs["grasp"] = grasp
         super().__init__(**kwargs)
+
+
+Hand: TypeAlias = HandControl
+
 
 class AbsoluteHandControl(Motion):
     pose: Pose = AbsoluteMotionField(default_factory=Pose, description="Pose of the robot hand.")
@@ -149,6 +157,9 @@ class HeadControl(Motion):
     pan: float = MotionField(0.0, description="Pan of the robot head in radians (left is negative).")
 
 
+Head: TypeAlias = HeadControl
+
+
 class MobileSingleHandControl(Motion):
     """Control for a robot that can move its base in 2D space with a 6D EEF control + grasp."""
 
@@ -157,8 +168,15 @@ class MobileSingleHandControl(Motion):
         default_factory=PlanarPose,
         description="Location of the robot on the ground.",
     )
-    hand: HandControl | NumpyArray[7, float] = MotionField(default_factory=HandControl, description="Control for the robot hand.")
-    head: HeadControl | NumpyArray[2, float] | None = MotionField(default=None, description="Control for the robot head.")
+    hand: HandControl | NumpyArray[7, float] = MotionField(
+        default_factory=HandControl, description="Control for the robot hand."
+    )
+    head: HeadControl | NumpyArray[2, float] | None = MotionField(
+        default=None, description="Control for the robot head."
+    )
+
+
+MobileSingleHand: TypeAlias = MobileSingleHandControl
 
 
 class MobileSingleArmControl(Motion):
@@ -173,6 +191,9 @@ class MobileSingleArmControl(Motion):
         description="Control for the robot arm.",
     )
     head: HeadControl | None = MotionField(default=None, description="Control for the robot head.")
+
+
+MobileSingleArm: TypeAlias = MobileSingleArmControl
 
 
 class MobileBimanualArmControl(Motion):
@@ -191,6 +212,9 @@ class MobileBimanualArmControl(Motion):
         description="Control for the right robot arm.",
     )
     head: HeadControl | None = MotionField(default=None, description="Control for the robot head.")
+
+
+MobileBimanualArm: TypeAlias = MobileBimanualArmControl
 
 
 class HumanoidControl(Motion):
@@ -213,3 +237,6 @@ class HumanoidControl(Motion):
         description="Control for the right robot leg.",
     )
     head: HeadControl | None = MotionField(default=None, description="Control for the robot head.")
+
+
+Humanoid: TypeAlias = HumanoidControl
