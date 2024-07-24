@@ -24,7 +24,6 @@ from pydantic.json_schema import JsonSchemaValue
 from pydantic_core import PydanticCustomError, core_schema
 from pydantic_numpy.helper.annotation import (
     MultiArrayNumpyFile,
-    pd_np_native_numpy_array_to_data_dict_serializer,
 )
 from pydantic_numpy.helper.validation import (
     validate_multi_array_numpy_file,
@@ -33,7 +32,7 @@ from pydantic_numpy.helper.validation import (
 from rich import print
 from typing_extensions import TypedDict
 
-SupportedDTypes = type[np.generic]
+SupportedDTypes = type[np.generic] | type[np.number] | type[np.bool_] | type[np.int64] | type[np.dtypes.Int64DType] | type[np.uint64] | type[np.dtypes.UInt64DType] | type[np.float64] | type[np.timedelta64] | type[np.datetime64]
 
 
 class NumpyDataDict(TypedDict):
@@ -61,8 +60,11 @@ def array_validator(array: np.ndarray, shape: Tuple[int, ...] | None, dtype: Sup
     if dtype and array.dtype.type != dtype:
         if issubclass(dtype, np.integer) and issubclass(array.dtype.type, np.floating):
             array = np.round(array).astype(dtype, copy=False)
-        else:
-            array = array.astype(dtype, copy=True)
+    if dtype and issubclass(dtype, np.dtypes.UInt64DType | np.dtypes.Int64DType):
+        print("Converting to int64")
+        dtype = np.int64
+        array = array.astype(dtype, copy=True)
+    print(f"this reached for {array.dtype}, {dtype}")
     return array
 
 @array_validator.register
@@ -176,6 +178,16 @@ def get_numpy_json_schema(
     }
 
 
+def array_to_data_dict_serializer(array: npt.ArrayLike) -> NumpyDataDict:
+    array = np.array(array)
+
+    if issubclass(array.dtype.type, np.timedelta64) or issubclass(array.dtype.type, np.datetime64):
+        data = array.astype(int).tolist()
+    else:
+        data = array.astype(float).tolist()
+    dtype = str(array.dtype) if hasattr(array, "dtype") else "float"   
+    return NumpyDataDict(data=data, data_type=dtype , shape=array.shape)
+
 class NumpyArray:
     """Pydantic validation for shape and dtype. Specify shape with a tuple of integers, "*" or `Any` for any size.
 
@@ -282,7 +294,7 @@ class NumpyArray:
                 ],
             ),
             serialization=core_schema.plain_serializer_function_ser_schema(
-                pd_np_native_numpy_array_to_data_dict_serializer,
+                array_to_data_dict_serializer,
                 when_used="json-unless-none",
             ),
         )

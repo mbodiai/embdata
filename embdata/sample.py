@@ -234,7 +234,7 @@ class Sample(BaseModel):
                 items = getattr(self, "items", None)
                 items = [] if items is None else self._items if hasattr(self, "_items") else self.values()
                 if isinstance(items, Generator):
-                    items = functools.reduce(lambda x, y: x + y, items, [])
+                    items = list(items)
                 if callable(items):
                     items = list(items())
                 if len(items) < key or key < 0:
@@ -592,7 +592,8 @@ class Sample(BaseModel):
                 keys.append(prefix.rstrip(sep))
             return out, keys
 
-        return _flatten(obj)
+        result, keys = _flatten(obj)
+        return result, keys
 
     @staticmethod
     def flatten_recursive(obj, ignore: None | set = None, non_numerical="allow", sep="."):
@@ -613,20 +614,15 @@ class Sample(BaseModel):
         ignore = ignore or ()
         if output_type in ["numpy", "np", "torch", "pt"] and non_numerical != "forbid":
             non_numerical = "ignore"
-        # Replace integers with wildcard to allow for indexing. But only between separators or at the start/end.
         def replace_ints_with_wildcard(s, sep="."):
-            # Pattern to match integers that are either at the start/end of the string or surrounded by the separator
             pattern = rf"(?<=^{sep})\d+|(?<={sep})\d+(?={sep})|\d+(?={sep}|$)"
-            # Replace matched integers with a single wildcard, avoiding consecutive wildcards
             return re.sub(pattern, "*", s).rstrip(f"{sep}*").lstrip(f"{sep}*")
         flattened, keys = self.flatten_recursive(self, ignore=ignore, non_numerical=non_numerical, sep=sep)
-        keys = [replace_ints_with_wildcard(k, sep=sep) for k in keys]
-        # print(f"Flattened: {flattened}")  # Debug print
-        # print(f"Keys: {keys}")  # Debug print
+
         if to is None:
-            if output_type in ["dict", "dicts"]:
+            if output_type in ["sample", "samples"]:
                 return Sample(**dict(zip(keys, flattened)))
-            elif output_type == ["dict", "dicts"]:
+            elif output_type in ["dict", "dicts"]:
                 return dict(zip(keys, flattened))
             elif output_type in ["np", "numpy"]:
                 return np.array(flattened, dtype=object)
@@ -634,10 +630,11 @@ class Sample(BaseModel):
                 return torch.tensor(flattened, dtype=torch.float32)
             else:
                 return flattened
-
+        
         result = []
         current_group = {k: [] for k in to}
         num_tos = {k: 0 for k in to}
+        keys = [replace_ints_with_wildcard(k, sep=sep) for k in keys]
         for k, v in zip(keys, flattened):
             for i, ft in enumerate(full_to):
                 if ft in k:

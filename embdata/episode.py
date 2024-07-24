@@ -76,26 +76,34 @@ class TimeStep(Sample):
     _supervision_class: type[Sample] = PrivateAttr(default=Sample)
     
     @classmethod
-    def from_dict(cls, values: Dict[str, Any], image_keys: str | set | None = "image") -> "TimeStep":
-        obs = values.get("observation")
-        act = values.get("action")
-        sta = values.get("state")
-        supervision = values.get("supervision")
+    def from_dict(cls, values: Dict[str, Any], image_keys: str | set | None = "image",
+            observation_key: str | None = "observation", action_key: str | None = "action", supervision_key: str | None = "supervision") -> "TimeStep":
+        obs = values.pop(observation_key, None)
+        act = values.pop(action_key, None)
+        sta = values.pop("state", None)
+        sup = values.pop(supervision_key, None)
+        timestamp = values.pop("timestamp", 0)
+        step_idx = values.pop("step_idx", 0)
+        episode_idx = values.pop("episode_idx", 0)
 
         Obs = cls._observation_class.get_default()
         Act = cls._action_class.get_default()  # noqa: N806, SLF001
         Sta = cls._state_class.get_default()  # noqa: N806, SLF001
-
+        Sup = cls._supervision_class.get_default()
         obs = Obs(**convert_images(obs, image_keys)) if obs is not None else None
         act = Act(**convert_images(act, image_keys)) if act is not None else None
         sta = Sta(**convert_images(sta, image_keys)) if sta is not None else None
-        supervision = convert_images(supervision) if supervision is not None else None
+        sup = Sup(**convert_images(sup, image_keys)) if sup is not None else None
+        field_names = cls.model_fields.keys()
         return cls(
             observation=obs,
             action=act,
             state=sta,
-            supervision=supervision,
-            **{k: v for k, v in values.items() if k not in ["observation", "action", "state", "supervision"]},
+            supervision=sup,
+            episode_idx=episode_idx,
+            step_idx=step_idx,
+            timestamp=timestamp,
+            **{k: v for k, v in values.items() if k not in field_names},
         )
 
     def __init__(
@@ -252,21 +260,19 @@ class Episode(Sample):
         return cls(steps=steps, **kwargs)
 
     @classmethod
-    def from_dataset(cls, dataset: Dataset, image_keys: str | list[str] = "image", observation_key: str = "observation", action_key: str = "action", state_key: str | None = "state", supervision_key: str | None = "supervision") -> "Episode":
-        steps = []
+    def from_dataset(cls, dataset: Dataset, 
+        image_keys: str | list[str] = "image", 
+        observation_key: str = "observation", 
+        action_key: str = "action", state_key: str | None = "state", 
+        supervision_key: str | None = "supervision") -> "Episode":
         if isinstance(dataset, DatasetDict):
             for key in dataset.keys():
                if isinstance(dataset[key], Dataset):
-                    return cls.from_lists(dataset[key], image_keys, observation_key, action_key, state_key, supervision_key)
+                    break
+            return cls.from_lists(zip(dataset[key] for key in dataset.keys()),
+                image_keys, observation_key, action_key, state_key, supervision_key)
             
-
-        for i, data in enumerate(dataset):
-            step = TimeStep.from_dict(data, image_keys=image_keys)
-            step.episode_idx = data.get("episode_idx", 0)
-            step.step_idx = data.get("step_idx", i)
-            step.timestamp = data.get("timestamp", i)
-            steps.append(step)
-        return cls(steps=steps)
+        return cls(steps=[TimeStep.from_dict(step, image_keys, observation_key, action_key, supervision_key) for step in dataset], image_keys=image_keys)
 
     def dataset(self) -> Dataset:
         if self.steps is None or len(self.steps) == 0:
