@@ -555,6 +555,8 @@ class Sample(BaseModel):
     @staticmethod
     def _flatten_recursive(obj, ignore: None | set = None, non_numerical="allow", sep="."):
         def _flatten(obj, prefix=""):
+            if isinstance(obj, np.ndarray | torch.Tensor):
+                obj = obj.tolist()
             out = []
             keys = []
             if isinstance(obj, Sample | dict):
