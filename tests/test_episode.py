@@ -9,6 +9,7 @@ from datasets import load_dataset
 from embdata.sense.image import Image
 from embdata.motion.control import AnyMotionControl, RelativePoseHandControl
 
+
 @pytest.fixture
 def time_step():
     return TimeStep(observation=Sample("observation"), action=Sample("action"), supervision=Sample("supervision"))
@@ -111,7 +112,6 @@ def test_episode_from_list(time_step):
     assert episode[1].supervision == steps[1]["supervision"]
 
 
-
 def test_episode_trajectory(time_step):
     episode = Episode(steps=[time_step, time_step, time_step])
     trajectory = episode.trajectory("action", freq_hz=1)
@@ -162,10 +162,12 @@ def test_episode_push_to_hub(time_step):
     episode = Episode(steps=[time_step, time_step, time_step], freq_hz=0.2)
     episode.dataset().push_to_hub("mbodiai/episode_test", private=True)
 
+
 def test_episode_from_ds(time_step):
     ds = load_dataset("mbodiai/test_dumb", split="train").to_list()
     episode = Episode(steps=ds)
     assert len(episode.steps) == len(ds)
+
 
 def test_episode_from_zipped_ds(time_step):
     obs = [Sample("observation1"), Sample("observation2")]
@@ -175,34 +177,56 @@ def test_episode_from_zipped_ds(time_step):
     episode = Episode(zip(obs, act, sup))
     assert len(episode.steps) == len(obs)
 
+
 def test_episode_from_steps_image(time_step):
     steps = [
-    {"observation": {"image": Image(array=np.zeros((224,224,3), dtype=np.uint8), dtype=np.uint8), "task": "command"},  "action": AnyMotionControl(joints=[0.5,3.3]).dict(), "state": {"joint": [0.5, 3.3]}},
-    {"observation": {"image": Image(array=np.zeros((224,224,3), dtype=np.uint8), dtype=np.uint8), "task": "command"}, "action": AnyMotionControl(joints=[0.5,3.3]).dict(), "state": {"joint": [0.5, 3.3]}},
-    {"observation": {"image":  Image(array=np.zeros((224,224,3), dtype=np.uint8), dtype=np.uint8), "task": "command"}, "action": AnyMotionControl(joints=[0.5,3.3]).dict(), "state": {"joint": [0.5, 3.3]}},
+        {
+            "observation": {
+                "image": Image(array=np.zeros((224, 224, 3), dtype=np.uint8), dtype=np.uint8),
+                "task": "command",
+            },
+            "action": AnyMotionControl(joints=[0.5, 3.3]).dict(),
+            "state": {"joint": [0.5, 3.3]},
+        },
+        {
+            "observation": {
+                "image": Image(array=np.zeros((224, 224, 3), dtype=np.uint8), dtype=np.uint8),
+                "task": "command",
+            },
+            "action": AnyMotionControl(joints=[0.5, 3.3]).dict(),
+            "state": {"joint": [0.5, 3.3]},
+        },
+        {
+            "observation": {
+                "image": Image(array=np.zeros((224, 224, 3), dtype=np.uint8), dtype=np.uint8),
+                "task": "command",
+            },
+            "action": AnyMotionControl(joints=[0.5, 3.3]).dict(),
+            "state": {"joint": [0.5, 3.3]},
+        },
     ]
 
     episode = Episode(steps)
     episode.dataset().push_to_hub("mbodiai/episode_testing3", private=True, token=os.getenv("HF_TOKEN"))
     assert len(episode.steps) == 3
 
+
 def test_episode_push_real_data(time_step):
     from embdata.episode import Episode, VisionMotorStep, ImageTask
     from embdata.motion.control import MobileSingleHandControl, Pose, PlanarPose, HandControl
+
     buffer = io.BytesIO()
     img = PILModule.new("RGB", (224, 224), (255, 0, 0))
     img.save(buffer, format="JPEG")
-    obs = ImageTask(image={"bytes":buffer}, task="command")
-    act = MobileSingleHandControl(base=PlanarPose(x=0.1, y=0.2, theta=0.3), hand=HandControl([0,1,2,3,4,5,0.1]), head=[0.1, 0.2])
+    obs = ImageTask(image={"bytes": buffer}, task="command")
+    act = MobileSingleHandControl(
+        base=PlanarPose(x=0.1, y=0.2, theta=0.3), hand=HandControl([0, 1, 2, 3, 4, 5, 0.1]), head=[0.1, 0.2]
+    )
     state = Pose.unflatten(np.zeros(6))
-    episode = Episode(steps=[VisionMotorStep(
-        observation=obs,
-        action=act,
-        state=state
-    ) for _ in range(10
-    )], freq_hz=5)
+    episode = Episode(steps=[VisionMotorStep(observation=obs, action=act, state=state) for _ in range(10)], freq_hz=5)
 
     episode.dataset().push_to_hub("mbodiai/episode_test22", private=True)
+
 
 def test_episode_vision_motor_step_dataset():
     episode = Episode([])
@@ -210,17 +234,30 @@ def test_episode_vision_motor_step_dataset():
         VisionMotorStep(
             episode_idx=0,
             step_idx=0,
-            observation=ImageTask(image=Image(size=(224,224)), task="task"),
+            observation=ImageTask(image=Image(size=(224, 224)), task="task"),
             action=RelativePoseHandControl(),
             state=Sample(),
         )
     )
     episode.dataset()
 
+
 def test_dataset_to_episode(time_step):
     episode = Episode(steps=[time_step, time_step, time_step])
     dataset = episode.dataset()
     episode = Episode(steps=dataset.to_list())
+
+
+def test_episode_from_dataset(time_step):
+    episode = Episode(steps=[time_step, time_step, time_step])
+    dataset = episode.dataset()
+    episode = Episode.from_dataset(dataset)
+
+
+def test_episode_from_list(time_step):
+    episode = Episode(steps=[time_step, time_step, time_step])
+    dataset = episode.dataset()
+    episode = Episode.from_list(dataset.to_list(), observation_key="observation", action_key="action")
 
 if __name__ == "__main__":
     pytest.main(["-vv", __file__])

@@ -622,31 +622,38 @@ class Episode(Sample):
         """Start a rerun server."""
         rr.init("rerun-mbodied-data", spawn=mode == "local")
         blueprint = rr.blueprint.Blueprint(
-            rr.blueprint.Spatial3DView(background=RRImage(Image(size=(224, 224, 3)).array)),
-            auto_layout=True, auto_space_views=True)
+            rr.blueprint.Spatial3DView(background=RRImage(Image(size=(224, 224)).pil)),
+            auto_layout=True,
+            auto_space_views=True,
+        )
         rr.serve(open_browser=False, web_port=port, ws_port=ws_port, default_blueprint=blueprint)
         for i, step in enumerate(self.steps):
             if not hasattr(step, "timestamp") or step.timestamp is None:
                 step.timestamp = i / 5
             rr.set_time_sequence("frame_index", i)
             rr.set_time_seconds("timestamp", step.timestamp)
-            rr.log("observation", RRImage(step.observation.image)) if step.observation.image else None
-            rr.send_blueprint(rr.blueprint.Blueprint(
-            rr.blueprint.Spatial3DView(background=RRImage(step.observation.image.array)),
-            auto_layout=True, auto_space_views=True))
+            rr.log("observation", RRImage(step.observation.image.pil)) if step.observation.image else None
+            rr.send_blueprint(
+                rr.blueprint.Blueprint(
+                    rr.blueprint.Spatial3DView(background=RRImage(step.observation.image.pil)),
+                    auto_layout=True,
+                    auto_space_views=True,
+                )
+            )
             for dim, val in step.action.flatten("dict").items():
                 rr.log(f"action/{dim}", rr.Scalar(val))
             if step.action.flatten(to="pose"):
-                origin = step.state.numpy()[:3] if step.state else [0, 0, 0]
+                # TODO: This should be step.state.pose ...
+                origin = step.action.numpy()[:3] if step.action else [0, 0, 0]
                 direction = step.action.numpy()[:3]
-                rr.log("action/pose_arrow", rr.Arrows3D(vectors=[direction], origins=[origin]))
+                rr.log("action/pose_arrow", rr.Arrows3D(vectors=direction, origins=origin))
 
-            try:
-                while hasattr(self, "_rr_thread") and self._rr_thread.is_alive():
-                    pass
-            except KeyboardInterrupt:
-                self.close_view()
-                sys.exit()
+        try:
+            while hasattr(self, "_rr_thread") and self._rr_thread.is_alive():
+                pass
+        except KeyboardInterrupt:
+            self.close_view()
+            sys.exit()
 
     def show(self, mode: Literal["local", "remote"] | None = None, port=5003) -> None:
         if mode is None:
