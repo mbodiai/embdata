@@ -242,6 +242,33 @@ def test_episode_vision_motor_step_dataset():
     episode.dataset()
 
 
+def test_episode_vision_motor_step_idx_dataset():
+    episode = Episode([])
+    episode.append(
+        VisionMotorStep(
+            episode_idx=0,
+            step_idx=0,
+            observation=ImageTask(image=Image(size=(224, 224)), task="task"),
+            action=RelativePoseHandControl(),
+            state=Sample(),
+        )
+    )
+    episode.append(
+        VisionMotorStep(
+            episode_idx=1,
+            step_idx=1,
+            observation=ImageTask(image=Image(size=(224, 224)), task="task"),
+            action=RelativePoseHandControl(),
+            state=Sample(),
+        )
+    )
+    ds = episode.dataset()
+    assert ds[0]["episode_idx"] == 0
+    assert ds[1]["episode_idx"] == 1
+    assert ds[0]["step_idx"] == 0
+    assert ds[1]["step_idx"] == 1
+
+
 def test_dataset_to_episode(time_step):
     episode = Episode(steps=[time_step, time_step, time_step])
     dataset = episode.dataset()
@@ -258,6 +285,7 @@ def test_episode_from_list(time_step):
     episode = Episode(steps=[time_step, time_step, time_step])
     dataset = episode.dataset()
     episode = Episode.from_list(dataset.to_list(), observation_key="observation", action_key="action")
+
 
 if __name__ == "__main__":
     pytest.main(["-vv", __file__])
