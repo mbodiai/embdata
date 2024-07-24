@@ -617,7 +617,63 @@ class Sample(BaseModel):
         sep: str = ".",
         to: str | List[str] | None = None,
     ) -> Dict[str, Any] | np.ndarray | torch.Tensor | List | Any:
-        """Flatten the Sample instance into a strictly one-dimensional or two-dimensional structure."""
+        """Flatten the Sample instance into a strictly one-dimensional or two-dimensional structure.
+
+        This method traverses the nested structure of the Sample instance and its attributes,
+        creating a flattened representation based on the specified parameters.
+
+        Note: If 'pt' or 'np' is specified as the 'output_type', non-numerical values are excluded.
+
+        Parameters:
+        -----------
+        output_type : str, optional (default="list")
+            Specifies the type of the output. Options are:
+            - "list": Returns a flat list of values.
+            - "dict": Returns a dictionary with flattened keys and their corresponding values.
+            - "np": Returns a numpy array.
+            - "pt": Returns a PyTorch tensor.
+
+        non_numerical : str, optional (default="ignore")
+            Determines how non-numerical values are handled. Options are:
+            - "ignore": Non-numerical values are excluded from the output.
+            - "forbid": Raises a ValueError if non-numerical values are encountered.
+            - "allow": Includes non-numerical values in the output.
+
+        ignore : set[str], optional (default=None)
+            Set of keys to ignore during flattening.
+
+        sep : str, optional (default=".")
+            Separator used for nested keys in the flattened output.
+
+        to : str | set[str] | List[str], optional (default=None)
+            Specifies which keys to include in the output. If provided, only these keys will be flattened.
+
+        Returns:
+        --------
+        Dict[str, Any] | np.ndarray | torch.Tensor | List
+            The flattened representation of the Sample instance.
+
+        Examples:
+        ---------
+            >>> sample = Sample(a=1, b={"c": 2, "d": [3, 4]}, e=Sample(f=5))
+            >>> sample.flatten()
+            [1, 2, 3, 4, 5]
+
+            >>> sample.flatten(output_type="dict")
+            {'a': 1, 'b.c': 2, 'b.d.0': 3, 'b.d.1': 4, 'e.f': 5}
+
+            >>> sample.flatten(ignore={"b"})
+            [1, 5]
+
+        Notes:
+        ------
+            - When 'to' is provided, the method always returns a list, numpy array, or PyTorch tensor. Depending on output_type.
+            - If 'output_type' is 'dict' and 'to' is provided, the output is a list of dictionaries with the same keys as 'to'.
+            - Otherwise, the output is a 2D array with the number of columns equal to the number of elements in the merged
+                flattened values of the keys in 'to'. The number of rows is equal to the maximum number of elements in the values
+                of the keys in 'to'.
+
+        """
         from embdata.describe import full_paths
         to = [to] if isinstance(to, str) else to
         full_to = full_paths(self, to).values() if to is not None else None
