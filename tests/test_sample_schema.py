@@ -85,6 +85,7 @@ def test_sample_schema_with_numpy_array():
                 "items": {
                     "type": "number",
                 },
+                "maxItems": [0],
                 "title": "Numpy Array",
                 "type": "array",
             },

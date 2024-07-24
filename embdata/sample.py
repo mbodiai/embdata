@@ -111,6 +111,12 @@ def unflatten_from_schema(obj, schema) -> dict:
             return result, index
         elif schema_part["type"] == "array":
             items = []
+            if schema_part.get("shape"):
+                array = obj[index : index + sum(schema_part["shape"])]
+                if all(isinstance(i, list | tuple | np.ndarray | float | int) for i in array):
+                    result = np.array(obj).reshape(schema_part["shape"])
+                    index += sum(schema_part["shape"])
+                    return result, index+1
             for _ in range(schema_part.get("maxItems", len(obj) - index)):
                 value, index = unflatten_recursive(schema_part["items"], index)
                 items.append(value)
@@ -120,6 +126,7 @@ def unflatten_from_schema(obj, schema) -> dict:
 
     unflattened, _ = unflatten_recursive(schema)
     return unflattened
+
 class Sample(BaseModel):
     """A base model class for serializing, recording, and manipulating arbitray data."""
 
@@ -200,7 +207,8 @@ class Sample(BaseModel):
             data.update(d)
         elif isinstance(wrapped, spaces.Space):
             data.update(self.from_space(wrapped).model_dump())
-        
+        elif "items" in data:
+            data["_items"] = data.pop("items")
         super().__init__(**data)
         self.__post_init__()
 
@@ -452,6 +460,16 @@ class Sample(BaseModel):
             if k not in ignore:
                 yield k
 
+    def items(self) -> Generator:
+        ignore = set()
+        for k, _ in self:
+            if "." in k:
+                ignore.add(k.split(".")[0])
+            elif "/" in k:
+                ignore.add(k.split("/")[0])
+        for k, v in self:
+            if k not in ignore:
+                yield k, v
 
     def dict(self, exclude: set[str] | None | str = "None", recurse=True) -> Dict[str, Any]:  # noqa
         """Return a dictionary representation of the Sample instance.
@@ -763,6 +781,8 @@ class Sample(BaseModel):
             if isinstance(obj, dict):
                 obj = Sample(**obj)
                 _include = "simple"
+            elif obj is None:
+                pass
             elif hasattr(obj, "_extra"):
                 title = obj.__class__.__name__
                 _include = include
@@ -779,6 +799,10 @@ class Sample(BaseModel):
                 # Handle numpy arrays
                 schema["type"] = "array"
                 schema["items"] = {"type": "number"}
+                print(f"Schema: {schema}")
+                schema["shape"] = schema["properties"]["shape"]["default"]
+                if schema["shape"] == "Any" and obj is not None:
+                    schema["shape"] = obj.shape
                 del schema["properties"]
                 del schema["required"]
             if "type" in schema and schema["type"] == "object":

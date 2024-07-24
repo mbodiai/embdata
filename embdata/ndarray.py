@@ -39,6 +39,7 @@ SupportedDTypes = type[np.generic]
 class NumpyDataDict(TypedDict):
     data: List
     data_type: SupportedDTypes
+    shape: Tuple[int, ...]
 
 
 
@@ -70,7 +71,7 @@ def list_tuple_validator(array: list | tuple,  shape: Tuple[int, ...] | None, dt
 
 @array_validator.register
 def dict_validator(array: dict, shape: Tuple[int, ...] | None, dtype: SupportedDTypes | None) -> npt.NDArray:
-    array = np.array(array["data"]).astype(array["data_type"])
+    array = np.array(array["data"]).astype(array["data_type"]).reshape(array["shape"])
     return array_validator.dispatch(np.ndarray)(array, shape, dtype)
 
 
@@ -82,7 +83,7 @@ def create_array_validator(
 
 @validate_call
 def _deserialize_numpy_array_from_data_dict(data_dict: NumpyDataDict) -> np.ndarray:
-    return np.array(data_dict["data"]).astype(data_dict["data_type"])
+    return np.array(data_dict["data"]).astype(data_dict["data_type"]).reshape(data_dict["shape"])
 
 
 _common_numpy_array_validator = core_schema.union_schema(
@@ -169,6 +170,7 @@ def get_numpy_json_schema(
         "required": ["data_type", "data"],
         "properties": {
             "data_type": {"title": "dtype", "default": array_data_type, "type": "string"},
+            "shape": {"title": "shape", "default": array_shape, "type": "array"},
             "data": data_schema,
         },
     }
