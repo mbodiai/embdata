@@ -88,7 +88,7 @@ def test_episode_concatenate(time_step):
 def test_episode_from_lists(time_step):
     observations = [Sample("observation1"), Sample("observation2")]
     actions = [Sample("action1"), Sample("action2")]
-    episode = Episode.from_observations_actions_states(observations, actions)
+    episode = Episode.from_lists(observations, actions)
     assert len(episode) == 2
     assert episode[0].observation == observations[0]
     assert episode[0].action == actions[0]
@@ -101,7 +101,7 @@ def test_episode_from_list(time_step):
         {"observation": Sample("observation1"), "action": Sample("action1"), "supervision": Sample("supervision1")},
         {"observation": Sample("observation2"), "action": Sample("action2"), "supervision": Sample("supervision2")},
     ]
-    episode = Episode(steps, "observation", "action", "supervision")
+    episode = Episode.from_list(steps, "observation", "action", "supervision")
     assert len(episode) == 2
     assert episode[0].observation == steps[0]["observation"]
     assert episode[0].action == steps[0]["action"]
