@@ -560,19 +560,31 @@ class Sample(BaseModel):
     @staticmethod
     def _flatten_recursive(obj, ignore: None | set = None, non_numerical="allow", sep="."):
         def _flatten(obj, prefix=""):
+            print(f"obj: {obj}, prefix: {prefix}")  # Debug print
             out = []
             keys = []
             if isinstance(obj, Sample | dict):
                 for k, v in obj.items():
-                    # print(f"Processing key: {k}, value: {v}")  # Debug print
-                    if k in ignore:
+                    print(f"Processing key: {k}, value: {v}")  # Debug print
+                    if ignore and k in ignore:
                         continue
                     new_key = f"{prefix}{k}" if prefix else k
-                    subout, subkeys = _flatten(v, f"{new_key}{sep}")
-                    out.extend(subout)
-                    keys.extend(subkeys)
+                    print(f"new_key: {new_key}")  # Debug print
+                    
+                    if isinstance(v, np.ndarray | torch.Tensor):
+                        subout, subkeys = _flatten(v.tolist(), f"{new_key}{sep}")
+                        print(f"subout: {subout}, subkeys: {subkeys}")  # Debug print
+                        out.extend(subout)
+                        keys.extend(subkeys)
+                    else:
+                        subout, subkeys = _flatten(v, f"{new_key}{sep}")
+                        print(f"subout: {subout}, subkeys: {subkeys}")  # Debug print
+                        out.extend(subout)
+                        keys.extend(subkeys)
+            
             elif isinstance(obj, list):
                 for i, v in enumerate(obj):
+                    print(f"Processing index: {i}, value: {v}")  # Debug print
                     subout, subkeys = _flatten(v, f"{prefix}{i}{sep}")
                     out.extend(subout)
                     keys.extend(subkeys)
@@ -616,14 +628,16 @@ class Sample(BaseModel):
             return re.sub(pattern, "*", s).rstrip(f"{sep}*").lstrip(f"{sep}*")
         flattened, keys = self.flatten_recursive(self, ignore=ignore, non_numerical=non_numerical, sep=sep)
         keys = [replace_ints_with_wildcard(k, sep=sep) for k in keys]
-        # print(f"Flattened: {flattened}")  # Debug print
-        # print(f"Keys: {keys}")  # Debug print
+        print(f"Flattened: {flattened}")  # Debug print
+        print(f"Keys: {keys}")  # Debug print
+        
         if to is None:
             return flattened
         
         result = []
         current_group = {k: [] for k in to}
         num_tos = {k: 0 for k in to}
+        
         for k, v in zip(keys, flattened):
             print(f"current_group: {current_group}, result: {result}")
             for i, ft in enumerate(full_to):
