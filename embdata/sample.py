@@ -587,7 +587,7 @@ class Sample(BaseModel):
                     msg = f"Non-numerical value encountered: {obj}"
                     raise ValueError(msg)
                 if non_numerical == "ignore" and not isinstance(obj, int | float | np.number):
-                    return []
+                    return [],[]
                 out.append(obj)
                 keys.append(prefix.rstrip(sep))
             return out, keys
