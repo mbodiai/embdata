@@ -40,6 +40,7 @@ from datasets.features import Features
 from datasets.features import Image as HFImage
 from gymnasium import spaces
 from PIL import Image as PILModule
+from PIL import ImageOps
 from PIL.Image import Image as PILImage
 from pydantic import (
     AnyUrl,
@@ -191,6 +192,9 @@ class Image(Sample):
         if isinstance(arg, Image):
             kwargs.update(arg.dump())
             arg = None
+        for k in list(kwargs.keys()):
+            if kwargs[k] is None:
+                del kwargs[k]
         kwargs = self.dispatch_arg(arg, **kwargs)
         super().__init__(**kwargs)
 
@@ -204,8 +208,6 @@ class Image(Sample):
 
     def __repr__(self):
         """Return a string representation of the image."""
-        if self.base64 is None:
-            return f"Image(encoding={self.encoding}, size={self.size})"
         return f"Image(base64={self.base64[:10]}..., encoding={self.encoding}, size={self.size})"
 
     def __str__(self):
@@ -220,6 +222,7 @@ class Image(Sample):
         if values.get("pil") is None:
             arg = reduce(lambda x, y: x if x is not None else y, [values.get(key) for key in sources])
             values.update(cls.dispatch_arg(arg, **values))
+        values = {key: value for key, value in values.items() if key is not None}
         return values
 
     @staticmethod
@@ -243,7 +246,7 @@ class Image(Sample):
         base64_encoded = base64lib.b64encode(buffer.getvalue()).decode("utf-8")
         data_url = f"data:image/{encoding};base64,{base64_encoded}"
         if size is not None:
-            image = image.resize(size, PILModule.Resampling.BICUBIC)
+            image = ImageOps.fit(image, size)
         else:
             size = image.size
         return {
