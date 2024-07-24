@@ -92,7 +92,7 @@ def unflatten_dict(obj, sep=".") -> dict:
         keys = key.split(sep)
         d = out
         for k in keys[:-1]:
-            d = d.setdefault(k, {})
+            d = d.get(k, {})
         d[keys[-1]] = value
     return out
     
@@ -114,9 +114,9 @@ def unflatten_from_schema(obj, schema) -> dict:
             if schema_part.get("shape"):
                 array = obj[index : index + sum(schema_part["shape"])]
                 if all(isinstance(i, list | tuple | np.ndarray | float | int) for i in array):
-                    result = np.array(obj).reshape(schema_part["shape"])
-                    index += sum(schema_part["shape"])
-                    return result, index+1
+                    result = np.array(array).reshape(schema_part["shape"])
+                    index += reduce(operator.mul, schema_part["shape"], 1)
+                    return result, index
             for _ in range(schema_part.get("maxItems", len(obj) - index)):
                 value, index = unflatten_recursive(schema_part["items"], index)
                 items.append(value)
@@ -349,7 +349,7 @@ class Sample(BaseModel):
             self._extra.__setitem__ = self.__class__.__setitem__
             for k, v in self.dump().items():
                 if not k.startswith("_"):
-                    self.setdefault(k, v, nest=True)
+                    setattr(self._extra, k, v)
             print(f"Extra: {self._extra}")
     def __hash__(self) -> int:
         """Return a hash of the Sample instance."""
@@ -610,9 +610,9 @@ class Sample(BaseModel):
         from embdata.describe import full_paths
         to = [to] if isinstance(to, str) else to
         full_to = full_paths(self, to).values() if to is not None else None
-        # print(f"fpaths: {full_to}")  # Debug print
         ignore = ignore or ()
-
+        if output_type in ["numpy", "np", "torch", "pt"] and non_numerical != "forbid":
+            non_numerical = "ignore"
         # Replace integers with wildcard to allow for indexing. But only between separators or at the start/end.
         def replace_ints_with_wildcard(s, sep="."):
             # Pattern to match integers that are either at the start/end of the string or surrounded by the separator
@@ -624,8 +624,17 @@ class Sample(BaseModel):
         # print(f"Flattened: {flattened}")  # Debug print
         # print(f"Keys: {keys}")  # Debug print
         if to is None:
-            return flattened
-        
+            if output_type in ["dict", "dicts"]:
+                return Sample(**dict(zip(keys, flattened)))
+            elif output_type == ["dict", "dicts"]:
+                return dict(zip(keys, flattened))
+            elif output_type in ["np", "numpy"]:
+                return np.array(flattened, dtype=object)
+            elif output_type in ["pt", "torch", "pytorch"]:
+                return torch.tensor(flattened, dtype=torch.float32)
+            else:
+                return flattened
+
         result = []
         current_group = {k: [] for k in to}
         num_tos = {k: 0 for k in to}
@@ -666,61 +675,61 @@ class Sample(BaseModel):
                 setattr(self, k, next(iter(v.values())))
         return self
 
-    def setdefault(self, key: str, default: Any, nest=True) -> Any:
-        """Set the default value for the attribute with the specified key."""
-        if not nest:
-            if key in self:
-                return self[key]
-            self[key] = default
-            return default
-        keys = key.split(".")
-        obj = self
-        for k in keys[:-1]:
-            k = "_items" if k == "items" else k
-            if k == "*":
-                return obj
-            if isinstance(obj, dict):
-                obj = obj.setdefault(k, {})
-                try:
-                    index = int(k)
-                    if index >= len(obj):
-                        obj.extend([None] * (index - len(obj) + 1))
-                    if obj[index] is None:
-                        obj[index] = {}
-                    obj = obj[index]
-                except ValueError:
-                    raise AttributeError(f"Invalid list index: {k}")
-            elif not isinstance(obj, Sample) and not hasattr(obj, k):
-                new_obj = Sample()
-                obj[k] = new_obj
-                obj = new_obj
-            elif hasattr(obj, k):
-                obj = getattr(obj, k)
-            else:
-                obj[k] = Sample()
-                obj = getattr(obj, k)
-        if isinstance(obj, dict):
-            if keys[-1] == "*":
-                return obj.setdefault("*", default if isinstance(default, list) else [default])
-            return obj.setdefault(keys[-1], default)
-        if isinstance(obj, list):
-            if keys[-1] == "*":
-                return obj
-            try:
-                index = int(keys[-1])
-                if index >= len(obj):
-                    obj.extend([None] * (index - len(obj) + 1))
-                if obj[index] is None:
-                    obj[index] = default
-                return obj[index]
-            except ValueError:
-                raise AttributeError(f"Invalid list index: {keys[-1]}")
-        if not hasattr(obj, keys[-1]):
-            if keys[-1] == "*":
-                setattr(obj, keys[-1], default if isinstance(default, list) else [default])
-            else:
-                setattr(obj, keys[-1], default)
-        return getattr(obj, keys[-1])
+    # def setdefault(self, key: str, default: Any, nest=True) -> Any:
+    #     """Set the default value for the attribute with the specified key."""
+    #     if not nest:
+    #         if key in self:
+    #             return self[key]
+    #         self[key] = default
+    #         return default
+    #     keys = key.split(".")
+    #     obj = self
+    #     for k in keys[:-1]:
+    #         k = "_items" if k == "items" else k
+    #         if k == "*":
+    #             return obj
+    #         if isinstance(obj, dict):
+    #             obj = obj.setdefault(k, {})
+    #             try:
+    #                 index = int(k)
+    #                 if index >= len(obj):
+    #                     obj.extend([None] * (index - len(obj) + 1))
+    #                 if obj[index] is None:
+    #                     obj[index] = {}
+    #                 obj = obj[index]
+    #             except ValueError:
+    #                 raise AttributeError(f"Invalid list index: {k}")
+    #         elif not isinstance(obj, Sample) and not hasattr(obj, k):
+    #             new_obj = Sample()
+    #             obj[k] = new_obj
+    #             obj = new_obj
+    #         elif hasattr(obj, k):
+    #             obj = getattr(obj, k)
+    #         else:
+    #             obj[k] = Sample()
+    #             obj = getattr(obj, k)
+    #     if isinstance(obj, dict):
+    #         if keys[-1] == "*":
+    #             return obj.setdefault("*", default if isinstance(default, list) else [default])
+    #         return obj.setdefault(keys[-1], default)
+    #     if isinstance(obj, list):
+    #         if keys[-1] == "*":
+    #             return obj
+    #         try:
+    #             index = int(keys[-1])
+    #             if index >= len(obj):
+    #                 obj.extend([None] * (index - len(obj) + 1))
+    #             if obj[index] is None:
+    #                 obj[index] = default
+    #             return obj[index]
+    #         except ValueError:
+    #             raise AttributeError(f"Invalid list index: {keys[-1]}")
+    #     if not hasattr(obj, keys[-1]):
+    #         if keys[-1] == "*":
+    #             setattr(obj, keys[-1], default if isinstance(default, list) else [default])
+    #         else:
+    #             setattr(obj, keys[-1], default)
+    #     return getattr(obj, keys[-1])
 
     def schema(self, include: Literal["all", "descriptions", "info", "simple"] = "info") -> Dict:
         """Returns a simplified json schema.
