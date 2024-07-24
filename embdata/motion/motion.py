@@ -262,6 +262,7 @@ class Motion(Coordinate):
 
     model_config = ConfigDict(arbitrary_types_allowed=True, extra="forbid", populate_by_name=True)
 
+
     def make_relative_to(self, other: "Motion") -> "Motion":
         """Make the motion relative to another motion.
 

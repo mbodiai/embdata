@@ -217,7 +217,7 @@ def test_episode_vision_motor_step_dataset():
     )
     episode.dataset()
 
-def test_dataset_to_episode():
+def test_dataset_to_episode(time_step):
     episode = Episode(steps=[time_step, time_step, time_step])
     dataset = episode.dataset()
     episode = Episode(steps=dataset.to_list())

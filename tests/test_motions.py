@@ -107,7 +107,9 @@ def test_mobile_single_arm_control_deserialization():
 
 def test_hand_control_serialization():
     hc = HandControl(pose=Pose6D(x=0.5, y=-0.5, z=0.5, roll=0.5, pitch=-0.5, yaw=0.5), grasp=1.0)
+    print(f"hc: {hc}")
     json_data = json.dumps(hc.dict())
+    print(json_data)
     expected = {
         "pose": {"x": 0.5, "y": -0.5, "z": 0.5, "roll": 0.5, "pitch": -0.5, "yaw": 0.5},
         "grasp": 1.0,

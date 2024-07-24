@@ -111,21 +111,6 @@ class HandControl(Motion):
         description="Openness of the robot hand. 0 is closed, 1 is open.",
     )
 
-
-    def __init__(self, arg: NumpyArray[6, float] | NumpyArray[7, float] | list[float] | None = None, 
-        pose: Pose | NumpyArray[6, float] | None = None, grasp: float | None = None, **kwargs: Any) -> None:
-        """Initialize the HandControl with a pose and grasp state. Can be initialized with a 6D or 7D list or array.
-
-        For extra precision, initializing with Pose and float values is recommended.
-        """
-        kwargs["pose"] = Pose.unflatten(arg[:6]) if arg else kwargs.get("pose", Pose())
-        kwargs["grasp"] = arg[6] if len(arg) == 7 else kwargs.get("grasp", 0)
-        if pose is not None:
-            kwargs["pose"] = Pose(pose)
-        if grasp is not None:
-            kwargs["grasp"] = grasp
-        super().__init__(**kwargs)
-
 class AbsoluteHandControl(Motion):
     pose: Pose = AbsoluteMotionField(default_factory=Pose, description="Pose of the robot hand.")
     grasp: float = AbsoluteMotionField(

@@ -73,9 +73,9 @@ class TimeStep(Sample):
     _observation_class: type[Sample] = PrivateAttr(default=Sample)
     _action_class: type[Sample] = PrivateAttr(default=Sample)
     _state_class: type[Sample] = PrivateAttr(default=Sample)
-
+    _supervision_class: type[Sample] = PrivateAttr(default=Sample)
     @classmethod
-    def from_dicts(cls, values: Dict[str, Any], image_keys: str | set | None = "image") -> "TimeStep":
+    def from_dict(cls, values: Dict[str, Any], image_keys: str | set | None = "image") -> "TimeStep":
         obs = values.get("observation")
         act = values.get("action")
         sta = values.get("state")
@@ -105,20 +105,24 @@ class TimeStep(Sample):
         supervision: Any | None = None, 
         episode_idx: int | None = 0,
         step_idx: int | None = 0,
-        timestamp: float | None = None, **kwargs):
+        timestamp: float | None = None,
+        image_keys: str | set[str] | None = "image",
+         **kwargs):
 
-        if all([isinstance(observation, dict), isinstance(action, dict), isinstance(state, dict)]):
-            self.from_dicts({
-                "observation": observation, 
-                "action":action,
-                "state":state,
-                "supervision": supervision,
-                "episode_idx": episode_idx,
-                "step_idx": step_idx,
-                "timestamp": timestamp,
-                **kwargs,
-            })
-            return
+        obs = observation
+        act = action
+        sta = state
+        sup = supervision
+
+        Obs = TimeStep._observation_class.get_default() if not isinstance(obs, Sample) else obs.__class__
+        Act = TimeStep._action_class.get_default() if not isinstance(act, Sample) else act.__class__
+        Sta = TimeStep._state_class.get_default() if not isinstance(sta, Sample) else sta.__class__
+        Sup = TimeStep._supervision_class.get_default() if not isinstance(sup, Sample) else Sample
+        obs = Obs(**convert_images(obs, image_keys)) if obs is not None else None
+        act = Act(**convert_images(act, image_keys)) if act is not None else None
+        sta = Sta(**convert_images(sta, image_keys)) if sta is not None else None
+        sup = Sup(**convert_images(supervision)) if supervision is not None else None
+
         super().__init__(  # noqa: PLE0101
             observation=observation,
             action=action,
@@ -127,7 +131,8 @@ class TimeStep(Sample):
             episode_idx=episode_idx, 
             step_idx=step_idx, 
             timestamp=timestamp, 
-             **kwargs)
+            **{k: v for k, v in kwargs.items() if k not in ["observation", "action", "state", "supervision"]},
+        )
 
 
 
@@ -203,7 +208,7 @@ class Episode(Sample):
             raise ValueError(msg)
         steps = list(steps) if not isinstance(steps, list) else steps
 
-        Step = self.__class__._step_class.get_default()  # noqa: N806, SLF001
+        Step = Episode._step_class.get_default()
 
         if steps and not isinstance(steps[0], TimeStep | Dict | Sample):
             if isinstance(steps[0], dict) and observation_key in steps[0] and action_key in steps[0]:
@@ -213,7 +218,6 @@ class Episode(Sample):
 
 
         super().__init__(steps=steps, metadata=metadata, freq_hz=freq_hz, **kwargs)
-        self.freq_hz = freq_hz
 
     @classmethod
     def from_list(cls, steps: List[Dict],  observation_key: str, action_key: str, state_key: str | None = None, supervision_key: str | None = None, freq_hz: int | None = None, **kwargs) -> "Episode":
@@ -590,14 +594,15 @@ class Episode(Sample):
         """Start a rerun server."""
         rr.init("rerun-mbodied-data", spawn=mode == "local")
         blueprint = rr.blueprint.Blueprint(
-            rr.blueprint.Spatial3DView(), auto_layout=True, auto_space_views=True)
+            rr.blueprint.Spatial3DView(background=RRImage(Image(size=(224, 224, 3)).array)),
+            auto_layout=True, auto_space_views=True)
         rr.serve(open_browser=False, web_port=port, ws_port=ws_port, default_blueprint=blueprint)
         for i, step in enumerate(self.steps):
             if not hasattr(step, "timestamp") or step.timestamp is None:
                 step.timestamp = i / 5
             rr.set_time_sequence("frame_index", i)
             rr.set_time_seconds("timestamp", step.timestamp)
-            rr.log("observation", RRImage(Image(step.observation.image)).array) if step.observation.image else None
+            rr.log("observation", RRImage(step.observation.image)) if step.observation.image else None
             rr.send_blueprint(rr.blueprint.Blueprint(
             rr.blueprint.Spatial3DView(background=RRImage(step.observation.image.array)),
             auto_layout=True, auto_space_views=True))
@@ -608,12 +613,12 @@ class Episode(Sample):
                 direction = step.action.numpy()[:3]
                 rr.log("action/pose_arrow", rr.Arrows3D(vectors=[direction], origins=[origin]))
 
-        try:
-            while hasattr(self, "_rr_thread") and self._rr_thread.is_alive():
-                pass
-        except KeyboardInterrupt:
-            self.close_view()
-            sys.exit()
+            try:
+                while hasattr(self, "_rr_thread") and self._rr_thread.is_alive():
+                    pass
+            except KeyboardInterrupt:
+                self.close_view()
+                sys.exit()
 
     def show(self, mode: Literal["local", "remote"] | None = None, port=5003) -> None:
         if mode is None:

@@ -110,18 +110,53 @@ def test_unminmax():
     assert np.allclose(unminmax_trajectory, expected_array)
 
 
+def pca():
+    # Given array
+    array = np.array([[1, 2, 3], [4, 5, 6], [7, 8, 9], [10, 11, 12]])
+
+    # Step 1: Center the data
+    centered_data = array - np.mean(array, axis=0)
+
+    # Step 2: Compute the covariance matrix
+    cov_matrix = np.cov(centered_data.T)
+
+    # Step 3: Calculate eigenvalues and eigenvectors
+    eigenvalues, eigenvectors = np.linalg.eig(cov_matrix)
+
+    # Step 4: Sort eigenvectors by eigenvalues in descending order
+    sorted_indices = np.argsort(eigenvalues)[::-1]
+    sorted_eigenvalues = eigenvalues[sorted_indices]
+    sorted_eigenvectors = eigenvectors[:, sorted_indices]
+
+    # Step 5: Project the data onto the principal components
+    pca_transform = centered_data.dot(sorted_eigenvectors)
+
+    print("PCA transformed data:")
+    print(pca_transform)
+
+    # To verify the results, let's check the explained variance ratio
+    explained_variance_ratio = sorted_eigenvalues / np.sum(sorted_eigenvalues)
+    print("\nExplained variance ratio:")
+    print(explained_variance_ratio)
+
 def test_make_pca():
     array = np.array([[1, 2, 3], [4, 5, 6], [7, 8, 9], [10, 11, 12]])
     trajectory = Trajectory(array, freq_hz=1)
-    pca_trajectory = trajectory.make_pca()
+    pca_trajectory = trajectory.make_pca(whiten=False)
     expected_array = np.array(
         [
-            [-1.16189500e00, -1.28452326e00, 2.40969395e-16],
-            [-3.87298335e-01, 3.50324525e-01, -1.10782342e00],
-            [3.87298335e-01, -3.50324525e-01, 1.10782342e00],
-            [1.16189500e00, -1.05097357e00, -7.38548946e-01],
+            [-7.79422863 , 0. ,        -0. ], 
+            [-2.59807621,  0.  ,        0.  ],
+            [ 2.59807621,  0.   ,       0.   ],
+            [ 7.79422863, -0.  ,        0.  ], 
         ]
     )
+    pca()
+    print("actual_array: ")
+    print(pca_trajectory.array)
+
+    print(f"expected_array: ")
+    print(expected_array)
     assert np.allclose(pca_trajectory.array, expected_array)
 
 

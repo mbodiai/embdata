@@ -86,28 +86,40 @@ import contextlib
 OneDimensional = Annotated[Literal["dict", "np", "pt", "list", "sample"], "Numpy, PyTorch, list, sample, or dict"]
 
 
-class CallableItems:
-    def __init__(self, obj):
-        self.obj = obj
+def unflatten_dict(obj, sep=".") -> dict:
+    out = {}
+    for key, value in obj.items():
+        keys = key.split(sep)
+        d = out
+        for k in keys[:-1]:
+            d = d.setdefault(k, {})
+        d[keys[-1]] = value
+    return out
+    
+def unflatten_from_schema(obj, schema) -> dict:
+    if isinstance(obj, ( np.ndarray, torch.Tensor)):
+        obj = obj.tolist()
+    elif isinstance(obj, dict):
+        return unflatten_dict(obj)
 
-    def __call__(self):
-        if isinstance(self.obj, dict):
-            yield from dict(self.obj).items()
-        elif isinstance(self.obj, list | tuple | np.ndarray | torch.Tensor | Dataset | IterableDataset):
-            yield from enumerate(self.obj)
-        else:
-            yield from self.obj
+    def unflatten_recursive(schema_part, index=0):
+        if schema_part["type"] == "object":
+            result = {}
+            for prop, prop_schema in schema_part["properties"].items():
+                value, index = unflatten_recursive(prop_schema, index)
+                result[prop] = value
+            return result, index
+        elif schema_part["type"] == "array":
+            items = []
+            for _ in range(schema_part.get("maxItems", len(obj) - index)):
+                value, index = unflatten_recursive(schema_part["items"], index)
+                items.append(value)
+            return items, index
+        else:  # Assuming it's a primitive type
+            return obj[index], index + 1
 
-    def __iter__(self):
-        return iter(self.obj)
-
-    def __len__(self):
-        return len(self.obj)
-
-    def __getitem__(self, key):
-        return self.obj[key]
-
-
+    unflattened, _ = unflatten_recursive(schema)
+    return unflattened
 class Sample(BaseModel):
     """A base model class for serializing, recording, and manipulating arbitray data."""
 
@@ -164,6 +176,7 @@ class Sample(BaseModel):
             >>> Sample.unflatten(flat_list, schema)
             Sample(x=1, y=2, z={'a': 3, 'b': 4}, extra_field=5)
         """
+
         if isinstance(wrapped, Sample):
             # Only wrap if no other data is provided.
             if not data:
@@ -187,10 +200,8 @@ class Sample(BaseModel):
             data.update(d)
         elif isinstance(wrapped, spaces.Space):
             data.update(self.from_space(wrapped).model_dump())
-
+        
         super().__init__(**data)
-        if "_items" in data:
-            self.items = CallableItems(data["_items"])
         self.__post_init__()
 
     def __getitem__(self, key: str | int) -> Any:
@@ -200,6 +211,10 @@ class Sample(BaseModel):
         If the key is a string and contains a separator ('.' or '/'), the value is returned at the specified nested key.
         Otherwise, the value is returned as an attribute of the Sample object.
         """
+        if isinstance(key, int) and any(isinstance(self[k], list | tuple | Dataset | IterableDataset | np.ndarray) for k in self.keys()):
+            items = [self[k] for k in self.keys()]
+            return items[key]
+
         if self.__class__ == Sample:
             if isinstance(key, int):
                 if hasattr(self, "_items"):
@@ -238,18 +253,17 @@ class Sample(BaseModel):
 
         try:
             return getattr(self, key)
-        except AttributeError as e:
+        except (AttributeError, KeyError, TypeError) as e:
             if hasattr(self, "_extra"):
                 try:
                     if isinstance(key, str):
                         sep = "." if "." in key else "/"
                         keys = key.replace("*", "").replace(f"{sep}{sep}", sep).split(sep)
                         key = "__nest__".join(keys)
-                        print(f"self._extra: {self._extra}, keys: {self._extra.keys()}")
                         return getattr(self._extra, key)
                 except AttributeError:
                     pass
-            msg = f"'{key}' not found in Sample or its _extra attribute: {self}. Try using ['key'] instead if key contains special characters."
+            msg = f"Key: `{key}` not found in Sample {self}. Try using sample[key] instead if key is an integer or contains special characters."
             raise KeyError(msg) from e
 
     def __setattr__(self, key: str, value: Any) -> None:
@@ -305,7 +319,7 @@ class Sample(BaseModel):
                 __doc__=self.__class__.__doc__,
                 __config__=self.model_config,
                 **{
-                    k.replace(".", "__nest__"): Annotated[
+                    k.replace(".", "__nest__").replace("*", "all"): Annotated[
                         list[type(v[0])] if isinstance(v, list) and len(v) > 0 else type(v),
                         Field(default_factory=lambda: v),
                     ]
@@ -339,23 +353,28 @@ class Sample(BaseModel):
         if isinstance(obj, Path):
             obj = str(obj)
         if not hasattr(obj, "_str"):
-            return obj
+            return str(obj)
         prefix += " "
         sep = ",\n" + prefix
         out = f"{self.__class__.__name__}(\n{prefix}{sep.join([f'{k}={round(v, 3) if isinstance(v, float) else self._str(v,prefix)}' for k, v in obj if v is not None and k not in ignore])}"
         if hasattr(self, "_items"):
-            out = out.replace(")", f"{sep}items={self._items}")
-        return out.replace(")", "\n)")
+            out += f",\n{prefix}items=[\n{sep}{sep.join([self._str(v, prefix) for v in self._items])}]"
+            
+        return out + f"{prefix})" if out.removeprefix("Sample(").strip() else "Sample()"
 
     def __str__(self) -> str:
         """Return a string representation of the Sample instance."""
-        unnested = {"_items"}
-        for k, _ in self:
-            if "." in k:
-                unnested.add(k.split(".")[0])
-            elif "/" in k:
-                unnested.add(k.split("/")[0])
-        return self._str(self, prefix="", ignore=set(unnested))
+        try:
+            unnested = {"_items"}
+            for k, _ in self:
+                if "." in k:
+                    unnested.add(k.split(".")[0])
+                elif "/" in k:
+                    unnested.add(k.split("/")[0])
+            return self._str(self, prefix="", ignore=set(unnested))
+        except Exception as e:
+            return f"{self.__class__.__name__}({self.dump()})"
+
 
     def __repr__(self) -> str:
         """Return a string representation of the Sample instance."""
@@ -368,6 +387,7 @@ class Sample(BaseModel):
     def __contains__(self, key: str) -> bool:
         """Check if the Sample instance contains the specified attribute."""
         return key in list(self.keys())
+
     def get(self, key: str, default: Any = None) -> Any:
         """Return the value of the attribute with the specified key or the default value if it does not exist."""
         try:
@@ -379,6 +399,7 @@ class Sample(BaseModel):
         self, exclude: set[str] | str | None = "None", as_field: str | None = None, recurse=True
     ) -> Dict[str, Any] | Any:
         out = {}
+        exclude = set() if exclude is None else exclude if isinstance(exclude, set) else {exclude}
         for k, v in self:
             if as_field is not None and k == as_field:
                 return v
@@ -392,10 +413,10 @@ class Sample(BaseModel):
                 out[k] = [item.dump(exclude, as_field, recurse) for item in v]
             else:
                 out[k] = v
-        return out
+        return {k: v for k, v in out.items() if v is not None or "None" not in exclude}
 
     def dump(
-        self, exclude: set[str] | str | None = Literal["None"], as_field: str | None = None, recurse=True
+        self, exclude: set[str] | str | None = "None", as_field: str | None = None, recurse=True
     ) -> Dict[str, Any] | Any:
         """Dump the Sample instance to a dictionary or value at a specific field if present.
 
@@ -427,21 +448,10 @@ class Sample(BaseModel):
                 ignore.add(k.split(".")[0])
             elif "/" in k:
                 ignore.add(k.split("/")[0])
-        print(f"ignore: {ignore}")  # Debug print
         for k, _ in self:
             if k not in ignore:
                 yield k
 
-    def items(self) -> Generator:
-        ignore = set()
-        for k, _ in self:
-            if "." in k:
-                ignore.add(k.split(".")[0])
-            elif "/" in k:
-                ignore.add(k.split("/")[0])
-        for k, v in self:
-            if k not in ignore:
-                yield k, v
 
     def dict(self, exclude: set[str] | None | str = "None", recurse=True) -> Dict[str, Any]:  # noqa
         """Return a dictionary representation of the Sample instance.
@@ -483,42 +493,10 @@ class Sample(BaseModel):
             Sample(x=1, y=2, z={'a': 3, 'b': 4}, extra_field=5)
         """
         schema = schema or cls().schema()
-
-        if isinstance(one_d_array_or_dict, (list, np.ndarray, torch.Tensor)):
-            flat_data = (
-                one_d_array_or_dict.tolist()
-                if isinstance(one_d_array_or_dict, (np.ndarray, torch.Tensor))
-                else one_d_array_or_dict
-            )
-            one_d_array_or_dict = {}
-            index = 0
-            for prop, prop_schema in schema["properties"].items():
-                if prop_schema["type"] == "object":
-                    one_d_array_or_dict[prop] = {}
-                    for sub_prop in prop_schema["properties"]:
-                        one_d_array_or_dict[prop][sub_prop] = flat_data[index]
-                        index += 1
-                else:
-                    one_d_array_or_dict[prop] = flat_data[index]
-                    index += 1
-
-        def unflatten_recursive(schema_part, data):
-            if schema_part["type"] == "object":
-                result = {}
-                for prop, prop_schema in schema_part["properties"].items():
-                    if not prop.startswith("_") and prop in data:  # Skip properties starting with underscore
-                        result[prop] = unflatten_recursive(prop_schema, data[prop])
-                if schema_part.get("title", "").lower() == cls.__name__.lower():
-                    result = cls(**result)
-                elif schema_part.get("title", "").lower() == "sample":
-                    result = Sample(**result)
-                return result
-            if schema_part["type"] == "array":
-                return [unflatten_recursive(schema_part["items"], item) for item in data]
-            return data
-
-        unflattened_dict = unflatten_recursive(schema, one_d_array_or_dict)
-        return cls(**unflattened_dict) if not isinstance(unflattened_dict, cls) else unflattened_dict
+        if isinstance(one_d_array_or_dict, dict):
+            return cls(**unflatten_dict(one_d_array_or_dict))
+        return cls(**unflatten_from_schema(one_d_array_or_dict, schema))
+        
 
     # def rearrange(self, pattern: str, **kwargs) -> Any:
     #     """Pack, unpack, flatten, select indices according to an einops-style pattern.
@@ -563,7 +541,6 @@ class Sample(BaseModel):
             keys = []
             if isinstance(obj, Sample | dict):
                 for k, v in obj.items():
-                    # print(f"Processing key: {k}, value: {v}")  # Debug print
                     if k in ignore:
                         continue
                     new_key = f"{prefix}{k}" if prefix else k
@@ -583,7 +560,6 @@ class Sample(BaseModel):
                     return []
                 out.append(obj)
                 keys.append(prefix.rstrip(sep))
-            # print(f"out: {out}, keys: {keys}")  # Debug print
             return out, keys
 
         return _flatten(obj)
@@ -624,17 +600,12 @@ class Sample(BaseModel):
         current_group = {k: [] for k in to}
         num_tos = {k: 0 for k in to}
         for k, v in zip(keys, flattened):
-            print(f"current_group: {current_group}, result: {result}")
             for i, ft in enumerate(full_to):
                 if ft in k:
                     current_group[to[i]].append(v)
                     num_tos[to[i]] += 1
             
-            print(f"current_group: {current_group}, num_tos: {num_tos}")  # Debug print
-            print(f"num to values: {list(num_tos.values())}")  # Debug print
             if all(num_to == num_tos[to[0]] for num_to in num_tos.values()):
-                print(f"entered if statement")  # Debug print
-                print(f"current_group: {[len(current_group[to[i]]) for i in range(len(to))]}")  # Debug print
                 if all(len(current_group[to[i]]) > 0 for i in range(len(to))):
                     ignore = {k for k in {k.split(sep)[0] for k in keys if sep in k}}
                     ignore = {k for k in ignore if k not in to}
@@ -647,7 +618,6 @@ class Sample(BaseModel):
                     result.append(Sample(**current_group) if output_type == "sample" else current_group)
                 current_group = Sample({k: [] for k in to})
                 num_tos = Sample({k: 0 for k in to})
-        print(f"Result before output: {result}")  # Debug print
         flattened = result
 
         if output_type == "np":
@@ -692,12 +662,12 @@ class Sample(BaseModel):
                     raise AttributeError(f"Invalid list index: {k}")
             elif not isinstance(obj, Sample) and not hasattr(obj, k):
                 new_obj = Sample()
-                setattr(obj, k, new_obj)
+                obj[k] = new_obj
                 obj = new_obj
             elif hasattr(obj, k):
                 obj = getattr(obj, k)
             else:
-                setattr(obj, k, Sample())
+                obj[k] = Sample()
                 obj = getattr(obj, k)
         if isinstance(obj, dict):
             if keys[-1] == "*":
@@ -1239,10 +1209,30 @@ class Sample(BaseModel):
         """Convert the Sample instance to a JSON string."""
         return self.model_dump_json()
 
+    def numpy(self) -> np.ndarray:
+        """Return the numpy array representation of the Sample instance."""
+        return self._numpy
+    
+    def tolist(self) -> list:
+        """Return the list representation of the Sample instance."""
+        return self._tolist
+    
+    def torch(self) -> torch.Tensor:
+        """Return the PyTorch tensor representation of the Sample instance."""
+        return self._torch
+
+    def json(self) -> str:
+        """Return the JSON string representation of the Sample instance."""
+        return self._json
+
     @cached_property
     def _features(self) -> Features:
         """Convert the Sample instance to a HuggingFace Features object."""
         return Features(self.infer_features_dict())
+
+    def features(self) -> Features:
+        """Return the HuggingFace Features object for the Sample instance."""
+        return self._features
 
     def dataset(self) -> Dataset:
         """Convert the Sample instance to a HuggingFace Dataset object."""
