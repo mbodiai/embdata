@@ -85,7 +85,7 @@ def test_episode_concatenate(time_step):
     assert len(concatenated_episode) == 6
 
 
-def test_episode_from_observations_actions(time_step):
+def test_episode_from_lists(time_step):
     observations = [Sample("observation1"), Sample("observation2")]
     actions = [Sample("action1"), Sample("action2")]
     episode = Episode.from_observations_actions_states(observations, actions)

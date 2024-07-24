@@ -219,10 +219,11 @@ class Sample(BaseModel):
         If the key is a string and contains a separator ('.' or '/'), the value is returned at the specified nested key.
         Otherwise, the value is returned as an attribute of the Sample object.
         """
+        og_key = key
         if isinstance(key, int) and any(isinstance(self[k], list | tuple | Dataset | IterableDataset | np.ndarray) for k in self.keys()):
             items = [self[k] for k in self.keys()]
             return items[key]
-
+        # print(f"keys: {self.__dict__.keys()}")
         if self.__class__ == Sample:
             if isinstance(key, int):
                 if hasattr(self, "_items"):
@@ -247,28 +248,37 @@ class Sample(BaseModel):
             if isinstance(key, int):
                 msg = f"Sample object does not wrap a list but index was requested: {key}. Did you mean to call items? "
                 raise TypeError(msg)
-
-        if isinstance(key, str) and any(c in key for c in "./*"):
-            sep = "." if "." in key else "/"
-            keys = key.replace("*", "").replace(f"{sep}{sep}", sep).split(sep)
-            obj = self
-            for k in keys[:-1]:
-                if k:
-                    k = "_items" if k == "items" else k
-                    obj = obj[k]
-            k = keys[-1] if keys[-1] != "items" else "_items"
-            return obj[k] if k is not None else obj
-
         try:
+            if isinstance(key, str) and any(c in key for c in "./*"):
+                sep = "." if "." in key else "/"
+                key = key.replace("*", "").replace(f"{sep}{sep}", sep)
+                keys = key.split(sep)
+                obj = self
+                for k in keys[:-1]:
+                    if k:
+                        k = "_items" if k == "items" else k
+                        obj = obj[k]
+                k = keys[-1] if keys[-1] != "items" else "_items"
+                print(f"trying to get {k} from {obj}")
+                return obj[k] if k is not None else obj
+            print(f"trying to get {key} from {self}")
             return getattr(self, key)
         except (AttributeError, KeyError, TypeError) as e:
             if hasattr(self, "_extra"):
+                print(f"trying to get {og_key} from {self._extra.__dict__.keys()}")
+                sep = "." if "." in key else "/"
+                keys = og_key.replace("*", "all").replace(f"{sep}{sep}", sep).split(sep)
+                key = "__nest__".join(keys)
+                return getattr(self._extra, key)
                 try:
                     if isinstance(key, str):
-                        sep = "." if "." in key else "/"
-                        keys = key.replace("*", "").replace(f"{sep}{sep}", sep).split(sep)
-                        key = "__nest__".join(keys)
-                        return getattr(self._extra, key)
+                        try:
+                            return getattr(self._extra, key)
+                        except AttributeError:
+                            sep = "." if "." in key else "/"
+                            keys = key.replace("*", "all").replace(f"{sep}{sep}", sep).split(sep)
+                            key = "__nest__".join(keys)
+                            return getattr(self._extra, key)
                 except AttributeError:
                     pass
             msg = f"Key: `{key}` not found in Sample {self}. Try using sample[key] instead if key is an integer or contains special characters."
@@ -340,7 +350,7 @@ class Sample(BaseModel):
             for k, v in self.dump().items():
                 if not k.startswith("_"):
                     self.setdefault(k, v, nest=True)
-
+            print(f"Extra: {self._extra}")
     def __hash__(self) -> int:
         """Return a hash of the Sample instance."""
 
@@ -666,11 +676,11 @@ class Sample(BaseModel):
         keys = key.split(".")
         obj = self
         for k in keys[:-1]:
+            k = "_items" if k == "items" else k
+            if k == "*":
+                return obj
             if isinstance(obj, dict):
                 obj = obj.setdefault(k, {})
-            elif isinstance(obj, list):
-                if k == "*":
-                    return obj
                 try:
                     index = int(k)
                     if index >= len(obj):
