@@ -259,13 +259,13 @@ class Sample(BaseModel):
                         k = "_items" if k == "items" else k
                         obj = obj[k]
                 k = keys[-1] if keys[-1] != "items" else "_items"
-                print(f"trying to get {k} from {obj}")
+                # print(f"trying to get {k} from {obj}")
                 return obj[k] if k is not None else obj
-            print(f"trying to get {key} from {self}")
+            # print(f"trying to get {key} from {self}")
             return getattr(self, key)
         except (AttributeError, KeyError, TypeError) as e:
             if hasattr(self, "_extra"):
-                print(f"trying to get {og_key} from {self._extra.__dict__.keys()}")
+                # print(f"trying to get {og_key} from {self._extra.__dict__.keys()}")
                 sep = "." if "." in key else "/"
                 keys = og_key.replace("*", "all").replace(f"{sep}{sep}", sep).split(sep)
                 key = "__nest__".join(keys)
@@ -350,7 +350,6 @@ class Sample(BaseModel):
             for k, v in self.dump().items():
                 if not k.startswith("_"):
                     self.setdefault(k, v, nest=True)
-            print(f"Extra: {self._extra}")
     def __hash__(self) -> int:
         """Return a hash of the Sample instance."""
 
@@ -624,8 +623,13 @@ class Sample(BaseModel):
         # print(f"Flattened: {flattened}")  # Debug print
         # print(f"Keys: {keys}")  # Debug print
         if to is None:
-            return flattened
-        
+            if output_type is "dict":
+                return dict(zip(keys, flattened))
+            elif output_type is "np":
+                return np.array(flattened, dtype=object)
+            else:
+                return flattened
+
         result = []
         current_group = {k: [] for k in to}
         num_tos = {k: 0 for k in to}
