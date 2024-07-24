@@ -261,7 +261,7 @@ class Episode(Sample):
             
 
         for i, data in enumerate(dataset):
-            step = TimeStep.from_dicts(data, image_keys=image_keys)
+            step = TimeStep.from_dict(data, image_keys=image_keys)
             step.episode_idx = data.get("episode_idx", 0)
             step.step_idx = data.get("step_idx", i)
             step.timestamp = data.get("timestamp", i)

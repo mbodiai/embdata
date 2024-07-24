@@ -33,7 +33,7 @@ import base64 as base64lib
 import io
 from functools import cached_property, reduce, singledispatchmethod
 from pathlib import Path
-from typing import Any, Dict, SupportsBytes, Tuple
+from typing import Any, ClassVar, Dict, List, SupportsBytes, Tuple
 
 import numpy as np
 from datasets.features import Features
@@ -91,6 +91,7 @@ class Image(Sample):
         >>> array = Image(image).array
         >>> base64 = Image(image).base64
     """
+    SOURCE_TYPES: ClassVar[List[str]] = ["array", "base64", "path", "url", "bytes"]
     model_config: ConfigDict = ConfigDict(arbitrary_types_allowed=True, extras="forbid", validate_assignment=False)
 
     size: tuple[int, int] | tuple[int, int, int] | None = None
@@ -190,19 +191,23 @@ class Image(Sample):
         kwargs["base64"] = base64
         kwargs["bytes"] = bytes
         if isinstance(arg, Image):
-            kwargs.update(arg.dump())
+            kwargs.update(arg.model_dump())
             arg = None
-        for k in list(kwargs.keys()):
-            if kwargs[k] is None:
-                del kwargs[k]
-        kwargs = self.dispatch_arg(arg, **kwargs)
+        if arg is None:
+            for k, v in kwargs.items():
+                if k in self.SOURCE_TYPES and v is not None:
+                    arg = kwargs.pop(k)
+                    break
+            if arg is None and kwargs.get("size") is not None:
+                arg = np.zeros(kwargs["size"] + (3,), dtype=np.uint8)
+        print(f"Image arg: {arg}")
+        print(f"Image kwargs: {kwargs}")
+        kwargs = Image.dispatch_arg(arg, **kwargs)
         super().__init__(**kwargs)
 
     @singledispatchmethod
     @classmethod
     def dispatch_arg(cls, arg: SupportsImage | None = None, **kwargs) -> dict:
-        if arg is None:
-            return kwargs
         msg = f"Unsupported argument type: {type(arg)}"
         raise ValueError(msg)
 
@@ -222,7 +227,10 @@ class Image(Sample):
         if values.get("pil") is None:
             arg = reduce(lambda x, y: x if x is not None else y, [values.get(key) for key in sources])
             values.update(cls.dispatch_arg(arg, **values))
+            print("Ensure PIL")
+            print({key: type(value) for key, value in values.items()})
         values = {key: value for key, value in values.items() if key is not None}
+        print({key: type(value) for key, value in values.items() if key is not None})
         return values
 
     @staticmethod
@@ -246,7 +254,7 @@ class Image(Sample):
         base64_encoded = base64lib.b64encode(buffer.getvalue()).decode("utf-8")
         data_url = f"data:image/{encoding};base64,{base64_encoded}"
         if size is not None:
-            image = ImageOps.fit(image, size)
+            image = ImageOps.fit(image, size, PILModule.Resampling.LANCZOS)
         else:
             size = image.size
         return {
@@ -264,7 +272,7 @@ class Image(Sample):
     def init_dict(cls, arg: dict, **kwargs) -> None:
         kwargs.update(arg)
         if "pil" not in kwargs:
-            kwargs = cls.dispatch_arg(**kwargs)
+            kwargs.update(cls.dispatch_arg(**kwargs))
         return kwargs
 
     @dispatch_arg.register(io.BytesIO)
@@ -426,7 +434,7 @@ class Image(Sample):
         return kwargs
 
     @staticmethod
-    def load_url(url: str, action: Literal["download", "set"], mode="RGB") -> PILImage | None:
+    def load_url(url: str, action: Literal["download", "set"], mode="RGB", **kwargs) -> PILImage | None:
         """Downloads an image from a URL or decodes it from a base64 data URI.
 
         This method can handle both regular image URLs and base64 data URIs.
