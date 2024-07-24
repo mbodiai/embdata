@@ -60,27 +60,28 @@ Examples:
 
 import copy
 import functools
+import json
 import logging
 import operator
 import re
 from enum import Enum
-from functools import cached_property, reduce
+from functools import lru_cache, cached_property
 from importlib import import_module
 from itertools import zip_longest
 from pathlib import Path
 from typing import Annotated, Any, Dict, Generator, List, Literal, Union, get_origin
-
+from functools import reduce, update_wrapper, wraps
 import numpy as np
-from rich import print_json
 import torch
 from datasets import Dataset, Features, IterableDataset
 from gymnasium import spaces
 from pydantic import BaseModel, ConfigDict, Field, create_model
 from pydantic.fields import FieldInfo
-from pydantic.main import TupleGenerator
+
 
 from embdata.describe import describe, full_paths
 from embdata.features import to_features_dict
+import contextlib
 
 OneDimensional = Annotated[Literal["dict", "np", "pt", "list", "sample"], "Numpy, PyTorch, list, sample, or dict"]
 
@@ -199,10 +200,6 @@ class Sample(BaseModel):
         If the key is a string and contains a separator ('.' or '/'), the value is returned at the specified nested key.
         Otherwise, the value is returned as an attribute of the Sample object.
         """
-        if isinstance(key, int) and any(isinstance(self[k], list | tuple | Dataset | IterableDataset | np.ndarray) for k in self.keys()):
-            items = [self[k] for k in self.keys()]
-            return items[key]
-
         if self.__class__ == Sample:
             if isinstance(key, int):
                 if hasattr(self, "_items"):
@@ -241,17 +238,18 @@ class Sample(BaseModel):
 
         try:
             return getattr(self, key)
-        except (AttributeError, KeyError, TypeError) as e:
+        except AttributeError as e:
             if hasattr(self, "_extra"):
                 try:
                     if isinstance(key, str):
                         sep = "." if "." in key else "/"
                         keys = key.replace("*", "").replace(f"{sep}{sep}", sep).split(sep)
                         key = "__nest__".join(keys)
+                        print(f"self._extra: {self._extra}, keys: {self._extra.keys()}")
                         return getattr(self._extra, key)
                 except AttributeError:
                     pass
-            msg = f"Key: `{key}` not found in Sample {self}. Try using sample[key] instead if key is an integer or contains special characters."
+            msg = f"'{key}' not found in Sample or its _extra attribute: {self}. Try using ['key'] instead if key contains special characters."
             raise KeyError(msg) from e
 
     def __setattr__(self, key: str, value: Any) -> None:
@@ -307,7 +305,7 @@ class Sample(BaseModel):
                 __doc__=self.__class__.__doc__,
                 __config__=self.model_config,
                 **{
-                    k.replace(".", "__nest__").replace("*", "all"): Annotated[
+                    k.replace(".", "__nest__"): Annotated[
                         list[type(v[0])] if isinstance(v, list) and len(v) > 0 else type(v),
                         Field(default_factory=lambda: v),
                     ]
@@ -370,24 +368,17 @@ class Sample(BaseModel):
     def __contains__(self, key: str) -> bool:
         """Check if the Sample instance contains the specified attribute."""
         return key in list(self.keys())
-
     def get(self, key: str, default: Any = None) -> Any:
         """Return the value of the attribute with the specified key or the default value if it does not exist."""
         try:
             return self[key]
-        except (AttributeError, KeyError, TypeError):
-            if default is None:
-                try:
-                    return self.setdefault(key, default)
-                except (AttributeError, KeyError, TypeError):
-                    return default
+        except KeyError:
             return default
 
     def _dump(
         self, exclude: set[str] | str | None = "None", as_field: str | None = None, recurse=True
     ) -> Dict[str, Any] | Any:
         out = {}
-        exclude = set() if exclude is None else exclude if isinstance(exclude, set) else {exclude}
         for k, v in self:
             if as_field is not None and k == as_field:
                 return v
@@ -401,10 +392,10 @@ class Sample(BaseModel):
                 out[k] = [item.dump(exclude, as_field, recurse) for item in v]
             else:
                 out[k] = v
-        return {k: v for k, v in out.items() if v is not None or "None" not in exclude}
+        return out
 
     def dump(
-        self, exclude: set[str] | str | None = "None", as_field: str | None = None, recurse=True
+        self, exclude: set[str] | str | None = Literal["None"], as_field: str | None = None, recurse=True
     ) -> Dict[str, Any] | Any:
         """Dump the Sample instance to a dictionary or value at a specific field if present.
 
@@ -436,6 +427,7 @@ class Sample(BaseModel):
                 ignore.add(k.split(".")[0])
             elif "/" in k:
                 ignore.add(k.split("/")[0])
+        print(f"ignore: {ignore}")  # Debug print
         for k, _ in self:
             if k not in ignore:
                 yield k
@@ -571,6 +563,7 @@ class Sample(BaseModel):
             keys = []
             if isinstance(obj, Sample | dict):
                 for k, v in obj.items():
+                    # print(f"Processing key: {k}, value: {v}")  # Debug print
                     if k in ignore:
                         continue
                     new_key = f"{prefix}{k}" if prefix else k
@@ -590,6 +583,7 @@ class Sample(BaseModel):
                     return []
                 out.append(obj)
                 keys.append(prefix.rstrip(sep))
+            # print(f"out: {out}, keys: {keys}")  # Debug print
             return out, keys
 
         return _flatten(obj)
@@ -610,39 +604,51 @@ class Sample(BaseModel):
         from embdata.describe import full_paths
         to = [to] if isinstance(to, str) else to
         full_to = full_paths(self, to).values() if to is not None else None
+        # print(f"fpaths: {full_to}")  # Debug print
         ignore = ignore or ()
 
+        # Replace integers with wildcard to allow for indexing. But only between separators or at the start/end.
         def replace_ints_with_wildcard(s, sep="."):
             # Pattern to match integers that are either at the start/end of the string or surrounded by the separator
             pattern = rf"(?<=^{sep})\d+|(?<={sep})\d+(?={sep})|\d+(?={sep}|$)"
+            # Replace matched integers with a single wildcard, avoiding consecutive wildcards
             return re.sub(pattern, "*", s).rstrip(f"{sep}*").lstrip(f"{sep}*")
-
         flattened, keys = self.flatten_recursive(self, ignore=ignore, non_numerical=non_numerical, sep=sep)
         keys = [replace_ints_with_wildcard(k, sep=sep) for k in keys]
-        if to is not None:
-            result = []
-            current_group = {k: [] for k in to}
-            num_tos = {k: 0 for k in to}
-            for k, v in zip(keys, flattened, strict=False):
-                for i, ft in enumerate(full_to):
-                    if ft in k:
-                        current_group[to[i]].append(v)
-                        num_tos[to[i]] += 1
-
-                if all(num_to == num_tos[to[0]] for num_to in num_tos.values()):
-                    if all(len(current_group[to[i]]) > 0 for i in range(len(to))):
-                        ignore = set({k.split(sep)[0] for k in keys if sep in k})
-                        ignore = {k for k in ignore if k not in to}
-                        current_group = {k: v[0] if len(v) == 1 else v for k, v in current_group.items() if k not in ignore}
-                        if output_type not in ["dict", "sample"]:
-                            try:
-                                current_group = reduce(operator.iadd, current_group.values(), [])
-                            except TypeError:
-                                current_group = list(current_group.values())
-                        result.append(Sample(**current_group) if output_type == "sample" else current_group)
-                    current_group = Sample({k: [] for k in to})
-                    num_tos = Sample({k: 0 for k in to})
-            flattened = result
+        # print(f"Flattened: {flattened}")  # Debug print
+        # print(f"Keys: {keys}")  # Debug print
+        if to is None:
+            return flattened
+        
+        result = []
+        current_group = {k: [] for k in to}
+        num_tos = {k: 0 for k in to}
+        for k, v in zip(keys, flattened):
+            print(f"current_group: {current_group}, result: {result}")
+            for i, ft in enumerate(full_to):
+                if ft in k:
+                    current_group[to[i]].append(v)
+                    num_tos[to[i]] += 1
+            
+            print(f"current_group: {current_group}, num_tos: {num_tos}")  # Debug print
+            print(f"num to values: {list(num_tos.values())}")  # Debug print
+            if all(num_to == num_tos[to[0]] for num_to in num_tos.values()):
+                print(f"entered if statement")  # Debug print
+                print(f"current_group: {[len(current_group[to[i]]) for i in range(len(to))]}")  # Debug print
+                if all(len(current_group[to[i]]) > 0 for i in range(len(to))):
+                    ignore = {k for k in {k.split(sep)[0] for k in keys if sep in k}}
+                    ignore = {k for k in ignore if k not in to}
+                    current_group = {k: v[0] if len(v) == 1 else v for k, v in current_group.items() if k not in ignore}
+                    if output_type not in ["dict", "sample"]:
+                        try:
+                            current_group = reduce(operator.iadd, current_group.values(), [])
+                        except TypeError:
+                            current_group = list(current_group.values())
+                    result.append(Sample(**current_group) if output_type == "sample" else current_group)
+                current_group = Sample({k: [] for k in to})
+                num_tos = Sample({k: 0 for k in to})
+        print(f"Result before output: {result}")  # Debug print
+        flattened = result
 
         if output_type == "np":
             return np.array(flattened, dtype=object)
@@ -686,12 +692,12 @@ class Sample(BaseModel):
                     raise AttributeError(f"Invalid list index: {k}")
             elif not isinstance(obj, Sample) and not hasattr(obj, k):
                 new_obj = Sample()
-                obj[k] = new_obj
+                setattr(obj, k, new_obj)
                 obj = new_obj
             elif hasattr(obj, k):
                 obj = getattr(obj, k)
             else:
-                obj[k] = Sample()
+                setattr(obj, k, Sample())
                 obj = getattr(obj, k)
         if isinstance(obj, dict):
             if keys[-1] == "*":
@@ -825,12 +831,6 @@ class Sample(BaseModel):
             return schema
 
         return simplify(schema, self)
-
-    def __iter__(self) -> TupleGenerator:
-        yield from [(k, v) for (k, v) in self.__dict__.items() if not k.startswith("_")]
-        if hasattr(self, "_extra"):
-            yield from [(k, v) for (k, v) in self._extra.__dict__.items() if not k.startswith("_")]
-
 
     def infer_features_dict(self) -> Dict[str, Any]:
         """Infers features from the data recusively."""
@@ -1172,7 +1172,8 @@ class Sample(BaseModel):
         out = {}
         for key, value in dict(self).items():
             info = self.field_info(key) if not isinstance(value, Sample) else value.model_info()
-            out[key] = info if info else {"type": type(value).__name__}
+            if info:
+                out[key] = info
         return out
 
     def field_info(self, key: str) -> Dict[str, Any]:
@@ -1238,30 +1239,10 @@ class Sample(BaseModel):
         """Convert the Sample instance to a JSON string."""
         return self.model_dump_json()
 
-    def numpy(self) -> np.ndarray:
-        """Return the numpy array representation of the Sample instance."""
-        return self._numpy
-    
-    def tolist(self) -> list:
-        """Return the list representation of the Sample instance."""
-        return self._tolist
-    
-    def torch(self) -> torch.Tensor:
-        """Return the PyTorch tensor representation of the Sample instance."""
-        return self._torch
-
-    def json(self) -> str:
-        """Return the JSON string representation of the Sample instance."""
-        return self._json
-
     @cached_property
     def _features(self) -> Features:
         """Convert the Sample instance to a HuggingFace Features object."""
         return Features(self.infer_features_dict())
-
-    def features(self) -> Features:
-        """Return the HuggingFace Features object for the Sample instance."""
-        return self._features
 
     def dataset(self) -> Dataset:
         """Convert the Sample instance to a HuggingFace Dataset object."""
