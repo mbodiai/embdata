@@ -1,0 +1,14 @@
+site_name: My Project
+
+theme:
+  name: material
+
+plugins:
+  - search
+  - mkdocstrings:
+      default_handler: crystal
+      watch: [.]
+
+markdown_extensions:
+  - pymdownx.highlight
+  - deduplicate-toc
