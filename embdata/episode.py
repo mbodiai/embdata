@@ -313,9 +313,44 @@ class Episode(Sample):
             stats = str(self.stats).replace("\n ", "\n  ")
         return f"Episode(\n  {stats}\n)"
 
-    def trajectory(self, field: str = "action", freq_hz: int = 1) -> Trajectory:
+    def trajectory(self, of: str | list[str] = "steps", freq_hz: int | None = None) -> Trajectory:
+        """Numpy array with rows (axis 0) consisting of the `of` argument. Can be steps or plural form of fields.
+
+        Each step will be reduced to a flattened 1D numpy array. A conveniant
+        feature is that transforms can be reversed with the `un` version of the method. This is done by keeping
+        a stack of inverse functions with correct kwargs partially applied.
+
+        Note:
+        
+        - This is a lazy operation and will not be computed until a field or method like "show" is called.
+        - The `of` argument can be in plural or singular form which will result in the same output.
+
+        Some operations that can be done are:
+        - show
+        - minmax scaling
+        - gaussian normalization
+        - resampling with interpolation
+        - filtering
+        - windowing
+        - low pass filtering
+
+        Args:
+            of (str, optional): steps or the step field get the trajectory of. Defaults to "steps".
+            freq_hz (int, optional): The frequency in Hz. Defaults to the episode's frequency.
+
+        Example:
+            Understand the relationship between frequency and grasping.
+
+
+        """
+        if not of.endswith("s"):
+            of = of + "s"
+        
         freq_hz = freq_hz or self.freq_hz or 1
-        data = [getattr(step, field) for step in self.steps]
+        if of == "step":
+            return Trajectory(self.steps, freq_hz=freq_hz, episode=self)
+        
+        data = [getattr(step, of) for step in self.steps]
         if isinstance(data[0], Sample):
             data = [d.numpy() for d in data]
         return Trajectory(
@@ -324,6 +359,20 @@ class Episode(Sample):
             dim_labels=list(data[0].keys()) if isinstance(data[0], dict) else None,
             episode=self,
         )
+    
+    def window(self, nforward:int = 1, nbackward:int = 1, on: str = "step") -> Trajectory:
+        """Get a sliding window of the episode.
+
+        Args:
+            nforward (int, optional): The number of steps to look forward. Defaults to 1.
+            nbackward (int, optional): The number of steps to look backward. Defaults to 1.
+            on (str, optional): The level or field to apply the window to. Defaults to "step".
+
+        Returns:
+            Trajectory: A sliding window of the episode.
+        """
+        for i in range(nbackward, len(self) - nforward):
+            yield self.trajectory(field=field, freq_hz=self.freq_hz)[i - nbackward : i + nforward]
 
     def __len__(self) -> int:
         """Get the number of steps in the episode.

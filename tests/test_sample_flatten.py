@@ -100,7 +100,7 @@ def test_flatten_to_dict(sample_instance):
 
 def test_flatten_to_keys(sample_instance):
     nested_structure = Sample(items=[sample_instance, sample_instance, sample_instance])
-    result = nested_structure.flatten(to="items.*.dict_value")
+    result = nested_structure.flatten(to="dict_value", output_type="dicts")
     assert result == [{"a": 11, "b": "two"}, {"a": 11, "b": "two"}, {"a": 11, "b": "two"}]
 
     deeper_result = nested_structure.flatten(to="items.*.dict_value.a")

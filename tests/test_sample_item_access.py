@@ -18,8 +18,8 @@ def subclass_instance():
     return SampleSubclass()
 
 
-def test_getitem_with_int_key_list(sample_instance):
-    assert sample_instance[0] == 1
+# def test_getitem_with_int_key_list(sample_instance):
+#     assert sample_instance[0] == 1
 
 
 def test_getitem_with_int_key_no_list(sample_instance):

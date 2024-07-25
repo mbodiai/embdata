@@ -8,6 +8,7 @@ import scipy.fftpack as fftpack
 import scipy.stats as sstats
 from pydantic import Field
 from pydantic.dataclasses import dataclass
+from scipy.signal import spectrogram
 from scipy.interpolate import interp1d
 from scipy.spatial.transform import RotationSpline
 from sklearn import decomposition
@@ -457,21 +458,19 @@ class Trajectory:
 
         return Trajectory(filtered_trajectory, self.freq_hz, self.time_idxs)
 
-    # def spectrogram(self) -> "Trajectory":
-    #     """Plot the spectrogram of the trajectory.
+    def spectrogram(self) -> "Trajectory":
+        """Plot the spectrogram of the trajectory.
 
-    #     Returns:
-    #       Trajectory: The modified trajectory.
-    #     """
-    #     x = self.array
-    #     f, t, Sxx = spectrogram(x.T, fs=self.freq_hz)
-    #     fig, ax = plt.subplots(figsize=(15, 10))
-    #     cax = ax.pcolormesh(t, f, 10 * np.log10(Sxx), shading="gouraud", cmap="viridis")
-    #     ax.set_ylabel("Frequency [Hz]")
-    #     ax.set_xlabel("Time [s]")
-    #     fig.colorbar(cax, label="Power [dB]")
-    #     self._fig = fig
-    #     return self
+        Returns:
+          Trajectory: The modified trajectory.
+        """
+        x = self.array
+        fs = self.freq_hz
+        f, t, Sxx = spectrogram(x, fs)
+        plt.pcolormesh(t, f, Sxx, shading='gouraud')
+        plt.ylabel('Frequency [Hz]')
+        plt.xlabel('Time [sec]')
+        self._fig = plt.gcf()
 
     def q01(self) -> float:
         return np.percentile(self.array, 1, axis=0)
@@ -547,7 +546,7 @@ class Trajectory:
                 f"Operation {operation} failed with kwargs {kwargs}. Signature is {inspect.signature(operation)}"
             ) from e
 
-    def make_minmax(self, min: float = 0, max: float = 1) -> "Trajectory":
+    def minmax(self, min: float = 0, max: float = 1) -> "Trajectory":
         """Apply min-max normalization to the trajectory.
 
         Args:
@@ -582,7 +581,7 @@ class Trajectory:
             self.angular_dims,
         )
 
-    def make_standard(self) -> "Trajectory":
+    def standardize(self) -> "Trajectory":
         """Apply standard normalization to the trajectory.
 
         Returns:
@@ -592,7 +591,7 @@ class Trajectory:
         std = np.std(self.array, axis=0)
         return Trajectory((self.array - mean) / std, self.freq_hz, self.time_idxs, self.dim_labels, self.angular_dims)
 
-    def make_unminmax(
+    def unminmax(
         self,
         orig_min: np.ndarray | Sample,
         orig_max: np.ndarray | Sample,
@@ -604,7 +603,7 @@ class Trajectory:
         steps = [self._sample_class(step) for step in array] if self._sample_class is not None else array
         return Trajectory(steps, self.freq_hz, self.time_idxs, self.dim_labels, self.angular_dims)
 
-    def make_unstandard(self, mean: np.ndarray, std: np.ndarray) -> "Trajectory":
+    def unstandardize(self, mean: np.ndarray, std: np.ndarray) -> "Trajectory":
         array = (self.array * std) + mean
         steps = [self._sample_class(step) for step in array] if self._sample_class is not None else array
         return Trajectory(steps, self.freq_hz, self.time_idxs, self.dim_labels, self.angular_dims)
