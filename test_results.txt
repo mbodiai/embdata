@@ -37,7 +37,7 @@ sample_instance = Sample(
 )
 
     def test_flatten_to_dict(sample_instance):
-        result = sample_instance.flatten(output_type="dict", sep=".")
+        result = sample_instance.flatten(to="dict", sep=".")
         assert isinstance(result, dict)
 >       assert list(result.values()) == [1, 2.0, "test", 1, 2, 3, 11, "two", 5, 1, 2, 3, 4, 5, 6]
 E       AssertionError: assert [{}, {}, {}, {'0': {}, '1': {}, '2': {}}, {'a': {}, 'b': {}}, {'value': {}}, {'0': {}, '1': {}, '2': {}}, {'0': {}, '1': {}, '2': {}}] == [1, 2.0, 'test', 1, 2, 3, 11, 'two', 5, 1, 2, 3, 4, 5, 6]
@@ -334,11 +334,11 @@ _______________ test_flatten_nested_dicts_and_lists_output_list ________________
         sample = Sample(
             a=1, b=[{"c": 2, "d": [3, 4]}, {"c": 5, "d": [6, 7]}], e=Sample(f=8, g=[{"h": 9, "i": 10}, {"h": 11, "i": 12}])
         )
-        flattened = sample.flatten(output_type="list")
+        flattened = sample.flatten(to="list")
         expected = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]
         assert flattened == expected, f"Expected {expected}, but got {flattened}"
     
-        flattened_dict = sample.flatten(output_type="sample")
+        flattened_dict = sample.flatten(to="sample")
         print(f"flattened sample: {flattened_dict}")
 >       unflattened_sample = Sample.unflatten(flattened, sample.schema())
 

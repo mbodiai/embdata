@@ -24,29 +24,30 @@ classifiers = [
 ]
 
 dependencies = [
-"pytest==8.2.2",
- "pydantic==2.7.4",
- "numpy==1.26.4",
- "pydantic_numpy==5.0.2",
- "rich==13.7.1",
- "datasets==2.20.0",
- "torch",
- "torchvision",
- "scikit-learn",
- "gymnasium==0.29.1",
- "rerun-sdk==0.17.0",
- "matplotlib==3.9.1",
- "opencv-python==4.10.0.84",
- "shapely==2.0.4",
- "importlib_resources==6.4.0",
- "transformers>=4.42.4",
- "einops==0.8.0"
-]
+  "datasets==2.20.0",
+  "einops==0.8.0",
+  "gymnasium==0.29.1",
+  "importlib_resources==6.4.0",
+  "matplotlib==3.9.1",
+  "numpy==1.26.4",
+  "opencv-python==4.10.0.84",
+  "plotext==5.2.8",
+  "pydantic==2.7.4",
+  "pydantic_numpy==5.0.2",
+  "pytest==8.2.2",
+  "rerun-sdk==0.17.0",
+  "rich==13.7.1",
+  "scikit-learn",
+  "shapely==2.0.4",
+  "torch",
+  "torchvision",
+  "transformers>=4.42.4"
+  ]
 [project.optional-dependencies]
-audio = [
-"pyaudio"
-
-]
+  audio = [
+  "pyaudio"
+  
+  ]
 [tool.hatch.metadata]
 allow-direct-references = true
 [tool.hatch.version]

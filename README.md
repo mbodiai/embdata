@@ -801,7 +801,7 @@ print(nested_schema)
 ```
 
 #**Methods**
-- `flatten(output_type="list", non_numerical="allow", ignore=None, sep=".", to=None)`: Flattens the Sample instance into a one-dimensional structure
+- `flatten(to="list", non_numerical="allow", ignore=None, sep=".", to=None)`: Flattens the Sample instance into a one-dimensional structure
 - `unflatten(one_d_array_or_dict, schema=None)`: Unflattens a one-dimensional array or dictionary into a Sample instance
 - `to(container)`: Converts the Sample instance to a different container type
 - `schema(include="simple")`: Get a simplified JSON schema of the data

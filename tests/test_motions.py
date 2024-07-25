@@ -127,7 +127,7 @@ def test_hand_control_deserialization():
 
 def test_unflatten():
     original_pose = PlanarPose(x=0.5, y=-0.5, theta=1.57)
-    flattened_pose = original_pose.flatten(output_type="dict")
+    flattened_pose = original_pose.flatten(to="dict")
 
     schema = {
         "type": "object",

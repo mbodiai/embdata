@@ -22,18 +22,18 @@ def test_stats():
     assert np.array_equal(result["max"], expected_result["max"])
 
 
-def test_make_relative():
+def test_relative():
     array = np.array([[1, 2, 3], [4, 5, 6], [7, 8, 9]])
     trajectory = Trajectory(array, freq_hz=1)
-    relative_trajectory = trajectory.make_relative()
+    relative_trajectory = trajectory.relative()
     expected_array = np.array([[3, 3, 3], [3, 3, 3]])
     assert np.array_equal(relative_trajectory.array, expected_array)
 
 
-def test_make_minmax():
+def test_minmax():
     array = np.array([[1, 2, 3], [4, 5, 6], [7, 8, 9]])
     trajectory = Trajectory(steps=array, freq_hz=1)
-    minmax_trajectory = trajectory.make_minmax(0, 255)
+    minmax_trajectory = trajectory.minmax(0, 255)
     expected_array = 255 * (array - np.min(array, axis=0)) / (np.max(array, axis=0) - np.min(array, axis=0))
     assert np.array_equal(minmax_trajectory, expected_array)
 
@@ -68,7 +68,7 @@ def test_upsample():
 def test_minmax():
     array = np.array([[1, 2, 3], [4, 5, 6], [7, 8, 9], [10, 11, 12]])
     trajectory = Trajectory(steps=array, freq_hz=1)
-    minmax_trajectory = trajectory.make_minmax(0, 255)
+    minmax_trajectory = trajectory.minmax(0, 255)
     expected_array = np.array([[0.0, 0.0, 0.0], [85.0, 85.0, 85.0], [170.0, 170.0, 170.0], [255.0, 255.0, 255.0]])
     assert np.allclose(minmax_trajectory.array, expected_array)
 
@@ -76,7 +76,7 @@ def test_minmax():
 def test_normalize():
     array = np.array([[1, 2, 3], [4, 5, 6], [7, 8, 9], [10, 11, 12]])
     trajectory = Trajectory(array, freq_hz=1)
-    normalized_trajectory = trajectory.make_standard()
+    normalized_trajectory = trajectory.standard()
     expected_array = np.array(
         [
             [-1.3416407864998738, -1.3416407864998736, -1.3416407864998736],
@@ -93,8 +93,8 @@ def test_unnormalize():
     trajectory = Trajectory(steps=array, freq_hz=1)
     print(trajectory.stats)
     mean, std = trajectory.mean(), trajectory.std()
-    normalized_trajectory = trajectory.make_standard()
-    unnormalized_trajectory = normalized_trajectory.make_unstandard(mean, std).array
+    normalized_trajectory = trajectory.standard()
+    unnormalized_trajectory = normalized_trajectory.unstandard(mean, std).array
     expected_array = np.array([[1, 2, 3], [4, 5, 6], [7, 8, 9], [10, 11, 12]])
     assert np.allclose(unnormalized_trajectory, expected_array)
 
@@ -103,9 +103,9 @@ def test_unminmax():
     array = np.array([[1, 2, 3], [4, 5, 6], [7, 8, 9], [10, 11, 12]])
     trajectory = Trajectory(array, freq_hz=1)
     min, max = trajectory.min(), trajectory.max()
-    minmax_trajectory = trajectory.make_minmax(0, 255)
+    minmax_trajectory = trajectory.minmax(0, 255)
     norm_min, norm_max = minmax_trajectory.min(), minmax_trajectory.max()
-    unminmax_trajectory = minmax_trajectory.make_unminmax(min, max).array
+    unminmax_trajectory = minmax_trajectory.unminmax(min, max).array
     expected_array = np.array([[1, 2, 3], [4, 5, 6], [7, 8, 9], [10, 11, 12]])
     assert np.allclose(unminmax_trajectory, expected_array)
 
@@ -139,10 +139,10 @@ def pca():
     print("\nExplained variance ratio:")
     print(explained_variance_ratio)
 
-def test_make_pca():
+def test_pca():
     array = np.array([[1, 2, 3], [4, 5, 6], [7, 8, 9], [10, 11, 12]])
     trajectory = Trajectory(array, freq_hz=1)
-    pca_trajectory = trajectory.make_pca(whiten=False)
+    pca_trajectory = trajectory.pca(whiten=False)
     expected_array = np.array(
         [
             [-7.79422863 , 0. ,        -0. ], 

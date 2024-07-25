@@ -2,7 +2,7 @@ import inspect
 from functools import partial
 from typing import Any, Callable, List
 
-import matplotlib.pyplot as plt
+import plotext as plt
 import numpy as np
 import scipy.fftpack as fftpack
 import scipy.stats as sstats
@@ -116,7 +116,7 @@ def plot_trajectory(trajectory: np.ndarray, labels: list[str] | None = None, tim
         labels = ["X", "Y", "Z", "Roll", "Pitch", "Yaw", "Grasp"]
     elif labels is None:
         labels = [f"Dimension {i}" for i in range(num_plots)]
-    fig, axs = plt.subplots(num_plots, 1, figsize=(10, 15), sharex=True)
+    fig, axs = plt.subplots(num_plots, 1)
 
     for i in range(num_plots):
         axs[i].plot(np.arange(num_steps) * time_step, trajectory[:, i])
