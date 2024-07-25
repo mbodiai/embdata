@@ -237,7 +237,7 @@ class Depth(Image):
     def open(path: str, encoding: str = "jpeg", size=None) -> "Image":
         """Opens an image from a file path and creates an Image instance.
 
-        This method reads an image file from the specified path, converts it to RGB format,
+        This method reads an image file from the specified path, 
         and creates an Image instance from it. It's a convenient way to load images from
         your local file system.
 
@@ -256,7 +256,7 @@ class Depth(Image):
             >>> print(image.size)
             (224, 224)
         """
-        image = PILModule.open(path).convert("RGB")
+        image = PILModule.open(path)
         return Image(image, encoding, size)
 
     @staticmethod
@@ -325,7 +325,7 @@ class Depth(Image):
             # Extract the base64 part of the data URI
             base64_str = url.split(";base64", 1)[1]
             image_data = base64lib.b64decode(base64_str)
-            return PILModule.open(io.BytesIO(image_data)).convert("RGB")
+            return PILModule.open(io.BytesIO(image_data))
 
         try:
             # Open the URL and read the image data
@@ -344,7 +344,7 @@ class Depth(Image):
             request = urllib.request.Request(url, None, headers)  # noqa
             response = urllib.request.urlopen(request)  # noqa
             data = response.read()  # The data u need
-            return PILModule.open(io.BytesIO(data)).convert("RGB")
+            return PILModule.open(io.BytesIO(data))
         except Exception as e:
             logging.warning(f"Failed to load image from URL: {url}. {e}")
             logging.warning("Not validating the Image data")
@@ -362,7 +362,7 @@ class Depth(Image):
         Returns:
             Image: An instance of the Image class with populated fields.
         """
-        image = PILModule.open(io.BytesIO(bytes_data)).convert("RGB")
+        image = PILModule.open(io.BytesIO(bytes_data))
         return cls(image, encoding, size)
 
     @staticmethod
@@ -377,7 +377,7 @@ class Depth(Image):
         Returns:
             Image: An instance of the Image class with populated fields.
         """
-        image = PILModule.open(io.BytesIO(bytes_data)).convert("RGB")
+        image = PILModule.open(io.BytesIO(bytes_data))
         return Image.pil_to_data(image, encoding, size)
 
     @model_validator(mode="before")
@@ -424,14 +424,14 @@ class Depth(Image):
             return validated_values
         # Process the provided image source
         if "path" in provided_fields:
-            image = PILModule.open(values["path"]).convert("RGB")
+            image = PILModule.open(values["path"])
             validated_values["path"] = values["path"]
             validated_values.update(
                 cls.pil_to_data(image, validated_values["encoding"], validated_values["size"])
             )
 
         elif "array" in provided_fields:
-            image = PILModule.fromarray(values["array"]).convert("RGB")
+            image = PILModule.fromarray(values["array"])
             validated_values.update(
                 cls.pil_to_data(image, validated_values["encoding"], validated_values["size"])
             )
@@ -465,7 +465,7 @@ class Depth(Image):
 
         elif "size" in values and values["size"] is not None:
             array = np.zeros((values["size"][0], values["size"][1], 3), dtype=np.uint8)
-            image = PILModule.fromarray(array).convert("RGB")
+            image = PILModule.fromarray(array)
             validated_values.update(
                 cls.pil_to_data(image, validated_values["encoding"], validated_values["size"])
             )

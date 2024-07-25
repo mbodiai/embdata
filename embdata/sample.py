@@ -489,8 +489,6 @@ class Sample(BaseModel):
                     if all(isinstance(i, list | tuple | np.ndarray | float | int) for i in array):
                         result = np.array(array).reshape(schema_part["shape"])
                         index += reduce(operator.mul, schema_part["shape"], 1)
-                        if schema_part.get("title") == "Sample":
-                            return Sample(**items), index
                         return result, index
                 for _ in range(schema_part.get("maxItems", len(obj) - index)):
                     value, index = unflatten_recursive(schema_part["items"], index)
