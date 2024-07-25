@@ -454,6 +454,43 @@ class Sample(BaseModel):
             }
         return self.dump(exclude=exclude, recurse=True)
 
+    @staticmethod
+    def unflatten_from_schema(obj, schema) -> dict:
+        if isinstance(obj, ( np.ndarray, torch.Tensor)):
+            obj = obj.tolist()
+        elif isinstance(obj, dict | Sample):
+            # return unflatten_dict(obj, schema=schema)
+            obj = list(obj.values())
+        if schema is None:
+            raise ValueError("Schema is required for unflattening a non-dictionary object.")
+
+        def unflatten_recursive(schema_part, index=0):
+            if schema_part["type"] == "object":
+                result = {} if schema_part.get("title") != "Sample" else Sample()
+                for prop, prop_schema in schema_part["properties"].items():
+                    value, index = unflatten_recursive(prop_schema, index)
+                    value = Sample(**value) if prop_schema.get("title") == "Sample" else value
+                    result[prop] = value
+                if schema_part.get("title") == "Sample":
+                    return Sample(**result), index
+                return result, index
+            elif schema_part["type"] == "array":
+                items = []
+                if schema_part.get("shape"):
+                    array = obj[index : index + sum(schema_part["shape"])]
+                    if all(isinstance(i, list | tuple | np.ndarray | float | int) for i in array):
+                        result = np.array(array).reshape(schema_part["shape"])
+                        index += reduce(operator.mul, schema_part["shape"], 1)
+                        return result, index
+                for _ in range(schema_part.get("maxItems", len(obj) - index)):
+                    value, index = unflatten_recursive(schema_part["items"], index)
+                    items.append(value)
+                return items, index
+            else:  # Assuming it's a primitive type
+                return obj[index], index + 1
+
+        unflattened, _ = unflatten_recursive(schema)
+        return unflattened
     @classmethod
     def unflatten(cls, one_d_array_or_dict, schema=None) -> "Sample":
         """Unflatten a one-dimensional array or dictionary into a Sample instance.
