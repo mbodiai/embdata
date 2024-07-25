@@ -514,7 +514,7 @@ class Sample(BaseModel):
 
         Examples:
             >>> sample = Sample(x=1, y=2, z={"a": 3, "b": 4}, extra_field=5)
-            >>> flat_dict = sample.flatten(output_type="dict")
+            >>> flat_dict = sample.flatten(to="dict")
             >>> print(flat_dict)
             {'x': 1, 'y': 2, 'z': {'a': 3, 'b': 4}, 'extra_field': 5}
             >>> Sample.unflatten(flat_dict, sample.schema())
@@ -540,7 +540,7 @@ class Sample(BaseModel):
     #     output_keys = re.findall(r'\[([^\]]+)\]', output_pattern)
 
     #     # Flatten the sample and select only the required keys
-    #     flattened = self.flatten(output_type="dict")
+    #     flattened = self.flatten(to="dict")
     #     selected_data = {key: flattened[key] for key in input_keys[0].split() if key in flattened}
 
     #     # Convert selected data to numpy arrays
@@ -569,7 +569,7 @@ class Sample(BaseModel):
             keys = []
             if isinstance(obj, Sample | dict):
                 for k, v in obj.items():
-                    if k in exclude:
+                    if k == exclude:
                         continue
                     new_key = f"{prefix}{k}" if prefix else k
                     subkeys, subouts = _flatten(v, f"{new_key}{sep}")
@@ -627,24 +627,29 @@ class Sample(BaseModel):
         Integer indices are not currently supported although that may change in the future. 
 
         Args:
-        output_type : str, optional (default="list")
-            Specifies the type of the return value if `include` is not provied or the second dimension if `include` is provided.
-            Options are:
-            - "list(s)": Returns a single flat list (list of lists).
-            - "dict(s)": Returns a flattened dictionary (list of flatened dictionaries).
-            - "np", "numpy": Returns a numpy array with non-numerical values excluded. 
-            - "pt, "pytorch", "torch": Returns a PyTorch tensor with non-numerical values excluded.
+            to : str, optional (default="list")
 
-        non_numerical : str, optional (default="ignore")
-            Determines how non-numerical values are handled. Options are:
-            - "ignore": Non-numerical values are excluded from the output.
-            - "forbid": Raises a ValueError if non-numerical values are encountered.
-            - "allow": Includes non-numerical values in the output.
-        exclude : set[str], optional (default=None)
-            Set of keys to ignore during flattening.
-        sep : str, optional (default=".")
+                Specifies the type of the return value if `include` is not provied or the second dimension if `include` is provided.
+                Options are:
+                - "list(s)": Returns a single flat list (list of lists).
+                - "dict(s)": Returns a flattened dictionary (list of flatened dictionaries).
+                - "np", "numpy": Returns a numpy array with non-numerical values excluded. 
+                - "pt, "pytorch", "torch": Returns a PyTorch tensor with non-numerical values excluded.
+
+            non_numerical : str, optional (default="ignore")
+                Determines how non-numerical values are handled. Options are:
+                - "ignore": Non-numerical values are excluded from the output.
+                - "forbid": Raises a ValueError if non-numerical values are encountered.
+                - "allow": Includes non-numerical values in the output.
+
+            exclude : set[str], optional (default=None)
+                Set of keys to ignore during flattening.
+            sep : str, optional (default=".")
+
             Separator used for nested keys in the flattened output.
+
         include : str | set[str] | List[str], optional (default=None)
+        
             Specifies which keys to include in the output. Can be any nested key.
         
         Returns:
@@ -655,7 +660,7 @@ class Sample(BaseModel):
             >>> sample = Sample(a=1, b={"c": 2, "d": [3, 4]}, e=Sample(f=5))
             >>> sample.flatten()
             [1, 2, 3, 4, 5]
-            >>> sample.flatten(output_type="dict")
+            >>> sample.flatten(to="dict")
             {'a': 1, 'b.c': 2, 'b.d.0': 3, 'b.d.1': 4, 'e.f': 5}
             >>> sample.flatten(ignore={"b"})
             [1, 5]
@@ -666,26 +671,10 @@ class Sample(BaseModel):
         if to in ["numpy", "np", "torch", "pt"] and non_numerical != "forbid":
             non_numerical = "ignore"
 
-        from embdata.describe import full_paths
-
-
-        if has_include:
-            # Get the full paths of the selected keys. e.g. c-> a.b.*.c
-            full_path_keys = full_paths(self, full_includes).values()
-            full_includes = list(full_path_keys) if full_includes else []
-            print(f"full_selected_keys: {full_includes}")  
-
-            exclude = set(full_paths(self, exclude=exclude).values())
-            exclude += set(full_paths.values()) - set(full_includes)
-
-
-        flattened_keys, flattened = self.flatten_recursive(self, exclude=exclude, non_numerical=non_numerical, sep=sep)
-
-
-        # If no keys are selected, return the flattened output.
-        if has_include:
+        if not has_include:
+            flattened_keys, flattened = self.flatten_recursive(self, exclude=exclude, non_numerical=non_numerical, sep=sep)
             zipped = zip(flattened_keys, flattened, strict=False)
-            if to in ["sample"]:
+            if to == "sample":
                 return Sample(**dict(zipped))
             elif to == "dict":
                 return dict(zipped)
@@ -695,7 +684,18 @@ class Sample(BaseModel):
                 return torch.tensor(flattened, dtype=torch.float32)
             else:
                 return flattened
-        
+
+        from embdata.describe import full_paths, describe_keys
+
+        # Get the full paths of the selected keys. e.g. c-> a.b.*.c
+        full_path_keys = full_paths(self, include).values()
+        full_includes = list(full_path_keys) if include else []
+        print(f"full_selected_keys: {full_includes}")  
+
+        exclude = set(describe_keys(self).values()) - set(full_includes)
+        print(f"exclude: {exclude}")
+        flattened_keys, flattened = self.flatten_recursive(self, exclude=exclude, non_numerical=non_numerical, sep=sep)
+        print(f"flattened_keys: {flattened_keys}")
         def replace_ints_with_wildcard(s, sep="."):
             pattern = rf"(?<=^{sep})\d+|(?<={sep})\d+(?={sep})|\d+(?={sep}|$)"
             return re.sub(pattern, "*", s).rstrip(f"{sep}*").lstrip(f"{sep}*")
@@ -709,24 +709,25 @@ class Sample(BaseModel):
         for flattened_key, value in zip(flattened_keys, flattened):
             for selected_key, full_selected_key in zip(include, full_includes, strict=False):
                 print(f"full_selected_key: {full_selected_key}, flattened_key: {flattened_key}")
-                # print(f"curren_group: {current_group}")
+                print(f"curren_group: {current_group}")
                 # e.g.: a.b.*.c was selected and a.b.0.c.d should be flattened to the c part of a row
                 if full_selected_key in flattened_key:
                     print(f"Adding {value} to {full_selected_key}")
                     current_group[selected_key].append(value)
-                    num_selected_keys_processed[selected_key] += 1
+                    ninclude_processed[selected_key] += 1
             
             # All keys have been processed, add a new row.
-            print(f"num_selected_keys_processed: {num_selected_keys_processed}")
-            if all(num_processed == num_selected_keys_processed[k[0]] for num_processed in ninclude_processed.values())\
+            print(f"ninclude_processed: {ninclude_processed}")
+            print(f"include: {include}")
+            if all(num_processed == ninclude_processed[include[0]] for num_processed in ninclude_processed.values())\
                 and all(len(processed_items) > 0 for processed_items in current_group.values()):
                     # Ensure that we limit to two dimensions.
                     current_group = {k: v[0] if len(v) == 1 else v for k, v in current_group.items() if k not in exclude}
-                    flattened, flattened_key = self.flatten_recursive(current_group, exclude=exclude, non_numerical=non_numerical, sep=sep)
+                    flattened_key, flattened = self.flatten_recursive(current_group, exclude=exclude, non_numerical=non_numerical, sep=sep)
                     match to:
-                        case "dict":
+                        case "dicts":
                             result.append(dict(zip(flattened_key, flattened)))
-                        case "sample":
+                        case "samples":
                             result.append(Sample(**dict(zip(flattened_key, flattened))))
                         case _:
                             result.append(flattened)
@@ -734,11 +735,11 @@ class Sample(BaseModel):
             if all(num_processed == ninclude_processed[include[0]] for num_processed in ninclude_processed.values()):
                 # Discard the current group and start a new one to avoid empty rows.
                 current_group = {k: [] for k in include}
-                num_selected_keys_processed =  {k: 0 for k in include}
+                ninclude_processed =  {k: 0 for k in include}
 
-        flattened = result
-        flattened = list(flattened.values()) if to in ["dicts", "samples"] else flattened
-
+        flattened = list(result.values()) if to in ["dicts", "samples"] and not isinstance(result, list) else result
+        if len(flattened) == 0:
+            raise ValueError(f"No keys found for include: {include} in Sample: {self}")
         if to == "np":
             return np.array(flattened, dtype=float)
         if to == "pt":
@@ -915,7 +916,7 @@ class Sample(BaseModel):
                     if include == "simple" and k.startswith("_"):
                         continue
                     if k in obj:
-                        schema["properties"][k] = simplify(value, obj[k], title=k)
+                        schema["properties"][k] = simplify(value, obj[k],title=schema["properties"][k].get("title", k.capitalize()))
                 if not schema["properties"]:
                     schema = obj.schema(include=_include)
             if "allOf" in schema or "anyOf" in schema:
@@ -989,7 +990,7 @@ class Sample(BaseModel):
         if container == "features":
             return Features(self.infer_features_dict())
         if container == "sample":
-            return self.flatten(output_type="sample", **kwargs)
+            return self.flatten(to="sample", **kwargs)
         try:
             logging.warning(f"No matching container found for {container}. Attempting nested conversion.")
             for k, v in self:

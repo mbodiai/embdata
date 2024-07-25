@@ -158,7 +158,7 @@ class Image(Sample):
 
     def __init__( # noqa
         self,
-        arg: SupportsImage | None = None,
+        arg: SupportsImage | None = None, # type: ignore
         path: str | None = None,
         array: np.ndarray | None = None,
         base64: Base64Str | None = None,

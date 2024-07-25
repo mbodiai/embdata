@@ -363,11 +363,11 @@ def test_flatten_merge_dicts():
         e=Sample(f=8, g=[{"h": 9, "i": 10}, {"h": 11, "i": 12}]),
     )
 
-    flattened = sample.flatten(to=["d", "g"], output_type="dict")
+    flattened = sample.flatten(to=["d", "g"], to="dict")
     expected = [{"d": [3, 4], "g": [6, 7]}, {"d": [6, 7], "g": [9, 10]}, {"d": [12, 13], "g": [15, 16]}]
     assert flattened == expected, f"Expected {expected}, but got {flattened}"
 
-    flattened = sample.flatten(to=["d", "g"], output_type="list")
+    flattened = sample.flatten(to=["d", "g"], to="list")
     expected = [[3, 4, 6, 7], [6, 7, 9, 10], [12, 13, 15, 16]]
     assert flattened == expected, f"Expected {expected}, but got {flattened}"
 
@@ -384,10 +384,10 @@ def test_flatten_merge_dicts():
 
 #     assert flattened == expected, f"Expected {expected}, but got {flattened}"
 
-#     flattened = sample.flatten(to={"c", "d"}, output_type="np")
+#     flattened = sample.flatten(to={"c", "d"}, to="np")
 #     expected = np.array([[2, 3, 4], [5, 6, 7]])
 
-#     flattened_dict = sample.flatten(output_type="dict")
+#     flattened_dict = sample.flatten(to="dict")
 #     expected_dict = {
 #         "a": 1,
 #         "b.0.c": 2,

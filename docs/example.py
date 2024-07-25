@@ -8,7 +8,7 @@ import torch.nn as nn
 # Function to flatten and process a single example
 def process_example(example):
     flattened = Sample(example).flatten(
-        output_type="dict",
+        to="dict",
         to=[
             "data.pickle.steps.observation.image.bytes",
             "data.pickle.steps.observation.natural_language_instruction",

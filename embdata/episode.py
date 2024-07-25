@@ -1,4 +1,5 @@
 import atexit
+from functools import cached_property
 import logging
 import sys
 from itertools import zip_longest
@@ -7,7 +8,6 @@ from typing import Any, Callable, Dict, Iterable, Iterator, List, Literal
 
 import numpy as np
 import rerun as rr
-from rich import print_json
 import torch
 from datasets import Dataset, Features, Sequence, Value, DatasetDict
 from datasets import Image as HFImage
@@ -21,13 +21,13 @@ from embdata.motion.control import AnyMotionControl, RelativePoseHandControl
 from embdata.sample import Sample
 from embdata.sense.image import Image, SupportsImage
 from embdata.trajectory import Trajectory
-from embdata.utils.iter_utils import get_iter_class
+
 
 try:
     from lerobot.common.datasets.lerobot_dataset import LeRobotDataset
     from lerobot.common.datasets.utils import calculate_episode_data_index, hf_transform_to_torch
 except ImportError:
-    logging.warning("lerobot not found. Episode.lerobot() may not work.")
+    logging.info("lerobot not found. Go to https://github.com/huggingface/lerobot to install it.")
 
 
 
@@ -274,7 +274,12 @@ class Episode(Sample):
             
         return cls(steps=[TimeStep.from_dict(step, image_keys, observation_key, action_key, supervision_key) for step in dataset], image_keys=image_keys)
 
+
     def dataset(self) -> Dataset:
+        return self._dataset
+
+    @cached_property
+    def _dataset(self) -> Dataset:
         if self.steps is None or len(self.steps) == 0:
             msg = "Episode has no steps"
             raise ValueError(msg)
@@ -306,6 +311,10 @@ class Episode(Sample):
         })
         describe(feat)
         return Dataset.from_list(data, features=feat)
+
+    @cached_property
+    def stats(self) -> dict:
+        return self.trajectory().stats()
 
     def __repr__(self) -> str:
         if not hasattr(self, "stats"):
@@ -343,8 +352,15 @@ class Episode(Sample):
 
 
         """
-        if not of.endswith("s"):
-            of = of + "s"
+        of = of if isinstance(of, list) else [of]
+        of = [f[:-1] if f.endswith("s") else f for f in of]
+        if self.steps is None or len(self.steps) == 0:
+            msg = "Episode has no steps"
+            raise ValueError(msg)
+        
+        if not any(of in fields for fields in self.steps[0].flatten("dict").values()):
+            msg = f"Field '{of}' not found in episode steps"
+            raise ValueError(msg)   
         
         freq_hz = freq_hz or self.freq_hz or 1
         if of == "step":
@@ -360,19 +376,28 @@ class Episode(Sample):
             episode=self,
         )
     
-    def window(self, nforward:int = 1, nbackward:int = 1, on: str = "step") -> Trajectory:
+    def window(self, 
+            of: str | list[str] = "steps", 
+            nforward:int = 1, 
+            nbackward:int = 1,
+            pad_value: Any = None,
+            freq_hz: int | None = None) -> Iterable[Trajectory]:
         """Get a sliding window of the episode.
 
         Args:
+            of (str, optional): What to include in the window. Defaults to "steps".
             nforward (int, optional): The number of steps to look forward. Defaults to 1.
             nbackward (int, optional): The number of steps to look backward. Defaults to 1.
-            on (str, optional): The level or field to apply the window to. Defaults to "step".
 
         Returns:
             Trajectory: A sliding window of the episode.
         """
-        for i in range(nbackward, len(self) - nforward):
-            yield self.trajectory(field=field, freq_hz=self.freq_hz)[i - nbackward : i + nforward]
+        of = of if isinstance(of, list) else [of]
+        of = [f[:-1] if f.endswith("s") else f for f in of]
+        if self.steps is None or len(self.steps) == 0:
+            msg = "Episode has no steps"
+            raise ValueError(msg)
+        
 
     def __len__(self) -> int:
         """Get the number of steps in the episode.
@@ -403,14 +428,7 @@ class Episode(Sample):
         self.steps[idx] = value
 
     def __iter__(self) -> Any:
-        """Iterate over the episode.
-
-        Returns:
-            Any: An iterator over the episode.
-        """
-        logging.warning(
-            "Iterating over an Episode will iterate over keys. Use the `iter()` method to iterate over the steps.",
-        )
+        """Iterate over the keys in the dataset."""
         return super().__iter__()
 
     def map(self, func: Callable[[TimeStep | Dict | np.ndarray],np.ndarray | TimeStep], field=None) -> "Episode":

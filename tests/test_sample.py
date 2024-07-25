@@ -173,7 +173,7 @@ def test_serialize_deserialize():
 def test_unflatten_dict():
     sample = Sample(x=1, y=2, z={"a": 3, "b": 4}, extra_field=5)
     schema = sample.schema()
-    flat_dict = sample.flatten(output_type="dict")
+    flat_dict = sample.flatten(to="dict")
     print(f"flat_dict: {flat_dict}")
     print(f"schem: {schema}")
     unflattened_sample = Sample.unflatten(flat_dict, schema)
@@ -182,7 +182,7 @@ def test_unflatten_dict():
 
 def test_unflatten_list():
     sample = Sample(x=1, y=2, z={"a": 3, "b": 4}, extra_field=5)
-    flat_list = sample.flatten(output_type="list")
+    flat_list = sample.flatten(to="list")
     unflattened_sample = Sample.unflatten(flat_list, sample.schema())
     assert unflattened_sample.x == 1
     assert unflattened_sample.y == 2
@@ -203,7 +203,7 @@ def test_unflatten_numeric_only():
 
     sample = DerivedSample(x=1, y="hello", z=AnotherSample(**{"a": 3, "b": "world"}), another_number=5)
 
-    flat_list = sample.flatten(output_type="list")
+    flat_list = sample.flatten(to="list")
     unflattened_sample = DerivedSample.unflatten(flat_list, sample.schema())
     assert unflattened_sample.x == 1
     assert hasattr(unflattened_sample, "y")
@@ -213,7 +213,7 @@ def test_unflatten_numeric_only():
 
 def test_unflatten_numpy_array():
     sample = Sample(x=1, y=2, z={"a": 3, "b": 4}, extra_field=5)
-    flat_array = sample.flatten(output_type="np")
+    flat_array = sample.flatten(to="np")
     unflattened_sample = Sample.unflatten(flat_array, sample.schema())
     assert unflattened_sample.x == 1
     assert unflattened_sample.y == 2
@@ -223,7 +223,7 @@ def test_unflatten_numpy_array():
 
 def test_unflatten_torch_tensor():
     sample = Sample(x=1, y=2, z={"a": 3, "b": 4}, extra_field=5)
-    flat_tensor = sample.flatten(output_type="pt")
+    flat_tensor = sample.flatten(to="pt")
     unflattened_sample = Sample.unflatten(flat_tensor, sample.schema())
     assert unflattened_sample.x == 1
     assert unflattened_sample.y == 2
@@ -290,17 +290,17 @@ def test_dict_shallow():
 #     assert sample.setdefault("b.f.*", [70]) == [70], "New nested attribute with wildcard should be set with default value"
     
 
-def test_flatten_with_to_and_output_type():                                                                                                                        
+def test_flatten_with_to_and_to():                                                                                                                        
      obj = Sample(a=1, b={"c": 2, "d": [3, 4]}, e=Sample(f=5, g={"h": 6, "i": 7}))                                                                                  
-     result = obj.flatten(to=["a", "b.c", "e.g.h"])                                                                                                                 
+     result = obj.flatten(include=["a", "b.c", "e.g.h"])                                                                                                                 
      expected = [[1, 2, 6]]                                                                                                                                         
      assert result == expected, f"Expected {expected}, but got {result}"                                                                                            
                                                                                                                                                                     
-     result_dict = obj.flatten(to=["a", "b.c", "e.g.h"], output_type="dict")                                                                                        
+     result_dict = obj.flatten(include=["a", "b.c", "e.g.h"], to="dict")                                                                                        
      expected_dict = [{"a": 1, "b.c": 2, "e.g.h": 6}]                                                                                                               
      assert result_dict == expected_dict, f"Expected {expected_dict}, but got {result_dict}"  
 
-     result_dict = obj.flatten(to=["a", "c", "h"], output_type="dict")
+     result_dict = obj.flatten(include=["a", "c", "h"], to="dict")
      assert result_dict == [{"a": 1, "c": 2, "h": 6}], f"Expected {expected_dict}, but got {result_dict}"
 
 if __name__ == "__main__":
