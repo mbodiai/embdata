@@ -131,13 +131,15 @@ def describe(ds: Any, name: str = "", compact: bool = True, show=True, check_ful
     """
     if hasattr(ds, "dict"):
         ds = ds.dict()
+
+
     if compact:
         schema = {
             "type": "object"
             if isinstance(ds, dict)
             else "array"
             if isinstance(ds, list | Dataset)
-            else str(type(ds).__name__),
+            else str(ds.dtype if hasattr(ds, "dtype") else type(ds)),
         }
     else:
         schema = {

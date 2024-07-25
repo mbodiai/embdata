@@ -13,7 +13,7 @@ from datasets import Dataset, Features, Sequence, Value, DatasetDict
 from datasets import Image as HFImage
 from pydantic import ConfigDict, Field, PrivateAttr, model_validator
 from rerun.archetypes import Image as RRImage
-from torchvision import transforms
+
 from embdata.describe import describe
 from embdata.features import to_features_dict
 from embdata.motion import Motion
@@ -655,7 +655,7 @@ class Episode(Sample):
         steps = []
         dataset = lerobot_dataset.hf_dataset
         for _, data in enumerate(dataset):
-            image = Image(transforms.ToPILImage()(data["observation.image"]))
+            image = Image(data["observation.image"]).pil
             state = Sample(data["observation.state"])
             action = Sample(data["action"])
             observation = Sample(image=image, task=None)

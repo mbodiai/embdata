@@ -200,8 +200,6 @@ class Image(Sample):
                     break
             if arg is None and kwargs.get("size") is not None:
                 arg = np.zeros(kwargs["size"] + (3,), dtype=np.uint8)
-        print(f"Image arg: {arg}")
-        print(f"Image kwargs: {kwargs}")
         kwargs = Image.dispatch_arg(arg, **kwargs)
         super().__init__(**kwargs)
 
