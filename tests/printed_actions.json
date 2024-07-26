@@ -1,0 +1,100 @@
+
+setting title: Sample
+schema{'properties': {'pose': {'_info': {'unit': 'm'
+            }, 'title': 'Pose6D', 'properties': {'x': {'_info': {'bounds': 'undefined', 'reference_frame': 'undefined', 'unit': 'm'
+                    }, 'default': 0.0, 'title': 'X', 'type': 'number'
+                }, 'y': {'_info': {'bounds': 'undefined', 'reference_frame': 'undefined', 'unit': 'm'
+                    }, 'default': 0.0, 'title': 'Y', 'type': 'number'
+                }, 'z': {'_info': {'bounds': 'undefined', 'reference_frame': 'undefined', 'unit': 'm'
+                    }, 'default': 0.0, 'title': 'Z', 'type': 'number'
+                }, 'roll': {'_info': {'bounds': 'undefined', 'reference_frame': 'undefined', 'unit': 'rad'
+                    }, 'default': 0.0, 'title': 'Roll', 'type': 'number'
+                }, 'pitch': {'_info': {'bounds': 'undefined', 'reference_frame': 'undefined', 'unit': 'rad'
+                    }, 'default': 0.0, 'title': 'Pitch', 'type': 'number'
+                }, 'yaw': {'_info': {'bounds': 'undefined', 'reference_frame': 'undefined', 'unit': 'rad'
+                    }, 'default': 0.0, 'title': 'Yaw', 'type': 'number'
+                }
+            }, 'type': 'object'
+        }, 'grasp': {'_info': {'bounds': [
+                    -1,
+                    1
+                ], 'unit': 'm'
+            }, 'default': 0, 'title': 'Grasp', 'type': 'number'
+        }
+    }, 'title': 'Sample', 'type': 'object'
+}
+Pose6D data: {'x': 0.325, 'y': 0.219, 'z': 0.325, 'roll': 3.1416, 'pitch': -0.0, 'yaw': 0.202
+}
+pose bounds: None
+grasp bounds: [
+    -1,
+    1
+]
+unflattend[
+    0.325,
+    0.219,
+    0.325,
+    3.1416,
+    -0.0,
+    0.202,
+    0
+]
+Pose6D data: {}
+Schema: {'$defs': {'Pose6D': {'additionalProperties': False, 'description': 'Absolute coordinates for a 6D space representing x, y, z, roll, pitch, and yaw.\n\nExamples:\n    >>> pose = Pose6D(x=1, y=2, z=3, roll=0, pitch=0, yaw=np.pi / 2)\n    >>> pose.to("cm")\n    Pose6D(x=100.0, y=200.0, z=300.0, roll=0.0, pitch=0.0, yaw=1.5707963267948966)\n    >>> pose.to("deg")\n    Pose6D(x=1.0, y=2.0, z=3.0, roll=0.0, pitch=0.0, yaw=90.0)\n    >>> np.round(pose.to("quaternion"),
+            3)\n    array([0., 0.,
+                0.707,
+                0.707
+            ])\n    >>> pose.to("rotation_matrix")\n    array([
+                [ 0., -1.,  0.
+                ],\n           [ 1.,  0.,  0.
+                ],\n           [ 0.,  0.,  1.
+                ]
+            ])', 'properties': {'x': {'_info': {'bounds': 'undefined', 'reference_frame': 'undefined', 'unit': 'm'
+                    }, 'default': 0.0, 'title': 'X', 'type': 'number'
+                }, 'y': {'_info': {'bounds': 'undefined', 'reference_frame': 'undefined', 'unit': 'm'
+                    }, 'default': 0.0, 'title': 'Y', 'type': 'number'
+                }, 'z': {'_info': {'bounds': 'undefined', 'reference_frame': 'undefined', 'unit': 'm'
+                    }, 'default': 0.0, 'title': 'Z', 'type': 'number'
+                }, 'roll': {'_info': {'bounds': 'undefined', 'reference_frame': 'undefined', 'unit': 'rad'
+                    }, 'default': 0.0, 'title': 'Roll', 'type': 'number'
+                }, 'pitch': {'_info': {'bounds': 'undefined', 'reference_frame': 'undefined', 'unit': 'rad'
+                    }, 'default': 0.0, 'title': 'Pitch', 'type': 'number'
+                }, 'yaw': {'_info': {'bounds': 'undefined', 'reference_frame': 'undefined', 'unit': 'rad'
+                    }, 'default': 0.0, 'title': 'Yaw', 'type': 'number'
+                }
+            }, 'title': 'Pose6D', 'type': 'object'
+        }
+    }, 'additionalProperties': False, 'description': 'Action for a 7D space representing x, y, z, roll, pitch, yaw, and openness of the hand.\n\nThis class represents the control for a robot hand, including its pose and grasp state.\n\nAttributes:\n    pose (Pose): The pose of the robot hand, including position and orientation.\n    grasp (float): The openness of the robot hand, ranging from 0 (closed) to 1 (open).\n\nExample:\n    ```python\n    from embdata.geometry import Pose\n    from embdata.motion.control import HandControl\n\n    # Create a HandControl instance\n    hand_control = HandControl(pose=Pose(position=[
+        0.1,
+        0.2,
+        0.3
+    ], orientation=[
+        0,
+        0,
+        0,
+        1
+    ]), grasp=0.5)\n\n    # Access and modify the hand control\n    print(hand_control.pose.position)  # Output: [
+        0.1,
+        0.2,
+        0.3
+    ]\n    hand_control.grasp = 0.8\n    print(hand_control.grasp)  # Output: 0.8\n    ```', 'properties': {'pose': {'_info': {'bounds': None, 'reference_frame': None, 'shape': None, 'unit': 'm'
+            }, 'anyOf': [
+                {'$ref': '#/$defs/Pose6D'
+                },
+                {'properties': {'data_type': {'default': 'float64', 'title': 'dtype', 'type': 'string'
+                        }, 'shape': {'default': (6,), 'title': 'shape', 'type': 'array'
+                        }, 'data': {'items_schema': {'items_schema': {'metadata': 'Must be compatible with numpy.dtype: float64', 'type': 'any'
+                                }, 'type': 'list'
+                            }, 'max_length': 6, 'min_length': 6, 'type': 'list'
+                        }
+                    }, 'required': ['data_type', 'data'
+                    ], 'title': 'Numpy Array', 'type': 'np.ndarray[(6,), np.dtype[float64
+                        ]
+                    ]'
+                }
+            ], 'bounds': None, 'description': 'Pose of the robot hand.', 'title': 'Pose'
+        }, 'grasp': {'_info': {'bounds': [
+                    -1,
+                    1
+                ], 'reference_frame': None, 'shape': None, 'unit': 'm'
+            }, 'default': 0, 'description': 'Openness of the robot hand

@@ -211,5 +211,16 @@ def test_episode_again(time_step):
     for step, new_step in zip(episode.steps, new_episode.steps):
         assert step == new_step
     
+        
+def test_concatenate():
+    ds = load_dataset("mbodiai/testinglatest", split="train").to_list()
+    print(len(ds))
+    for item in ds:
+        print(item["action"]["pose"])
+        print(item["action"]["grasp"])
+    assert False
+    # describe(features)
+    # ds = concatenate_datasets([new_new_ds, episode.dataset()])
+
 if __name__ == "__main__":
     pytest.main(["-vv", __file__])
