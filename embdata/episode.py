@@ -302,14 +302,24 @@ class Episode(Sample):
                 step["info"] = model_info
             data.append(step)
 
+        feat = Features({
+            "image": HFImage(), 
+            "episode_idx": Value("int64"), 
+            "step_idx": Value("int64"), 
+            "timestamp": Value("float32"),
+             **features,
+        })
+        describe(feat)
+        pprint(feat)
+        from pprint import pprint
+        print(f"\n\n\n\n DATA \n\n\n\n")
+        pprint(data[0])
+
+        pprint(data[-1])
         return Dataset.from_list(data, features=feat)
 
-    def stats(self, mode: Literal["full", "first10"] = "first10") -> Stats:
-        """Get the statistics of the episode."""
-        if not hasattr(self, "stats_"):
-            self.stats_ = self.trajectory(mode=mode).stats()
-        return self.stats_
-
+    def stats(self) -> dict:
+        return self.trajectory().stats()
 
     def __slice__(self, start: int, stop: int, step: int) -> "Episode":
         return Episode(steps=self.steps[start:stop:step])

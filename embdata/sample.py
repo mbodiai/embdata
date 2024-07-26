@@ -400,6 +400,7 @@ class Sample(BaseModel):
         Returns:
             Dict[str, Any]: Dictionary representation of the Sample object.
         """
+        print(f"dumping: {self}")
         return self._dump(exclude=exclude, as_field=as_field, recurse=recurse)
 
     def values(self) -> Generator:
@@ -464,17 +465,15 @@ class Sample(BaseModel):
             obj = list(obj.values())
         if schema is None:
             raise ValueError("Schema is required for unflattening a non-dictionary object.")
-        out = {}
 
         def unflatten_recursive(schema_part, index=0):
-            print(f"obj: {obj}, schema_part: {schema_part}")
             if schema_part["type"] == "object":
                 result = {} if schema_part.get("title") != "Sample" else Sample()
                 for prop, prop_schema in schema_part["properties"].items():
                     value, index = unflatten_recursive(prop_schema, index)
                     value = Sample(**value) if prop_schema.get("title") == "Sample" else value
                     result[prop] = value
-                print(f"result: {result}")
+                # print(f"result: {result}")
                 if schema_part.get("title") == "Sample":
                     return Sample(**result), index
 
@@ -495,7 +494,7 @@ class Sample(BaseModel):
                 return obj[index], index + 1
 
         unflattened, index = unflatten_recursive(schema)
-
+        print(f"unflattened: {unflattened}")
         return unflattened
     @classmethod
     def unflatten(cls, one_d_array_or_dict, schema=None) -> "Sample":
@@ -516,9 +515,8 @@ class Sample(BaseModel):
             >>> Sample.unflatten(flat_dict, sample.schema())
             Sample(x=1, y=2, z={'a': 3, 'b': 4}, extra_field=5)
         """
-        print(f"unflattend{one_d_array_or_dict}")
+
         schema = schema or cls().schema()
-        print(f"schema{schema}")
         return cls(**cls.unflatten_from_schema(one_d_array_or_dict, schema))
         
 
@@ -999,6 +997,7 @@ class Sample(BaseModel):
                     feat_dict[k] = [to_features_dict(v[0])]
             else:
                 feat_dict[k] = to_features_dict(v)
+                
         return feat_dict
 
     def to(self, container: Any, **kwargs) -> Any:
