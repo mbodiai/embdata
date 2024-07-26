@@ -310,12 +310,12 @@ class Episode(Sample):
              **features,
         })
         describe(feat)
-        pprint(feat)
+        print(feat)
         from pprint import pprint
         print(f"\n\n\n\n DATA \n\n\n\n")
-        pprint(data[0])
+        print(data[0])
 
-        pprint(data[-1])
+        print(data[-1])
         return Dataset.from_list(data, features=feat)
 
     def stats(self) -> dict:
