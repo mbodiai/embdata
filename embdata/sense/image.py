@@ -95,7 +95,7 @@ class Image(Sample):
     model_config: ConfigDict = ConfigDict(arbitrary_types_allowed=True, extras="forbid", validate_assignment=False)
 
     size: tuple[int, int] | tuple[int, int, int] | None = None
-    mode: Literal["RGB", "RGBA", "L", "P", "CMYK", "YCbCr", "I", "F"] = "RGB"
+    mode: Literal["RGB", "RGBA", "L", "P", "CMYK", "YCbCr", "I", "F"] | None = None
     pil: InstanceOf[PILImage] | None = Field(
         default=None,
         repr=False,
@@ -165,7 +165,7 @@ class Image(Sample):
         encoding: str = "jpeg",
         size: Tuple[int, ...] | None = None,
         bytes: SupportsBytes | None = None, # noqa
-        mode: Literal["RGB", "RGBA", "L", "P", "CMYK", "YCbCr", "I", "F"] | None = "RGB",
+        mode: Literal["RGB", "RGBA", "L", "P", "CMYK", "YCbCr", "I", "F"] | None = None,
         **kwargs,
     ):
         """Initializes an image. Either one source argument or size tuple must be provided.
@@ -232,7 +232,7 @@ class Image(Sample):
         return values
 
     @staticmethod
-    def pil_to_data(image: PILImage, encoding: str, size=None, mode="RGB") -> dict:
+    def pil_to_data(image: PILImage, encoding: str, size=None, mode=None) -> dict:
         """Creates an Image instance from a PIL image.
 
         Args:
@@ -247,7 +247,7 @@ class Image(Sample):
         if encoding.lower() == "jpg":
             encoding = "jpeg"
         buffer = io.BytesIO()
-        image = image.convert(mode)
+        image = image.convert(mode) if mode is not None else image
         image.save(buffer, format=encoding.upper()) 
         base64_encoded = base64lib.b64encode(buffer.getvalue()).decode("utf-8")
         data_url = f"data:image/{encoding};base64,{base64_encoded}"
@@ -280,7 +280,7 @@ class Image(Sample):
         arg: SupportsImage | None = None, # type: ignore
         size: Tuple[int, int]| None = None,
         encoding="jpeg",
-        mode: Literal["RGB", "RGBA", "L", "P", "CMYK", "YCbCr", "I", "F"] | None = "RGB",
+        mode: Literal["RGB", "RGBA", "L", "P", "CMYK", "YCbCr", "I", "F"] | None = None,
         **kwargs) -> None:
         kwargs.update(cls.pil_to_data(PILModule.open(arg, formats=[encoding.upper()]), encoding, size, mode))
         return kwargs
@@ -292,7 +292,7 @@ class Image(Sample):
         arg: SupportsImage | None = None, # type: ignore
         size: Tuple[int, int]| None = None,
         encoding="jpeg",
-        mode: Literal["RGB", "RGBA", "L", "P", "CMYK", "YCbCr", "I", "F"] | None = "RGB",
+        mode: Literal["RGB", "RGBA", "L", "P", "CMYK", "YCbCr", "I", "F"] | None = None,
         **kwargs) -> None:
         buffer = io.BytesIO(arg)
         kwargs.update(cls.pil_to_data(PILModule.frombytes(arg, mode="r", size=size, data=arg), encoding, size, mode))
@@ -305,7 +305,7 @@ class Image(Sample):
         arg: NumpyArray[3, Any, Any, np.uint8] | NumpyArray[Any, Any, 3, np.uint8] | None = None,
         size: Tuple[int, int]| None = None,
         encoding="jpeg",
-        mode: Literal["RGB", "RGBA", "L", "P", "CMYK", "YCbCr", "I", "F"] | None = "RGB",
+        mode: Literal["RGB", "RGBA", "L", "P", "CMYK", "YCbCr", "I", "F"] | None = None,
         **kwargs) -> None:
         kwargs.update(cls.pil_to_data(PILModule.fromarray(arg), encoding, size, mode))
         return kwargs
@@ -318,7 +318,7 @@ class Image(Sample):
         encoding: str = "jpeg",
         action: Literal["download", "set"] = "set",
         size: Tuple[int, int] | None = None, 
-        mode: Literal["RGB", "RGBA", "L", "P", "CMYK", "YCbCr", "I", "F"] | None = "RGB",
+        mode: Literal["RGB", "RGBA", "L", "P", "CMYK", "YCbCr", "I", "F"] | None = None,
         **kwargs) -> None:
         """Decodes a base64 string to create an Image instance.
 
@@ -402,7 +402,7 @@ class Image(Sample):
     @dispatch_arg.register(Path)
     @classmethod
     def open(cls, arg: Path, encoding: str = "jpeg", size: Tuple[int] | None = None,
-                                                     mode: str = "RGB", **kwargs) -> Dict[str, Any]:
+                                                     mode=None, **kwargs) -> Dict[str, Any]:
         """Opens an image from a file path and creates an Image instance.
 
         This method reads an image file from the specified path, converts it to RGB format,
@@ -427,12 +427,12 @@ class Image(Sample):
             (224, 224)
         """
         image = PILModule.open(arg)
-        image = image.convert(mode)
+        image = image.convert(mode) if mode is not None else image
         kwargs.update(cls.pil_to_data(image, encoding, size, mode))
         return kwargs
 
     @staticmethod
-    def load_url(url: str, action: Literal["download", "set"], mode="RGB", **kwargs) -> PILImage | None:
+    def load_url(url: str, action: Literal["download", "set"], mode=None, **kwargs) -> PILImage | None:
         """Downloads an image from a URL or decodes it from a base64 data URI.
 
         This method can handle both regular image URLs and base64 data URIs.
@@ -467,7 +467,7 @@ class Image(Sample):
             base64_str = url.split(";base64", 1)[1]
             image_data = base64lib.b64decode(base64_str)
             image = PILModule.open(io.BytesIO(image_data))
-            return image.convert(mode)
+            return image.convert(mode) if mode is not None else image
 
         if action == "download":
             from urllib.request import Request, urlopen
@@ -479,7 +479,7 @@ class Image(Sample):
             with urlopen(Request(url, None, headers)) as response: # noqa
                 data = response.read()
                 image = PILModule.open(io.BytesIO(data))
-            return image.convert(mode)
+            return image.convert(mode) if mode is not None else image
         return None
 
     def save(self, path: str, encoding: str | None = None, quality: int = 10) -> str:

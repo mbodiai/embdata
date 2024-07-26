@@ -143,6 +143,36 @@ def test_unflatten():
     assert unflattened_pose.y == original_pose.y
     assert unflattened_pose.theta == original_pose.theta
 
+def test_unflatten_hand_control():
+    original_pose = HandControl(pose=Pose6D(x=0.5, y=-0.5, z=0.5, roll=0.5, pitch=-0.5, yaw=0.5), grasp=1.0)
+    flattened_pose = original_pose.flatten(to="dict")
+
+    schema = {
+        "type": "object",
+        "properties": {
+            "pose": {
+                "type": "object",
+                "properties": {
+                    "x": {"type": "number"},
+                    "y": {"type": "number"},
+                    "z": {"type": "number"},
+                    "roll": {"type": "number"},
+                    "pitch": {"type": "number"},
+                    "yaw": {"type": "number"},
+                },
+            },
+            "grasp": {"type": "number"},
+        },
+    }
+    unflattened_pose = HandControl.unflatten(flattened_pose, schema)
+
+    assert unflattened_pose.pose.x == original_pose.pose.x
+    assert unflattened_pose.pose.y == original_pose.pose.y
+    assert unflattened_pose.pose.z == original_pose.pose.z
+    assert unflattened_pose.pose.roll == original_pose.pose.roll
+    assert unflattened_pose.pose.pitch == original_pose.pose.pitch
+    assert unflattened_pose.pose.yaw == original_pose.pose.yaw
+    assert unflattened_pose.grasp == original_pose.grasp
 
 def test_bounds():
     class XarmPose6D(Motion):

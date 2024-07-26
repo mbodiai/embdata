@@ -335,9 +335,15 @@ def test_object_scene(time_step):
 
     
         
-
+def test_concatenate():
+    ds = load_dataset("mbodiai/testinglatest", split="train").to_list()
+    print(len(ds))
+    for item in ds:
+        print(item["action"]["pose"])
+        print(item["action"]["grasp"])
+    assert False
     # describe(features)
-    ds = concatenate_datasets([new_new_ds, episode.dataset()])
+    # ds = concatenate_datasets([new_new_ds, episode.dataset()])
 
 if __name__ == "__main__":
     pytest.main(["-vv", __file__])

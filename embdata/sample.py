@@ -72,6 +72,7 @@ from pathlib import Path
 from typing import Annotated, Any, Dict, Generator, List, Literal, Union, get_origin
 from functools import reduce, update_wrapper, wraps
 import numpy as np
+from rich import print_json
 import torch
 from datasets import Dataset, Features, IterableDataset
 from gymnasium import spaces
@@ -471,16 +472,20 @@ class Sample(BaseModel):
             obj = list(obj.values())
         if schema is None:
             raise ValueError("Schema is required for unflattening a non-dictionary object.")
+        out = {}
 
         def unflatten_recursive(schema_part, index=0):
+            print(f"obj: {obj}, schema_part: {schema_part}")
             if schema_part["type"] == "object":
                 result = {} if schema_part.get("title") != "Sample" else Sample()
                 for prop, prop_schema in schema_part["properties"].items():
                     value, index = unflatten_recursive(prop_schema, index)
                     value = Sample(**value) if prop_schema.get("title") == "Sample" else value
                     result[prop] = value
+                print(f"result: {result}")
                 if schema_part.get("title") == "Sample":
                     return Sample(**result), index
+
                 return result, index
             elif schema_part["type"] == "array":
                 items = []
@@ -497,7 +502,8 @@ class Sample(BaseModel):
             else:  # Assuming it's a primitive type
                 return obj[index], index + 1
 
-        unflattened, _ = unflatten_recursive(schema)
+        unflattened, index = unflatten_recursive(schema)
+
         return unflattened
     @classmethod
     def unflatten(cls, one_d_array_or_dict, schema=None) -> "Sample":
@@ -518,7 +524,9 @@ class Sample(BaseModel):
             >>> Sample.unflatten(flat_dict, sample.schema())
             Sample(x=1, y=2, z={'a': 3, 'b': 4}, extra_field=5)
         """
+        print(f"unflattend{one_d_array_or_dict}")
         schema = schema or cls().schema()
+        print(f"schema{schema}")
         return cls(**cls.unflatten_from_schema(one_d_array_or_dict, schema))
         
 
@@ -810,7 +818,7 @@ class Sample(BaseModel):
     #             setattr(obj, keys[-1], default)
     #     return getattr(obj, keys[-1])
 
-    def schema(self, include: Literal["all", "descriptions", "info", "simple"] = "info") -> Dict:
+    def schema(self, include: Literal["all", "descriptions", "info", "simple", "tensor"] = "info") -> Dict:
         """Returns a simplified json schema.
 
         Args:
@@ -833,7 +841,7 @@ class Sample(BaseModel):
         schema = self._extra.model_json_schema() if hasattr(self, "_extra") else self.model_json_schema()
         if include == "all":
             return schema
-
+        print(f"Schema: {schema}")
         def resolve_refs(schema: dict) -> dict:
             def _resolve(obj, defs=None):
                 if isinstance(obj, dict):
@@ -855,16 +863,31 @@ class Sample(BaseModel):
                             all_of_resolved.update(resolved_item)
                         obj.pop("allOf")
                         obj.update(all_of_resolved)
+
+
+                    fallback = None
                     if "anyOf" in obj:
                         first_non_null = None
                         for item in obj["anyOf"]:
+                            if "$ref" in item:
+                                item = defs[item["$ref"].split("/")[-1]]
+                                print(f"Item: {item}")
+                                if "type" in item and item["type"] != "null":
+                                    first_non_null = item
+                                    break
                             if "type" in item and item["type"] == "null":
-                                break
+                                if item["type"] == "array" and not include == "tensor":
+                                    fallback = item
+                                    continue
+                                else:
+                                    break
                             first_non_null = item
+                        first_non_null = first_non_null or fallback
                         if first_non_null is not None:
                             obj.pop("anyOf")
                             obj.update(_resolve(first_non_null, defs))
                             return obj
+
                     return {k: _resolve(v, defs) for k, v in obj.items() if v is not None}
                 return obj
 
@@ -879,11 +902,12 @@ class Sample(BaseModel):
         def simplify(schema, obj, title=""):
             title = title or schema.get("title", "")
             if isinstance(obj, dict):
+                title = title or obj.get("title", "")
                 obj = Sample(**obj)
                 _include = "simple"
             elif isinstance(obj, Sample):
                 _include = include
-                title = "Sample"
+                # title = "Sample"
             elif hasattr(obj, "_extra"):
                 title = obj.__class__.__name__
                 _include = include
