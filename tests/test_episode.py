@@ -3,6 +3,7 @@ import os
 from typing import List
 from PIL import Image as PILModule
 from embdata.geometry import Pose
+from embdata.sense.depth import Depth
 import numpy as np
 from pydantic import Field
 import pytest
@@ -307,7 +308,7 @@ def test_object_scene(time_step):
     class SceneData(Sample):
         """Model for Scene Data."""
         image: Image
-        depth_image: Image
+        depth_image: Depth
         scene_objects: List[SceneObject] = Field(default_factory=lambda: [SceneObject()], description="List of Scene Objects")
 
     episode.append(
@@ -316,7 +317,7 @@ def test_object_scene(time_step):
             step_idx=0,
             observation=ImageTask(image=Image(size=(224, 224)), task="task"),
             action=RelativePoseHandControl(),
-            state=SceneData(image=Image(size=(224, 224)), depth_image=Image(size=(224, 224)), scene_objects=[
+            state=SceneData(image=Image(size=(224, 224), mode="RGB"), depth_image=Depth(size=(224, 224), mode="I"), scene_objects=[
                 SceneObject(object_name="object1", object_pose=Pose(x=0.1, y=0.2, z=0.3, roll=0.1, pitch=0.2, yaw=0.3)),
                 SceneObject(object_name="object2", object_pose=Pose(x=0.1, y=0.2, z=0.3, roll=0.21, pitch=0.2, yaw=0.3)),
             ]),
