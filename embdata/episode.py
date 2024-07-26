@@ -276,10 +276,6 @@ class Episode(Sample):
 
 
     def dataset(self) -> Dataset:
-        return self._dataset
-
-    @cached_property
-    def _dataset(self) -> Dataset:
         if self.steps is None or len(self.steps) == 0:
             msg = "Episode has no steps"
             raise ValueError(msg)
@@ -310,9 +306,14 @@ class Episode(Sample):
              **features,
         })
         describe(feat)
+        pprint(feat)
+        from pprint import pprint
+        print(f"\n\n\n\n DATA \n\n\n\n")
+        pprint(data[0])
+
+        pprint(data[-1])
         return Dataset.from_list(data, features=feat)
 
-    @cached_property
     def stats(self) -> dict:
         return self.trajectory().stats()
 
