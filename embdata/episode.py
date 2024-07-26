@@ -261,20 +261,8 @@ class Episode(Sample):
         if self.steps is None or len(self.steps) == 0:
             msg = "Episode has no steps"
             raise ValueError(msg)
-
-        image_feat = HFImage() if self.steps[0].flatten("dict",include=self.image_keys) else Value("string")
-        feat = {
-            "image": image_feat,
-            "episode_idx": Value("int64"),
-            "step_idx": Value("int64"),
-            "timestamp": Value("float32"),
-            **self.steps[0].infer_features_dict(),
-        }
-        model_info = self.steps[0].model_info()
-        if model_info:
-            feat["info"] = to_features_dict(self.steps[0].model_info())
-        feat = Features(feat)
-
+        
+        features = {**self.steps[0].infer_features_dict(),**to_features_dict(self.steps[0].model_info())}
         data = []
         for step in self.steps:
             try:
@@ -291,7 +279,8 @@ class Episode(Sample):
             step_idx = step.pop("step_idx", None)
             episode_idx = step.pop("episode_idx", None)
             timestamp = step.pop("timestamp", None)
-            step = {  # noqa
+            
+            data.append({
                 "image": image,
                 "episode_idx": episode_idx,
                 "step_idx": step_idx,
@@ -309,13 +298,12 @@ class Episode(Sample):
             "timestamp": Value("float32"),
              **features,
         })
-        describe(feat)
-        print(feat)
-        from pprint import pprint
-        print(f"\n\n\n\n DATA \n\n\n\n")
-        print(data[0])
-
-        print(data[-1])
+        with open("last_push.txt", "w+") as f:
+            f.write(str(self.steps))
+            f.write(str(data[0]))
+            f.write(str(data[-1]))
+            f.write(str(data[-1].values()))
+        
         return Dataset.from_list(data, features=feat)
 
     def stats(self) -> dict:
