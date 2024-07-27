@@ -9,8 +9,7 @@ import numpy as np
 from scipy.spatial.distance import cdist
 from shapely.geometry import LineString, Point, Polygon
 
-from embdata.motion import Motion
-from embdata.geometry import Pose, PlanarPose
+from embdata.geometry import Pose
 
 
 # Rotation matrices and transformations
@@ -90,7 +89,8 @@ def rotation_matrix_to_rpy(R: np.ndarray, unit: str = "rad") -> np.ndarray:
         return np.array([roll, pitch, yaw])
     if unit == "deg":
         return np.array([roll, pitch, yaw]) * 180 / np.pi
-    raise ValueError(f"Unknown unit: {unit}")
+    msg = f"Unknown unit: {unit}"
+    raise ValueError(msg)
 
 
 def rotation_matrix_to_angular_velocity(R: np.ndarray) -> np.ndarray:
@@ -149,7 +149,8 @@ def rodrigues_rotation(axis: np.ndarray, angle_rad: float) -> np.ndarray:
     """Compute the rotation matrix from an angular velocity vector."""
     axis_norm = np.linalg.norm(axis)
     if abs(axis_norm - 1) > 1e-6:
-        raise ValueError("Norm of axis should be 1.0")
+        msg = "Norm of axis should be 1.0"
+        raise ValueError(msg)
 
     axis = axis / axis_norm
     angle_rad = angle_rad * axis_norm

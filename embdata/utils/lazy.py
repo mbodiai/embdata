@@ -1,19 +1,19 @@
-import numpy as np
-import matplotlib.pyplot as plt
 from collections import deque
 from functools import wraps
 
+import matplotlib.pyplot as plt
+import numpy as np
+
+
 class LazyCall:
-    """
-    A class that allows queuing and applying function calls with their respective arguments.
-    """
+    """A class that allows queuing and applying function calls with their respective arguments."""
 
     def __init__(self):
         """Initializes a new instance of the LazyCall class."""
         self.function_calls = deque()
         self.kwargs = deque()
 
-    def add_call(self, function, instance, *args, **kwargs):
+    def add_call(self, function, instance, *args, **kwargs) -> None:
         """Adds a function call to the queue with the specified arguments.
 
         Parameters:
@@ -24,7 +24,7 @@ class LazyCall:
         """
         self.function_calls.append((function, instance, args, kwargs))
 
-    def apply(self):
+    def apply(self) -> None:
         """Applies the queued function calls with their respective arguments."""
         while self.function_calls:
             function, instance, args, kwargs = self.function_calls.popleft()
@@ -50,28 +50,28 @@ class TestTrajectory:
         self.lazy_call = LazyCall()
 
     @LazyCall()
-    def transform(self, matrix):
+    def transform(self, matrix) -> None:
         """Applies a transformation matrix to the trajectory points."""
         self.points = [matrix @ point for point in self.points]
 
     @LazyCall()
-    def translate(self, vector):
+    def translate(self, vector) -> None:
         """Translates the trajectory points by a given vector."""
         self.points = [point + vector for point in self.points]
 
     @LazyCall()
-    def scale(self, factor):
+    def scale(self, factor) -> None:
         """Scales the trajectory points by a given factor."""
         self.points = [point * factor for point in self.points]
 
-    def plot(self):
+    def plot(self) -> None:
         """Plots the trajectory points."""
         self.lazy_call.apply()  # Ensure all transformations are applied before plotting
-        x, y = zip(*self.points)
-        plt.plot(x, y, marker='o')
-        plt.xlabel('X')
-        plt.ylabel('Y')
-        plt.title('Trajectory')
+        x, y = zip(*self.points, strict=False)
+        plt.plot(x, y, marker="o")
+        plt.xlabel("X")
+        plt.ylabel("Y")
+        plt.title("Trajectory")
         plt.show()
 
 if __name__ == "__main__":

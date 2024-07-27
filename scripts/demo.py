@@ -15,14 +15,16 @@ Example:
 
 
 import os
+from typing import TYPE_CHECKING
 
-from datasets import get_dataset_config_info, get_dataset_config_names, load_dataset
-from rich import print_json
+from datasets import load_dataset
 
 from embdata.describe import describe
-from embdata.episode import Episode, VisionMotorEpisode
+from embdata.episode import Episode
 from embdata.sample import Sample
-from embdata.trajectory import Trajectory
+
+if TYPE_CHECKING:
+    from embdata.trajectory import Trajectory
 
 
 def load_and_process_bridge() -> tuple[Sample, Sample, Sample]:
@@ -87,7 +89,6 @@ def create_and_analyze_episode(observations, actions, states) -> Episode:
 if __name__ == "__main__":
     # actions, observations, states = load_and_process_dataset()
     # episode = create_and_analyze_episode(observations, actions, states)
-    from rich import print
 
     # cn = get_dataset_config_names("jxu124/OpenX-Embodiment")
     # for c in cn:
@@ -102,7 +103,7 @@ if __name__ == "__main__":
     # describe(ds)
     episode = Episode(steps=ds.to_list(), freq_hz=5)
     episode.dataset().push_to_hub("mbodiai/test_dumb3", token=os.getenv("HF_TOKEN"))
-    
+
     # obs, actions,  = ds.flatten(to="observation"), ds.flatten(to="action")
     # describe(obs, "obs")
     # describe(actions, "actions")

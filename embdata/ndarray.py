@@ -43,7 +43,7 @@ class NumpyDataDict(TypedDict):
 
 
 @singledispatch
-def array_validator(array: np.ndarray, shape: Tuple[int, ...] | None, dtype: SupportedDTypes | None) -> npt.NDArray: 
+def array_validator(array: np.ndarray, shape: Tuple[int, ...] | None, dtype: SupportedDTypes | None) -> npt.NDArray:
     if shape is not None:
         expected_ndim = len(shape)
         actual_ndim = array.ndim
@@ -94,28 +94,28 @@ _common_numpy_array_validator = core_schema.union_schema(
             [
                 core_schema.is_instance_schema(Path),
                 core_schema.no_info_plain_validator_function(validate_numpy_array_file),
-            ]
+            ],
         ),
         core_schema.chain_schema(
             [
                 core_schema.is_instance_schema(MultiArrayNumpyFile),
                 core_schema.no_info_plain_validator_function(validate_multi_array_numpy_file),
-            ]
+            ],
         ),
         core_schema.is_instance_schema(np.ndarray),
         core_schema.chain_schema(
             [
                 core_schema.is_instance_schema(Sequence),
                 core_schema.no_info_plain_validator_function(lambda v: np.asarray(v)),
-            ]
+            ],
         ),
         core_schema.chain_schema(
             [
                 core_schema.is_instance_schema(dict),
                 core_schema.no_info_plain_validator_function(_deserialize_numpy_array_from_data_dict),
-            ]
+            ],
         ),
-    ]
+    ],
 )
 
 
@@ -185,7 +185,7 @@ def array_to_data_dict_serializer(array: npt.ArrayLike) -> NumpyDataDict:
         data = array.astype(int).tolist()
     else:
         data = array.astype(float).tolist()
-    dtype = str(array.dtype) if hasattr(array, "dtype") else "float"   
+    dtype = str(array.dtype) if hasattr(array, "dtype") else "float"
     return NumpyDataDict(data=data, data_type=dtype , shape=array.shape)
 
 class NumpyArray:
@@ -301,7 +301,7 @@ class NumpyArray:
 
     @classmethod
     def __get_pydantic_json_schema__(
-        cls, field_core_schema: core_schema.CoreSchema, handler: GetJsonSchemaHandler
+        cls, field_core_schema: core_schema.CoreSchema, handler: GetJsonSchemaHandler,
     ) -> JsonSchemaValue:
         return get_numpy_json_schema(field_core_schema, handler, cls.shape, cls.dtype)
 

@@ -1,8 +1,10 @@
 
-from embdata.sample import Sample
-from embdata.ndarray import NumpyArray
+
 from pydantic import Field
-from typing import List, Tuple
+
+from embdata.ndarray import NumpyArray
+from embdata.sample import Sample
+
 
 class Intrinsics(Sample):
     """Model for Camera Intrinsic Parameters."""

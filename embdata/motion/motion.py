@@ -46,7 +46,6 @@ from pydantic_core import PydanticUndefined
 from typing_extensions import Literal
 
 from embdata.geometry import Coordinate, CoordinateField
-from embdata.ndarray import NumpyArray
 from embdata.units import AngularUnit, LinearUnit
 
 MotionType = Literal[
@@ -60,8 +59,8 @@ MotionType = Literal[
 
 
 def MotionField(  # noqa
-    default: Any = PydanticUndefined,  # noqa: N805
-    bounds: list[float] | None = None,  # noqa: N802, D417
+    default: Any = PydanticUndefined,
+    bounds: list[float] | None = None,
     shape: tuple[int] | None = None,
     description: str | None = None,
     reference_frame: str | None = None,
@@ -106,13 +105,13 @@ def MotionField(  # noqa
         description=description,
         reference_frame=reference_frame,
         unit=unit,
-        **kwargs
+        **kwargs,
     )
 
 
 def AbsoluteMotionField(  # noqa
-    default: Any = PydanticUndefined,  # noqa: N805
-    bounds: list[float] | None = None,  # noqa: N802, D417
+    default: Any = PydanticUndefined,
+    bounds: list[float] | None = None,
     shape: tuple[int] | None = None,
     description: str | None = None,
     reference_frame: str | None = None,
@@ -300,7 +299,6 @@ class Motion(Coordinate):
             if isinstance(v, Motion):
                 for kk, _ in v:
                     bounds = v.field_info(kk).get("bounds")
-                    print(f"{kk} bounds: {bounds}")
 
                     # Set the child's bounds to the parent's bounds if the child's bounds are None.
                     if v.field_info(kk).get("bounds") is None:
@@ -310,7 +308,7 @@ class Motion(Coordinate):
                 bounds = self.field_info(k).get("bounds")
                 if not isinstance(v, np.ndarray | list):
                     v = [v] # noqa
-                for i, vv in enumerate(v):
+                for _i, vv in enumerate(v):
                     if isinstance(vv, int | float) and not bounds[0] <= vv <= bounds[1]:
                         msg = f"{k} item {v} is out of bounds {self.field_info(k).get('bounds')}"
                         raise ValueError(msg)

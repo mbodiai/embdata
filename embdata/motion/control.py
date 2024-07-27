@@ -43,10 +43,10 @@ Example:
     You can also use the RelativeMotionField and VelocityMotionField or TorqueMotionField for different types of motions.
 """
 
-from typing import Any, Dict
+from typing import Any
 
 import numpy as np
-from pydantic import ConfigDict, model_validator
+from pydantic import ConfigDict
 
 from embdata.geometry import PlanarPose, Pose
 from embdata.motion import AbsoluteMotionField, Motion, MotionField, RelativeMotionField

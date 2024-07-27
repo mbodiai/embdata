@@ -225,11 +225,7 @@ class Image(Sample):
         if values.get("pil") is None:
             arg = reduce(lambda x, y: x if x is not None else y, [values.get(key) for key in sources])
             values.update(cls.dispatch_arg(arg, **values))
-            print("Ensure PIL")
-            print({key: type(value) for key, value in values.items()})
-        values = {key: value for key, value in values.items() if key is not None}
-        print({key: type(value) for key, value in values.items() if key is not None})
-        return values
+        return {key: value for key, value in values.items() if key is not None}
 
     @staticmethod
     def pil_to_data(image: PILImage, encoding: str, size=None, mode="RGB") -> dict:
@@ -248,7 +244,7 @@ class Image(Sample):
             encoding = "jpeg"
         buffer = io.BytesIO()
         image = image.convert(mode)
-        image.save(buffer, format=encoding.upper()) 
+        image.save(buffer, format=encoding.upper())
         base64_encoded = base64lib.b64encode(buffer.getvalue()).decode("utf-8")
         data_url = f"data:image/{encoding};base64,{base64_encoded}"
         if size is not None:
@@ -284,7 +280,7 @@ class Image(Sample):
         **kwargs) -> None:
         kwargs.update(cls.pil_to_data(PILModule.open(arg, formats=[encoding.upper()]), encoding, size, mode))
         return kwargs
-    
+
     @dispatch_arg.register(SupportsBytes)
     @classmethod
     def init_bytes(
@@ -294,7 +290,7 @@ class Image(Sample):
         encoding="jpeg",
         mode: Literal["RGB", "RGBA", "L", "P", "CMYK", "YCbCr", "I", "F"] | None = "RGB",
         **kwargs) -> None:
-        buffer = io.BytesIO(arg)
+        io.BytesIO(arg)
         kwargs.update(cls.pil_to_data(PILModule.frombytes(arg, mode="r", size=size, data=arg), encoding, size, mode))
         return kwargs
 
@@ -317,7 +313,7 @@ class Image(Sample):
         arg: str,
         encoding: str = "jpeg",
         action: Literal["download", "set"] = "set",
-        size: Tuple[int, int] | None = None, 
+        size: Tuple[int, int] | None = None,
         mode: Literal["RGB", "RGBA", "L", "P", "CMYK", "YCbCr", "I", "F"] | None = "RGB",
         **kwargs) -> None:
         """Decodes a base64 string to create an Image instance.
@@ -380,7 +376,7 @@ class Image(Sample):
     def init_pil(
         cls,
         arg: PILImage,
-        encoding: str = "jpeg", 
+        encoding: str = "jpeg",
         size: Tuple[int, int] | None = None,
         mode: Literal["RGB", "RGBA", "L", "P", "CMYK", "YCbCr", "I", "F"] | None = "RGB",
         **kwargs) -> None:
@@ -551,7 +547,7 @@ class Image(Sample):
             "mode": self.mode,
             "encoding": self.encoding,
             "path": self.path,
-            "base64": self.base64
+            "base64": self.base64,
         }
 
     def infer_features_dict(self) -> Features:

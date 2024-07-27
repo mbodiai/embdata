@@ -1,7 +1,7 @@
 import atexit
-from functools import cached_property
 import logging
 import sys
+from functools import cached_property
 from itertools import zip_longest
 from threading import Thread
 from typing import Any, Callable, Dict, Iterable, Iterator, List, Literal
@@ -9,9 +9,9 @@ from typing import Any, Callable, Dict, Iterable, Iterator, List, Literal
 import numpy as np
 import rerun as rr
 import torch
-from datasets import Dataset, Features, Sequence, Value, DatasetDict
+from datasets import Dataset, DatasetDict, Features, Sequence, Value
 from datasets import Image as HFImage
-from pydantic import ConfigDict, Field, PrivateAttr, model_validator
+from pydantic import ConfigDict, Field, PrivateAttr
 from rerun.archetypes import Image as RRImage
 
 from embdata.describe import describe
@@ -21,7 +21,6 @@ from embdata.motion.control import AnyMotionControl, RelativePoseHandControl
 from embdata.sample import Sample
 from embdata.sense.image import Image, SupportsImage
 from embdata.trajectory import Trajectory
-
 
 try:
     from lerobot.common.datasets.lerobot_dataset import LeRobotDataset
@@ -74,7 +73,7 @@ class TimeStep(Sample):
     _action_class: type[Sample] = PrivateAttr(default=Sample)
     _state_class: type[Sample] = PrivateAttr(default=Sample)
     _supervision_class: type[Sample] = PrivateAttr(default=Sample)
-    
+
     @classmethod
     def from_dict(cls, values: Dict[str, Any], image_keys: str | set | None = "image",
             observation_key: str | None = "observation", action_key: str | None = "action", supervision_key: str | None = "supervision") -> "TimeStep":
@@ -87,8 +86,8 @@ class TimeStep(Sample):
         episode_idx = values.pop("episode_idx", 0)
 
         Obs = cls._observation_class.get_default()
-        Act = cls._action_class.get_default()  # noqa: N806, SLF001
-        Sta = cls._state_class.get_default()  # noqa: N806, SLF001
+        Act = cls._action_class.get_default()  # noqa: N806
+        Sta = cls._state_class.get_default()  # noqa: N806
         Sup = cls._supervision_class.get_default()
         obs = Obs(**convert_images(obs, image_keys)) if obs is not None else None
         act = Act(**convert_images(act, image_keys)) if act is not None else None
@@ -108,10 +107,10 @@ class TimeStep(Sample):
 
     def __init__(
         self,
-        observation: Sample | Dict | np.ndarray, 
+        observation: Sample | Dict | np.ndarray,
         action: Sample | Dict | np.ndarray,
-        state: Sample | Dict | np.ndarray | None = None, 
-        supervision: Any | None = None, 
+        state: Sample | Dict | np.ndarray | None = None,
+        supervision: Any | None = None,
         episode_idx: int | None = 0,
         step_idx: int | None = 0,
         timestamp: float | None = None,
@@ -132,14 +131,14 @@ class TimeStep(Sample):
         sta = Sta(**convert_images(sta, image_keys)) if sta is not None else None
         sup = Sup(**convert_images(supervision)) if supervision is not None else None
 
-        super().__init__(  # noqa: PLE0101
+        super().__init__(
             observation=observation,
             action=action,
-            state=state, 
-            supervision=supervision, 
-            episode_idx=episode_idx, 
-            step_idx=step_idx, 
-            timestamp=timestamp, 
+            state=state,
+            supervision=supervision,
+            episode_idx=episode_idx,
+            step_idx=step_idx,
+            timestamp=timestamp,
             **{k: v for k, v in kwargs.items() if k not in ["observation", "action", "state", "supervision"]},
         )
 
@@ -187,14 +186,14 @@ class Episode(Sample):
         return sum(episodes, Episode(steps=[]))
 
     @classmethod
-    def from_observations_actions_states(cls, 
-        observations: List[Sample | Dict | np.ndarray], 
-        actions: List[Sample | Dict | np.ndarray], 
+    def from_observations_actions_states(cls,
+        observations: List[Sample | Dict | np.ndarray],
+        actions: List[Sample | Dict | np.ndarray],
         states: List[Sample | Dict | np.ndarray] | None = None,
         supervision: List[Sample | Dict | np.ndarray] | None = None,
      **kwargs) -> "Episode":
 
-        Step = cls._step_class.get_default()  # noqa: N806, SLF001
+        Step = cls._step_class.get_default()  # noqa: N806
         observations = observations or []
         actions = actions or []
         states = states or []
@@ -250,35 +249,46 @@ class Episode(Sample):
         return cls(steps=processed_steps, freq_hz=freq_hz, observation_key=observation_key, action_key=action_key, state_key=state_key, supervision_key=supervision_key, **kwargs)
 
     @classmethod
-    def from_lists(cls, observations: List[Sample | Dict | np.ndarray], actions: List[Sample | Dict | np.ndarray], states: List[Sample | Dict | np.ndarray] | None = None, supervisions: List[Sample | Dict | np.ndarray] | None = None, **kwargs) -> "Episode":
-        Step = cls._step_class.get_default()
+    def from_lists(cls, 
+        observations: List[Sample | Dict | np.ndarray], 
+        actions: List[Sample | Dict | np.ndarray], 
+        states: List[Sample | Dict | np.ndarray] | None = None, 
+        supervisions: List[Sample | Dict | np.ndarray] | None = None, 
+        freq_hz: int | None = None, **kwargs
+        ) -> "Episode":
+        Step = cls._step_class # noqa
         observations = observations or []
         actions = actions or []
         states = states or []
         supervisions = supervisions or []
-        steps = [Step(observation=o, action=a, state=s, supervision=sup) for o, a, s, sup in zip_longest(observations, actions, states, supervisions)]
+        length = max(len(observations), len(actions), len(states), len(supervisions))
+        freq_hz = freq_hz or 1.0
+        kwargs.update({"freq_hz": freq_hz})
+        steps = [Step(observation=o, action=a, state=s, supervision=sup, timestamp=i/freq_hz) for i, o, a, s, sup in\
+             zip_longest(range(length), observations, actions, states, supervisions, fillvalue=Sample())]
         return cls(steps=steps, **kwargs)
 
     @classmethod
-    def from_dataset(cls, dataset: Dataset, 
-        image_keys: str | list[str] = "image", 
-        observation_key: str = "observation", 
-        action_key: str = "action", state_key: str | None = "state", 
-        supervision_key: str | None = "supervision") -> "Episode":
+    def from_dataset(cls, dataset: Dataset,
+        image_keys: str | list[str] = "image",
+        observation_key: str = "observation",
+        action_key: str = "action", state_key: str | None = "state",
+        supervision_key: str | None = "supervision",
+        freq_hz_key: str | None = "freq_hz") -> "Episode":
         if isinstance(dataset, DatasetDict):
-            for key in dataset.keys():
-               if isinstance(dataset[key], Dataset):
-                    break
-            return cls.from_lists(zip(dataset[key] for key in dataset.keys()),
-                image_keys, observation_key, action_key, state_key, supervision_key)
-            
+            freq_hz = dataset.get(freq_hz_key, 1)
+            freq_hz = freq_hz[0] if isinstance(freq_hz, list) else freq_hz
+            list_keys = {key for key in dataset if isinstance(dataset[key], list)}
+            list_keys.update((image_keys, observation_key, action_key, state_key, supervision_key))
+            return cls.from_lists(
+                *[dataset[key] for key in list_keys], image_keys, observation_key, action_key, state_key, supervision_key)
+
         return cls(steps=[TimeStep.from_dict(step, image_keys, observation_key, action_key, supervision_key) for step in dataset], image_keys=image_keys)
 
 
     def dataset(self) -> Dataset:
         return self._dataset
 
-    @cached_property
     def _dataset(self) -> Dataset:
         if self.steps is None or len(self.steps) == 0:
             msg = "Episode has no steps"
@@ -303,9 +313,9 @@ class Episode(Sample):
             })
 
         feat = Features({
-            "image": HFImage(), 
-            "episode_idx": Value("int64"), 
-            "step_idx": Value("int64"), 
+            "image": HFImage(),
+            "episode_idx": Value("int64"),
+            "step_idx": Value("int64"),
             "timestamp": Value("float32"),
              **features,
         })
@@ -330,7 +340,6 @@ class Episode(Sample):
         a stack of inverse functions with correct kwargs partially applied.
 
         Note:
-        
         - This is a lazy operation and will not be computed until a field or method like "show" is called.
         - The `of` argument can be in plural or singular form which will result in the same output.
 
@@ -357,15 +366,15 @@ class Episode(Sample):
         if self.steps is None or len(self.steps) == 0:
             msg = "Episode has no steps"
             raise ValueError(msg)
-        
+
         if not any(of in fields for fields in self.steps[0].flatten("dict").values()):
             msg = f"Field '{of}' not found in episode steps"
-            raise ValueError(msg)   
-        
+            raise ValueError(msg)
+
         freq_hz = freq_hz or self.freq_hz or 1
         if of == "step":
             return Trajectory(self.steps, freq_hz=freq_hz, episode=self)
-        
+
         data = [getattr(step, of) for step in self.steps]
         if isinstance(data[0], Sample):
             data = [d.numpy() for d in data]
@@ -375,10 +384,10 @@ class Episode(Sample):
             dim_labels=list(data[0].keys()) if isinstance(data[0], dict) else None,
             episode=self,
         )
-    
-    def window(self, 
-            of: str | list[str] = "steps", 
-            nforward:int = 1, 
+
+    def window(self,
+            of: str | list[str] = "steps",
+            nforward:int = 1,
             nbackward:int = 1,
             pad_value: Any = None,
             freq_hz: int | None = None) -> Iterable[Trajectory]:
@@ -397,7 +406,7 @@ class Episode(Sample):
         if self.steps is None or len(self.steps) == 0:
             msg = "Episode has no steps"
             raise ValueError(msg)
-        
+
 
     def __len__(self) -> int:
         """Get the number of steps in the episode.
@@ -711,7 +720,7 @@ class Episode(Sample):
                     rr.blueprint.Spatial3DView(background=RRImage(step.observation.image.pil)),
                     auto_layout=True,
                     auto_space_views=True,
-                )
+                ),
             )
             for dim, val in step.action.flatten("dict").items():
                 rr.log(f"action/{dim}", rr.Scalar(val))

@@ -26,7 +26,6 @@ from typing import Any, Literal, TypeAlias
 import numpy as np
 from pydantic import ConfigDict, Field, create_model, model_validator
 from scipy.spatial.transform import Rotation
-from scipy.spatial.transform import Rotation
 
 from embdata.sample import Sample
 from embdata.units import AngularUnit, LinearUnit, TemporalUnit
@@ -172,7 +171,7 @@ class Coordinate(Sample):
             "deg": 180.0 / np.pi,
         }
         return value * convert_to_rad_from[from_unit] * from_rad_convert_to[to_unit]
-    
+
     def __array__(self):
          """Return a numpy array representation of the pose."""
          return np.array([item for _, item in self])
@@ -297,7 +296,7 @@ PlanarPose: TypeAlias = Pose3D
 
 class Pose6D(Coordinate):
     """Absolute coordinates for a 6D space representing x, y, z, roll, pitch, and yaw.
-    
+
     Examples:
         >>> pose = Pose6D(x=1, y=2, z=3, roll=0, pitch=0, yaw=np.pi / 2)
         >>> pose.to("cm")
@@ -328,14 +327,13 @@ class Pose6D(Coordinate):
         x, y, z = position
         qw, qx, qy, qz = orientation
         rotation = Rotation.from_quat([qx, qy, qz, qw])
-        roll, pitch, yaw = rotation.as_euler('xyz')
+        roll, pitch, yaw = rotation.as_euler("xyz")
         return cls(x=x, y=y, z=z, roll=roll, pitch=pitch, yaw=yaw)
 
     def __init__(self, **data):
         if "position" in data and "orientation" in data:
             pose = self.from_position_orientation(data["position"], data["orientation"])
             data = pose.model_dump()
-        print(f"Pose6D data: {data}")
         super().__init__(**data)
 
     @classmethod
@@ -441,7 +439,7 @@ class Pose6D(Coordinate):
             return self.rotation_matrix(sequence=sequence)
         if container_or_unit == "euler":
             return np.array([self.roll, self.pitch, self.yaw])
-        
+
         converted_fields = {}
         for key, value in self.model_dump().items():
             if key in ["x", "y", "z"]:

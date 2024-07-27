@@ -31,7 +31,6 @@ TODO: Implement Lazy attribute loading for the image data.
 """
 
 import base64 as base64lib
-from functools import singledispatch, lru_cache, cached_property
 import io
 import logging
 from pathlib import Path
@@ -39,9 +38,6 @@ from typing import Any, List, Tuple, Union
 from urllib.parse import urlparse
 
 import numpy as np
-from datasets.features import Features
-from datasets.features import Image as HFImage
-from gymnasium import spaces
 from PIL import Image as PILModule
 from PIL.Image import Image as PILImage
 from pydantic import (
@@ -51,7 +47,6 @@ from pydantic import (
     Field,
     FilePath,
     InstanceOf,
-    model_serializer,
     model_validator,
 )
 from sklearn.cluster import KMeans
@@ -171,20 +166,20 @@ class Depth(Image):
             elif isinstance(arg, Tuple) and len(arg) == 2:
                 kwargs["size"] = arg
             else:
-                raise ValueError(f"Unsupported argument type '{type(arg)}'.")
-        else:
-            if url is not None:
-                kwargs["url"] = url
-            elif path is not None:
-                kwargs["path"] = path
-            elif base64 is not None:
-                kwargs["base64"] = base64
-            elif array is not None:
-                kwargs["array"] = array
-            elif pil is not None:
-                kwargs["pil"] = pil
-            elif bytes_obj is not None:
-                kwargs["bytes"] = bytes_obj
+                msg = f"Unsupported argument type '{type(arg)}'."
+                raise ValueError(msg)
+        elif url is not None:
+            kwargs["url"] = url
+        elif path is not None:
+            kwargs["path"] = path
+        elif base64 is not None:
+            kwargs["base64"] = base64
+        elif array is not None:
+            kwargs["array"] = array
+        elif pil is not None:
+            kwargs["pil"] = pil
+        elif bytes_obj is not None:
+            kwargs["bytes"] = bytes_obj
         super().__init__(**kwargs)
 
     def __repr__(self):
@@ -340,7 +335,8 @@ class Depth(Image):
                 if "y" not in accept.lower():
                     return None
             if not url.startswith("http"):
-                raise ValueError("URL must start with 'http' or 'https'.")
+                msg = "URL must start with 'http' or 'https'."
+                raise ValueError(msg)
             request = urllib.request.Request(url, None, headers)  # noqa
             response = urllib.request.urlopen(request)  # noqa
             data = response.read()  # The data u need
@@ -388,7 +384,8 @@ class Depth(Image):
             k for k in values if values[k] is not None and k in ["array", "base64", "path", "pil", "url"]
         ]
         if len(provided_fields) > 1:
-            raise ValueError(f"Multiple image sources provided; only one is allowed but got: {provided_fields}")
+            msg = f"Multiple image sources provided; only one is allowed but got: {provided_fields}"
+            raise ValueError(msg)
 
         # Initialize all fields to None or their default values and add points logic
         validated_values = {
@@ -413,7 +410,7 @@ class Depth(Image):
 
         if "bytes" in values and values["bytes"] is not None:
             validated_values.update(
-                cls.bytes_to_data(values["bytes"], values["encoding"], values["size"])
+                cls.bytes_to_data(values["bytes"], values["encoding"], values["size"]),
             )
             return validated_values
 
@@ -427,13 +424,13 @@ class Depth(Image):
             image = PILModule.open(values["path"]).convert("RGB")
             validated_values["path"] = values["path"]
             validated_values.update(
-                cls.pil_to_data(image, validated_values["encoding"], validated_values["size"])
+                cls.pil_to_data(image, validated_values["encoding"], validated_values["size"]),
             )
 
         elif "array" in provided_fields:
             image = PILModule.fromarray(values["array"]).convert("RGB")
             validated_values.update(
-                cls.pil_to_data(image, validated_values["encoding"], validated_values["size"])
+                cls.pil_to_data(image, validated_values["encoding"], validated_values["size"]),
             )
 
         elif "pil" in provided_fields:
@@ -444,7 +441,7 @@ class Depth(Image):
         elif "base64" in provided_fields:
             validated_values.update(
                 cls.from_base64(
-                    values["base64"], validated_values["encoding"], validated_values["size"]
+                    values["base64"], validated_values["encoding"], validated_values["size"],
                 ),
             )
 
@@ -467,7 +464,7 @@ class Depth(Image):
             array = np.zeros((values["size"][0], values["size"][1], 3), dtype=np.uint8)
             image = PILModule.fromarray(array).convert("RGB")
             validated_values.update(
-                cls.pil_to_data(image, validated_values["encoding"], validated_values["size"])
+                cls.pil_to_data(image, validated_values["encoding"], validated_values["size"]),
             )
         if any(validated_values[k] is None for k in ["array", "base64", "pil", "url"]):
             logging.warning(
@@ -485,8 +482,7 @@ class Depth(Image):
             List[int]: The cluster labels for each point.
         """
         kmeans = KMeans(n_clusters=n_clusters)
-        labels = kmeans.fit_predict(self.points.T)
-        return labels
+        return kmeans.fit_predict(self.points.T)
 
     def segment_plane(self, threshold: float = 0.01, max_trials: int = 1000) -> Tuple[np.ndarray, np.ndarray]:
         """Segment the largest plane using RANSAC."""
@@ -500,15 +496,15 @@ class Depth(Image):
     def show(self) -> None:
         import platform
 
-        import matplotlib
+        import matplotlib as mpl
 
         if platform.system() == "Darwin":
-            matplotlib.use("TkAgg")
+            mpl.use("TkAgg")
         import matplotlib.pyplot as plt
 
         plt.imshow(self.array)
 
- 
+
 
     def segment_cylinder(self, threshold: float = 0.01, max_trials: int = 1000) -> Tuple[np.ndarray, np.ndarray]:
         """Segment the largest cylinder using RANSAC.
@@ -523,6 +519,6 @@ class Depth(Image):
         poly = PolynomialFeatures(degree=2)
         ransac = make_pipeline(poly, RANSACRegressor(residual_threshold=threshold, max_trials=max_trials))
         ransac.fit(self.points[:2].T, self.points[2])
-        inlier_mask = ransac.named_steps['ransacregressor'].inlier_mask_
-        cylinder_coefficients = ransac.named_steps['ransacregressor'].estimator_.coef_
+        inlier_mask = ransac.named_steps["ransacregressor"].inlier_mask_
+        cylinder_coefficients = ransac.named_steps["ransacregressor"].estimator_.coef_
         return inlier_mask, cylinder_coefficients

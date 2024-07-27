@@ -87,7 +87,7 @@ def describe_keys(ds: Any, sep: str = ".", show=False, path="") -> Dict[str, Any
     if not hasattr(ds, "items"):
         return ""
     for key, value in ds.items():
-        keys[key] = f"{path}{sep}{key}" if path and key not in keys  else key if key not in keys else keys[key]
+        keys[key] = f"{path}{sep}{key}" if path and key not in keys  else keys.get(key, key)
         key = keys[key]
         if isinstance(value, dict):
             sub_keys = describe_keys(value, sep, False)
@@ -262,4 +262,5 @@ def infer_type(value: Any) -> Dict[str, str]:
         return {"type": "null"}
     if isinstance(value, np.ndarray):
         return {"type": "array", "items": infer_type(value[0])}
-    raise TypeError(f"Unsupported data type: {type(value)}")
+    msg = f"Unsupported data type: {type(value)}"
+    raise TypeError(msg)

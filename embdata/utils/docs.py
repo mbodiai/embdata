@@ -1,7 +1,8 @@
-"""Contains methods that generate documentation"""
+"""Contains methods that generate documentation."""
 
 from __future__ import annotations
 
+import contextlib
 import inspect
 from typing import Callable
 
@@ -10,7 +11,7 @@ classes_inherit_documentation = {}
 documentation_group = None
 
 
-def set_documentation_group(m):
+def set_documentation_group(m) -> None:
     global documentation_group
     documentation_group = m
     if m not in classes_to_document:
@@ -22,12 +23,11 @@ def extract_instance_attr_doc(cls, attr):
     lines = [line.strip() for line in code.split("\n")]
     i = None
     for i, line in enumerate(lines):  # noqa: B007
-        if line.startswith("self." + attr + ":") or line.startswith(
-            "self." + attr + " ="
-        ):
+        if line.startswith(("self." + attr + ":", "self." + attr + " =")):
             break
     if i is None:
-        raise NameError(f"Could not find {attr} in {cls.__name__}")
+        msg = f"Could not find {attr} in {cls.__name__}"
+        raise NameError(msg)
     start_line = lines.index('"""', i)
     end_line = lines.index('"""', start_line + 1)
     for j in range(i + 1, start_line):
@@ -36,16 +36,14 @@ def extract_instance_attr_doc(cls, attr):
                 f"Found another attribute before docstring for {attr} in {cls.__name__}: "
                 + lines[j]
                 + "\n start:"
-                + lines[i]
+                + lines[i],
             )
-    doc_string = " ".join(lines[start_line + 1 : end_line])
-    return doc_string
+    return " ".join(lines[start_line + 1 : end_line])
 
 
 def document(*fns, inherit=False):
-    """
-    Defines the @document decorator which adds classes or functions to the Gradio
-    documentation at https://api.mbodi.ai/docs
+    """Defines the @document decorator which adds classes or functions to the Gradio
+    documentation at https://api.mbodi.ai/docs.
 
     Usage examples:
     - Put @document() above a class to document the class and its constructor.
@@ -64,15 +62,14 @@ def document(*fns, inherit=False):
 
 
 def document_fn(fn: Callable, cls) -> tuple[str, list[dict], dict, str | None]:
-    """
-    Generates documentation for any function.
+    """Generates documentation for any function.
     Parameters:
         fn: Function to document
     Returns:
         description: General description of fn
         parameters: A list of dicts for each parameter, storing data for the parameter name, annotation and doc
         return: A dict storing data for the returned annotation and doc
-        example: Code for an example use of the fn
+        example: Code for an example use of the fn.
     """
     doc_str = inspect.getdoc(fn) or ""
     doc_lines = doc_str.split("\n")
@@ -96,17 +93,19 @@ def document_fn(fn: Callable, cls) -> tuple[str, list[dict], dict, str | None]:
                 description.append(line if line.strip() else "<br>")
                 continue
             if not (line.startswith("    ") or line.strip() == ""):
-                print(line)
+                pass
             if not (line.startswith("    ") or line.strip() == ""):
+                msg = f"Documentation format for {fn.__name__} has format error in line: {line}"
                 raise SyntaxError(
-                    f"Documentation format for {fn.__name__} has format error in line: {line}"
+                    msg,
                 )
             line = line[4:]
             if mode == "parameter":
                 colon_index = line.index(": ")
                 if colon_index < -1:
+                    msg = f"Documentation format for {fn.__name__} has format error in line: {line}"
                     raise SyntaxError(
-                        f"Documentation format for {fn.__name__} has format error in line: {line}"
+                        msg,
                     )
                 parameter = line[:colon_index]
                 parameter_doc = line[colon_index + 2 :]
@@ -172,15 +171,15 @@ def document_cls(cls):
             tag = line[: line.index(":")].lower()
             value = line[line.index(":") + 2 :]
             tags[tag] = value
+        elif mode == "description":
+            description_lines.append(line if line.strip() else "<br>")
         else:
-            if mode == "description":
-                description_lines.append(line if line.strip() else "<br>")
-            else:
-                if not (line.startswith("    ") or not line.strip()):
-                    raise SyntaxError(
-                        f"Documentation format for {cls.__name__} has format error in line: {line}"
-                    )
-                tags[mode].append(line[4:])
+            if not (line.startswith("    ") or not line.strip()):
+                msg = f"Documentation format for {cls.__name__} has format error in line: {line}"
+                raise SyntaxError(
+                    msg,
+                )
+            tags[mode].append(line[4:])
     if "example" in tags:
         example = "\n".join(tags["example"])
         del tags["example"]
@@ -246,7 +245,7 @@ def generate_documentation():
                         "returns": return_docs,
                         "example": examples_doc,
                         "override_signature": override_signature,
-                    }
+                    },
                 )
             documentation[mode].append(cls_documentation)
             if cls in classes_inherit_documentation:
@@ -261,11 +260,9 @@ def generate_documentation():
                 ):
                     for inherited_fn in classes_inherit_documentation[super_class]:
                         inherited_fn = dict(inherited_fn)
-                        try:
+                        with contextlib.suppress(ValueError, AssertionError):
                             inherited_fn["description"] = extract_instance_attr_doc(
-                                cls, inherited_fn["name"]
+                                cls, inherited_fn["name"],
                             )
-                        except (ValueError, AssertionError):
-                            pass
                         documentation[mode][i]["fns"].append(inherited_fn)
     return documentation

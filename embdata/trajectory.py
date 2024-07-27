@@ -2,14 +2,14 @@ import inspect
 from functools import partial
 from typing import Any, Callable, List
 
-import plotext as plt
 import numpy as np
-import scipy.fftpack as fftpack
+import plotext as plt
 import scipy.stats as sstats
 from pydantic import Field
 from pydantic.dataclasses import dataclass
-from scipy.signal import spectrogram
+from scipy import fftpack
 from scipy.interpolate import interp1d
+from scipy.signal import spectrogram
 from scipy.spatial.transform import RotationSpline
 from sklearn import decomposition
 
@@ -209,7 +209,7 @@ class Trajectory:
             self._stats = stats(self.array, axis=0, sample_type=self._sample_class)
         return self._stats
 
-    def plot(self, labels: list[str] = None) -> "Trajectory":
+    def plot(self, labels: list[str] | None = None) -> "Trajectory":
         """Plot the trajectory. Saves the figure to the trajectory object. Call show() to display the figure.
 
         Args:
@@ -467,9 +467,9 @@ class Trajectory:
         x = self.array
         fs = self.freq_hz
         f, t, Sxx = spectrogram(x, fs)
-        plt.pcolormesh(t, f, Sxx, shading='gouraud')
-        plt.ylabel('Frequency [Hz]')
-        plt.xlabel('Time [sec]')
+        plt.pcolormesh(t, f, Sxx, shading="gouraud")
+        plt.ylabel("Frequency [Hz]")
+        plt.xlabel("Time [sec]")
         self._fig = plt.gcf()
 
     def q01(self) -> float:
@@ -533,17 +533,22 @@ class Trajectory:
             try:
                 operation = getattr(self, "make_" + operation)
             except AttributeError as e:
-                raise ValueError(f""""peration {operation} not found in Trajectory. Available operations are {[
+                msg = (
+                    f""""peration {operation} not found in Trajectory. Available operations are {[
                     inspect.getmembers(self, predicate=lambda x: inspect.ismethod(x) and x.__name__.startswith("make_"))
-                ]}. See the corresponding methods starting with `make_` for kwargs.""") from e
+                ]}. See the corresponding methods starting with `make_` for kwargs."""
+                )
+                raise ValueError(msg) from e
         elif not isinstance(operation, Callable):
-            raise ValueError("operation must be a callable or a string")
+            msg = "operation must be a callable or a string"
+            raise ValueError(msg)
 
         try:
             return operation(**kwargs)
         except TypeError as e:
+            msg = f"Operation {operation} failed with kwargs {kwargs}. Signature is {inspect.signature(operation)}"
             raise ValueError(
-                f"Operation {operation} failed with kwargs {kwargs}. Signature is {inspect.signature(operation)}"
+                msg,
             ) from e
 
     def minmax(self, min: float = 0, max: float = 1) -> "Trajectory":

@@ -1,17 +1,13 @@
 
 from typing import List
-from pydantic import  Field
 
-from embdata.sense.image import Image
-from embdata.sample import Sample
-from embdata.geometry import Pose
-
-
-from typing import List
 from pydantic import Field
+
+from embdata.geometry import Pose
+from embdata.ndarray import NumpyArray
 from embdata.sample import Sample
 from embdata.sense.camera import CameraParams
-from embdata.ndarray import NumpyArray
+from embdata.sense.image import Image
 
 
 class SceneObject(Sample):
@@ -32,4 +28,3 @@ class Scene(Sample):
     annotated: Image | None = None
     depth: Image | None = None
     camera_params: CameraParams = Field(default_factory=CameraParams, description="Camera parameters of the scene")
-    
