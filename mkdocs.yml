@@ -1,17 +1,57 @@
-site_name: My Project
-
+site_name: ''
 site_url: http://api.mbodi.ai/mbdata-docs/
 use_directory_urls: false
 
+extra_css:
+  - stylesheets/extra.css
+extra_javascript:
+  - javascripts/extra.js
+
 theme:
   name: material
+  logo: assets/images/mbodi.png
+  features:
+    - content.code.annotate
+    - content.code.copy
+    - content.tabs.link
+    - navigation.expand
+    - announce.dismiss
+    - navigation.footer
+    - navigation.indexes
+    - navigation.sections
+    - navigation.top
+    - navigation.tracking
+    - search.highlight
+    - search.share
+    - search.suggest
+  language: en
+  palette:
+    - scheme: slate   
+      primary: red
+      accent: red
+  pygments_style: monokai
 
-plugins:
-  - search
-  - mkdocstrings:
-      default_handler: crystal
-      watch: [.]
+nav:
+
+  - Usage:
+    - Sample: '#sample'
+    - Mobile Single Hand Control: '#mobilesinglehandcontrol'
+    - Humanoid Control: '#humanoidcontrol'
+    - Subclassing Motion: '#subclassing-motion'
+    - Image: '#image'
+    - Trajectory: '#trajectory'
+    - Episode: '#episode'
+    - Pose 6D: '#pose6d'
+    - Hand Control: '#handcontrol'
+  
+
 
 markdown_extensions:
-  - pymdownx.highlight
-  - deduplicate-toc
+  - toc:
+      permalink: True
+      toc_depth: 3
+  - markdown.extensions.toc
+  - fenced_code
+  - codehilite:
+      guess_lang: False
+  
