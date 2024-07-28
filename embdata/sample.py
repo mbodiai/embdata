@@ -871,7 +871,8 @@ class Sample(BaseModel):
     #             setattr(obj, keys[-1], default)
     #     return getattr(obj, keys[-1])
 
-    def schema(self, include: Literal["all", "descriptions", "info", "simple"] = "info") -> Dict:
+   
+    def schema(self, include: Literal["all", "descriptions", "info", "simple", "tensor"] = "info") -> Dict:
         """Returns a simplified json schema.
 
         Args:
@@ -894,7 +895,7 @@ class Sample(BaseModel):
         schema = self._extra.model_json_schema() if hasattr(self, "_extra") else self.model_json_schema()
         if include == "all":
             return schema
-
+        print(f"Schema: {schema}")
         def resolve_refs(schema: dict) -> dict:
             def _resolve(obj, defs=None):
                 if isinstance(obj, dict):
@@ -916,16 +917,31 @@ class Sample(BaseModel):
                             all_of_resolved.update(resolved_item)
                         obj.pop("allOf")
                         obj.update(all_of_resolved)
+
+
+                    fallback = None
                     if "anyOf" in obj:
                         first_non_null = None
                         for item in obj["anyOf"]:
+                            if "$ref" in item:
+                                item = defs[item["$ref"].split("/")[-1]]
+                                print(f"Item: {item}")
+                                if "type" in item and item["type"] != "null":
+                                    first_non_null = item
+                                    break
                             if "type" in item and item["type"] == "null":
-                                break
+                                if item["type"] == "array" and not include == "tensor":
+                                    fallback = item
+                                    continue
+                                else:
+                                    break
                             first_non_null = item
+                        first_non_null = first_non_null or fallback
                         if first_non_null is not None:
                             obj.pop("anyOf")
                             obj.update(_resolve(first_non_null, defs))
                             return obj
+
                     return {k: _resolve(v, defs) for k, v in obj.items() if v is not None}
                 return obj
 
@@ -940,11 +956,16 @@ class Sample(BaseModel):
         def simplify(schema, obj, title=""):
             title = title or schema.get("title", "")
             if isinstance(obj, dict):
+                title = title or obj.get("title", "")
                 obj = Sample(**obj)
                 _include = "simple"
+            elif isinstance(obj, Sample):
+                _include = include
+                # title = "Sample"
             elif hasattr(obj, "_extra"):
                 title = obj.__class__.__name__
                 _include = include
+            print(f"Title: {title}")
             if "description" in schema and include != "descriptions":
                 del schema["description"]
             if "additionalProperties" in schema:
@@ -971,21 +992,17 @@ class Sample(BaseModel):
                     if include == "simple" and k.startswith("_"):
                         continue
                     if k in obj:
-                        schema["properties"][k] = simplify(
-                            value,
-                            obj[k],
-                            title=schema["properties"][k].get("title", k.capitalize()),
-                        )
+                        schema["properties"][k] = simplify(value, obj[k],title=schema["properties"][k].get("title", k.capitalize()))
                 if not schema["properties"]:
                     schema = obj.schema(include=_include)
             if "allOf" in schema or "anyOf" in schema:
                 msg = f"Schema contains allOf or anyOf which is unsupported: {schema}"
                 raise ValueError(msg)
             if title:
+                print(f"setting title: {title}")
                 schema["title"] = title
             return schema
-
-        return simplify(schema, self)
+        return simplify(schema, self, title="Sample")
 
     def infer_features_dict(self) -> Dict[str, Any]:
         """Infers features from the data recusively."""
