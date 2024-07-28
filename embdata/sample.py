@@ -400,7 +400,6 @@ class Sample(BaseModel):
         Returns:
             Dict[str, Any]: Dictionary representation of the Sample object.
         """
-        print(f"dumping: {self}")
         return self._dump(exclude=exclude, as_field=as_field, recurse=recurse)
 
     def values(self) -> Generator:
@@ -494,7 +493,6 @@ class Sample(BaseModel):
                 return obj[index], index + 1
 
         unflattened, index = unflatten_recursive(schema)
-        print(f"unflattened: {unflattened}")
         return unflattened
     @classmethod
     def unflatten(cls, one_d_array_or_dict, schema=None) -> "Sample":
@@ -714,6 +712,20 @@ class Sample(BaseModel):
                 return np.array(flattened, dtype=object)
             if to in ["pt", "torch", "pytorch"]:
                 return torch.tensor(flattened, dtype=torch.float32)
+            else:
+                return flattened
+
+        from embdata.describe import full_paths, describe_keys
+
+        # Get the full paths of the selected keys. e.g. c-> a.b.*.c
+        full_path_keys = full_paths(self, include).values()
+        full_includes = list(full_path_keys) if include else []
+
+        exclude = set(describe_keys(self).values()) - set(full_includes)
+        flattened_keys, flattened = self.flatten_recursive(self, exclude=exclude, non_numerical=non_numerical, sep=sep)
+        def replace_ints_with_wildcard(s, sep="."):
+            pattern = rf"(?<=^{sep})\d+|(?<={sep})\d+(?={sep})|\d+(?={sep}|$)"
+            return re.sub(pattern, "*", s).rstrip(f"{sep}*").lstrip(f"{sep}*")
 
             return flattened
 
@@ -724,41 +736,16 @@ class Sample(BaseModel):
         for flattened_key, value in zip(flattened_keys, flattened, strict=False):
             for selected_key, full_selected_key in zip(include, full_includes, strict=False):
                 # e.g.: a.b.*.c was selected and a.b.0.c.d should be flattened to the c part of a row
-                if full_selected_key in flattened_key and not any(
-                    ignore_key == flattened_key for ignore_key in full_excludes
-                ):
+                if full_selected_key in flattened_key:
                     current_group[selected_key].append(value)
                     ninclude_processed[selected_key] += 1
 
             # All keys have been processed, add a new row.
-            if all(
-                num_processed == ninclude_processed[include[0]] for num_processed in ninclude_processed.values()
-            ) and all(len(processed_items) > 0 for processed_items in current_group.values()):
-                # Ensure that we limit to two dimensions.
-                logger.debug("Entering with current group: %s", current_group)
-                current_group = {k: v[0] if len(v) == 1 else v for k, v in current_group.items() if k not in exclude}
-                if to in ["dict", "sample"]:
-                    # Short circuit to avoid unnecessary processing.
-                    result.append(current_group)
-                    logger.debug("Flattened for dict: %s", result)
-                elif to in ["list"]:
-                    flat_key, flattened = iter_utils.flatten_recursive(
-                        current_group,
-                        non_numerical=non_numerical,
-                        sep=sep,
-                        include=include,
-                    )
-
-                    logger.debug("Flattened for list: %s", flattened)
-                    result.extend(flattened)
-                else:
-                    logger.debug("Flattened for other: %s", result)
-                    flat_key, flattened = iter_utils.flatten_recursive(
-                        current_group,
-                        non_numerical=non_numerical,
-                        sep=sep,
-                    )
-                    logger.debug("Flattened: %s", flattened)
+            if all(num_processed == ninclude_processed[include[0]] for num_processed in ninclude_processed.values())\
+                and all(len(processed_items) > 0 for processed_items in current_group.values()):
+                    # Ensure that we limit to two dimensions.
+                    current_group = {k: v[0] if len(v) == 1 else v for k, v in current_group.items() if k not in exclude}
+                    flattened_key, flattened = self.flatten_recursive(current_group, exclude=exclude, non_numerical=non_numerical, sep=sep)
                     match to:
                         case "dicts":
                             result.append(dict(zip(flat_key, flattened, strict=False)))
@@ -869,7 +856,6 @@ class Sample(BaseModel):
         schema = self._extra.model_json_schema() if hasattr(self, "_extra") else self.model_json_schema()
         if include == "all":
             return schema
-        print(f"Schema: {schema}")
         def resolve_refs(schema: dict) -> dict:
             def _resolve(obj, defs=None):
                 if isinstance(obj, dict):
@@ -899,7 +885,6 @@ class Sample(BaseModel):
                         for item in obj["anyOf"]:
                             if "$ref" in item:
                                 item = defs[item["$ref"].split("/")[-1]]
-                                print(f"Item: {item}")
                                 if "type" in item and item["type"] != "null":
                                     first_non_null = item
                                     break

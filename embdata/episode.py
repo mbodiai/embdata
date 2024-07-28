@@ -286,10 +286,8 @@ class Episode(Sample):
                 "step_idx": step_idx,
                 "timestamp": timestamp,
                 **step,
-            }
-            if model_info:
-                step["info"] = model_info
-            data.append(step)
+                "info": model_info,
+            })
 
         feat = Features({
             "image": HFImage(), 
