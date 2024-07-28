@@ -408,7 +408,6 @@ class Sample(BaseModel):
         Returns:
             Dict[str, Any]: Dictionary representation of the Sample object.
         """
-        print(f"dumping: {self}")
         return self._dump(exclude=exclude, as_field=as_field, recurse=recurse)
 
     def values(self) -> Generator:
@@ -502,7 +501,6 @@ class Sample(BaseModel):
                 return obj[index], index + 1
 
         unflattened, index = unflatten_recursive(schema)
-        print(f"unflattened: {unflattened}")
         return unflattened
     @classmethod
     def unflatten(cls, one_d_array_or_dict, schema=None) -> "Sample":
@@ -694,12 +692,9 @@ class Sample(BaseModel):
         # Get the full paths of the selected keys. e.g. c-> a.b.*.c
         full_path_keys = full_paths(self, include).values()
         full_includes = list(full_path_keys) if include else []
-        print(f"full_selected_keys: {full_includes}")  
 
         exclude = set(describe_keys(self).values()) - set(full_includes)
-        print(f"exclude: {exclude}")
         flattened_keys, flattened = self.flatten_recursive(self, exclude=exclude, non_numerical=non_numerical, sep=sep)
-        print(f"flattened_keys: {flattened_keys}")
         def replace_ints_with_wildcard(s, sep="."):
             pattern = rf"(?<=^{sep})\d+|(?<={sep})\d+(?={sep})|\d+(?={sep}|$)"
             return re.sub(pattern, "*", s).rstrip(f"{sep}*").lstrip(f"{sep}*")
@@ -712,17 +707,12 @@ class Sample(BaseModel):
 
         for flattened_key, value in zip(flattened_keys, flattened):
             for selected_key, full_selected_key in zip(include, full_includes, strict=False):
-                print(f"full_selected_key: {full_selected_key}, flattened_key: {flattened_key}")
-                print(f"curren_group: {current_group}")
                 # e.g.: a.b.*.c was selected and a.b.0.c.d should be flattened to the c part of a row
                 if full_selected_key in flattened_key:
-                    print(f"Adding {value} to {full_selected_key}")
                     current_group[selected_key].append(value)
                     ninclude_processed[selected_key] += 1
             
             # All keys have been processed, add a new row.
-            print(f"ninclude_processed: {ninclude_processed}")
-            print(f"include: {include}")
             if all(num_processed == ninclude_processed[include[0]] for num_processed in ninclude_processed.values())\
                 and all(len(processed_items) > 0 for processed_items in current_group.values()):
                     # Ensure that we limit to two dimensions.
@@ -839,7 +829,6 @@ class Sample(BaseModel):
         schema = self._extra.model_json_schema() if hasattr(self, "_extra") else self.model_json_schema()
         if include == "all":
             return schema
-        print(f"Schema: {schema}")
         def resolve_refs(schema: dict) -> dict:
             def _resolve(obj, defs=None):
                 if isinstance(obj, dict):
@@ -869,7 +858,6 @@ class Sample(BaseModel):
                         for item in obj["anyOf"]:
                             if "$ref" in item:
                                 item = defs[item["$ref"].split("/")[-1]]
-                                print(f"Item: {item}")
                                 if "type" in item and item["type"] != "null":
                                     first_non_null = item
                                     break
@@ -909,7 +897,6 @@ class Sample(BaseModel):
             elif hasattr(obj, "_extra"):
                 title = obj.__class__.__name__
                 _include = include
-            print(f"Title: {title}")
             if "description" in schema and include != "descriptions":
                 del schema["description"]
             if "additionalProperties" in schema:
@@ -943,7 +930,6 @@ class Sample(BaseModel):
                 msg = f"Schema contains allOf or anyOf which is unsupported: {schema}"
                 raise ValueError(msg)
             if title:
-                print(f"setting title: {title}")
                 schema["title"] = title
             return schema
 

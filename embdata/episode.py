@@ -296,7 +296,7 @@ class Episode(Sample):
                 "step_idx": step_idx,
                 "timestamp": timestamp,
                 **step,
-                **model_info,
+                "info": model_info,
             })
 
         feat = Features({
