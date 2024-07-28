@@ -284,70 +284,70 @@ def test_episode_from_dataset(time_step):
     episode = Episode.from_dataset(dataset)
 
 
-# def test_episode_from_list(time_step):
-#     episode = Episode(steps=[time_step, time_step, time_step])
-#     dataset = episode.dataset()
-#     episode = Episode.from_list(dataset.to_list(), observation_key="observation", action_key="action")
+def test_episode_from_list(time_step):
+    episode = Episode(steps=[time_step, time_step, time_step])
+    dataset = episode.dataset()
+    episode = Episode.from_list(dataset.to_list(), observation_key="observation", action_key="action")
 
 
-# def test_object_scene(time_step):
-#     # ds = load_dataset("mbodiai/new_ds", split="train")
-#     # features = ds.features
-#     from embdata.describe import describe
-#     from datasets import concatenate_datasets
-#     from embdata.episode import Episode, TimeStep, VisionMotorEpisode, ImageTask
+def test_object_scene(time_step):
+    # ds = load_dataset("mbodiai/new_ds", split="train")
+    # features = ds.features
+    from embdata.describe import describe
+    from datasets import concatenate_datasets
+    from embdata.episode import Episode, TimeStep, VisionMotorEpisode, ImageTask
 
-#     episode = VisionMotorEpisode(steps=[])
+    episode = VisionMotorEpisode(steps=[])
 
-#     class SceneObject(Sample):
-#         """Model for Scene Object Poses."""
+    class SceneObject(Sample):
+        """Model for Scene Object Poses."""
 
-#         object_name: str = ""
-#         object_pose: Pose = Field(default_factory=Pose, description="Object Pose")
+        object_name: str = ""
+        object_pose: Pose = Field(default_factory=Pose, description="Object Pose")
 
-#     class SceneData(Sample):
-#         """Model for Scene Data."""
+    class SceneData(Sample):
+        """Model for Scene Data."""
 
-#         image: Image
-#         depth_image: Image
-#         scene_objects: List[SceneObject] = Field(
-#             default_factory=lambda: [SceneObject()], description="List of Scene Objects"
-#         )
+        image: Image
+        depth_image: Image
+        scene_objects: List[SceneObject] = Field(
+            default_factory=lambda: [SceneObject()], description="List of Scene Objects"
+        )
 
-#     episode.append(
-#         VisionMotorStep(
-#             episode_idx=0,
-#             step_idx=0,
-#             observation=ImageTask(image=Image(size=(224, 224)), task="task"),
-#             action=RelativePoseHandControl(),
-#             state=SceneData(
-#                 image=Image(size=(224, 224)),
-#                 depth_image=Image(size=(224, 224)),
-#                 scene_objects=[
-#                     SceneObject(
-#                         object_name="object1", object_pose=Pose(x=0.1, y=0.2, z=0.3, roll=0.1, pitch=0.2, yaw=0.3)
-#                     ),
-#                     SceneObject(
-#                         object_name="object2", object_pose=Pose(x=0.1, y=0.2, z=0.3, roll=0.21, pitch=0.2, yaw=0.3)
-#                     ),
-#                 ],
-#             ),
-#         )
-#     )
-#     new_ds = episode.dataset()
-#     print(f"New Features: ")
-#     from rich import print_json
+    episode.append(
+        VisionMotorStep(
+            episode_idx=0,
+            step_idx=0,
+            observation=ImageTask(image=Image(size=(224, 224)), task="task"),
+            action=RelativePoseHandControl(),
+            state=SceneData(
+                image=Image(size=(224, 224)),
+                depth_image=Image(size=(224, 224)),
+                scene_objects=[
+                    SceneObject(
+                        object_name="object1", object_pose=Pose(x=0.1, y=0.2, z=0.3, roll=0.1, pitch=0.2, yaw=0.3)
+                    ),
+                    SceneObject(
+                        object_name="object2", object_pose=Pose(x=0.1, y=0.2, z=0.3, roll=0.21, pitch=0.2, yaw=0.3)
+                    ),
+                ],
+            ),
+        )
+    )
+    new_ds = episode.dataset()
+    print(f"New Features: ")
+    from rich import print_json
 
-#     # print_json(data=new_ds.features)
-#     new_ds.push_to_hub("mbodiai/test_randss", private=True)
-#     describe(new_ds.features)
-#     new_new_ds = load_dataset("mbodiai/test_randss", split="train")
-#     new_new_features = new_new_ds.features
-#     # print(f"New new Features:")
-#     # print_json(data=new_new_features)
+    # print_json(data=new_ds.features)
+    new_ds.push_to_hub("mbodiai/test_randss", private=True)
+    describe(new_ds.features)
+    new_new_ds = load_dataset("mbodiai/test_randss", split="train")
+    new_new_features = new_new_ds.features
+    # print(f"New new Features:")
+    # print_json(data=new_new_features)
 
-#     # describe(features)
-#     ds = concatenate_datasets([new_new_ds, episode.dataset()])
+    # describe(features)
+    ds = concatenate_datasets([new_new_ds, episode.dataset()])
 
 
 if __name__ == "__main__":
