@@ -170,12 +170,12 @@ class Sample(BaseModel):
             data.update(self.from_space(wrapped).model_dump())
         elif "items" in data:
             data["_items"] = data.pop("items")
-        print(f"for class: {self.__class__}")
-        print(f"wrapped: {type(wrapped)}, data: {type(data)}")
-        print(f"wrapped keys: {wrapped.keys() if hasattr(wrapped, 'keys') else None}")
-        print(f"data keys: {data.keys() if hasattr(data, 'keys') else None}")
+        # print(f"for class: {self.__class__}")
+        # print(f"wrapped: {type(wrapped)}, data: {type(data)}")
+        # print(f"wrapped keys: {wrapped.keys() if hasattr(wrapped, 'keys') else None}")
+        # print(f"data keys: {data.keys() if hasattr(data, 'keys') else None}")
         from rich.pretty import pprint
-        pprint(data, max_length=30)
+        # pprint(data, max_length=30)
 
 
         super().__init__(**data)
@@ -587,9 +587,9 @@ class Sample(BaseModel):
             if isinstance(obj, Sample | dict):
                 for k, v in obj.items():
                     new_key = f"{prefix}{k}" if prefix else k
-                    print(f"key: {k}, value: {v}, replace: {replace_ints_with_wildcard(k, sep)}")
+                    # print(f"key: {k}, value: {v}, replace: {replace_ints_with_wildcard(k, sep)}")
                     if any(e ==replace_ints_with_wildcard(k, sep) for e in (exclude if exclude is not None else [])):
-                        print(f"excluding: {k}")
+                        # print(f"excluding: {k}")
                         continue
                     subkeys, subouts = _flatten(v, f"{new_key}{sep}")
                     out.extend(subouts)
@@ -698,13 +698,13 @@ class Sample(BaseModel):
         full_includes = full_paths(self, include, show=False).values()
         if not full_includes:
             full_includes = [v for v in  describe_keys(self, show=False).values() if v in include]
-        print("fpaths include")
-        pprint(full_includes)
-        print(f"fpath include ends")
+        # print("fpaths include")
+        # pprint(full_includes)
+        # print(f"fpath include ends")
         # Get the full paths of the selected keys. e.g. c-> a.b.*.c
         # print(f"include right before full includes2 {include}")
         # full_includes = full_paths(self, include).values() if include else []
-        pprint(f"full_includes2: {full_includes}")
+        # pprint(f"full_includes2: {full_includes}")
         if not has_include and not exclude:
             full_excludes = []
         elif has_include:
@@ -895,7 +895,7 @@ class Sample(BaseModel):
         schema = self._extra.model_json_schema() if hasattr(self, "_extra") else self.model_json_schema()
         if include == "all":
             return schema
-        print(f"Schema: {schema}")
+        # print(f"Schema: {schema}")
         def resolve_refs(schema: dict) -> dict:
             def _resolve(obj, defs=None):
                 if isinstance(obj, dict):
@@ -925,7 +925,7 @@ class Sample(BaseModel):
                         for item in obj["anyOf"]:
                             if "$ref" in item:
                                 item = defs[item["$ref"].split("/")[-1]]
-                                print(f"Item: {item}")
+                                # print(f"Item: {item}")
                                 if "type" in item and item["type"] != "null":
                                     first_non_null = item
                                     break
@@ -965,7 +965,7 @@ class Sample(BaseModel):
             elif hasattr(obj, "_extra"):
                 title = obj.__class__.__name__
                 _include = include
-            print(f"Title: {title}")
+            # print(f"Title: {title}")
             if "description" in schema and include != "descriptions":
                 del schema["description"]
             if "additionalProperties" in schema:
@@ -999,7 +999,7 @@ class Sample(BaseModel):
                 msg = f"Schema contains allOf or anyOf which is unsupported: {schema}"
                 raise ValueError(msg)
             if title:
-                print(f"setting title: {title}")
+                # print(f"setting title: {title}")
                 schema["title"] = title
             return schema
         return simplify(schema, self, title="Sample")
