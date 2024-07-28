@@ -352,6 +352,7 @@ from embdata.sample import Sample
 #     expected = [[1, 2, 6]]
 #     assert result == expected, f"Expected {expected}, but got {result}"
 
+
 def test_flatten_merge_dicts():
     sample = Sample(
         a=1,
@@ -363,13 +364,14 @@ def test_flatten_merge_dicts():
         e=Sample(f=8, g=[{"h": 9, "i": 10}, {"h": 11, "i": 12}]),
     )
 
-    flattened = sample.flatten(to=["d", "g"], to="dict")
+    flattened = sample.flatten(include=["d", "g"], to="dict")
     expected = [{"d": [3, 4], "g": [6, 7]}, {"d": [6, 7], "g": [9, 10]}, {"d": [12, 13], "g": [15, 16]}]
     assert flattened == expected, f"Expected {expected}, but got {flattened}"
 
-    flattened = sample.flatten(to=["d", "g"], to="list")
+    flattened = sample.flatten(include=["d", "g"], to="lists")
     expected = [[3, 4, 6, 7], [6, 7, 9, 10], [12, 13, 15, 16]]
     assert flattened == expected, f"Expected {expected}, but got {flattened}"
+
 
 # def test_sample_with_nested_dicts_and_lists():
 #     sample = Sample(
@@ -409,7 +411,6 @@ def test_flatten_merge_dicts():
 
 #     unflattened_sample_dict = Sample.unflatten(flattened_dict, sample.schema())
 #     assert unflattened_sample_dict == sample, f"Expected {sample}, but got {unflattened_sample_dict}"
-
 
 
 if __name__ == "__main__":

@@ -261,37 +261,6 @@ class Motion(Coordinate):
 
     model_config = ConfigDict(arbitrary_types_allowed=True, extra="forbid", populate_by_name=True)
 
-
-    def make_relative_to(self, other: "Motion") -> "Motion":
-        """Make the motion relative to another motion.
-
-        Args:
-            other (Motion): The other motion to make this motion relative to.
-
-        Returns:
-            Motion: The relative motion.
-        """
-        return self.__class__((self.numpy() - other.numpy()).tolist())
-
-    def make_absolute(self, reference: "Motion") -> "Motion":
-        """Make the motion absolute with respect to another motion.
-
-        Args:
-            reference (Motion): The reference motion to make this motion absolute with respect to.
-
-        Returns:
-            Motion: The absolute motion.
-        """
-        return self.__class__((self.numpy() + reference.numpy()).tolist())
-
-    def __add__(self, other: "Motion") -> "Motion":
-        """Add two motions together."""
-        return self.make_absolute(other)
-
-    def __sub__(self, other: "Motion") -> "Motion":
-        """Subtract two motions."""
-        return self.make_relative_to(other)
-
     @model_validator(mode="after")
     def validate_bounds(self) -> "Motion":
         """Validate the bounds of the motion for each field and child of the motion."""
@@ -307,10 +276,9 @@ class Motion(Coordinate):
             elif isinstance(v, int | float | np.ndarray | list) and self.field_info(k).get("bounds") is not None:
                 bounds = self.field_info(k).get("bounds")
                 if not isinstance(v, np.ndarray | list):
-                    v = [v] # noqa
+                    v = [v]  # noqa
                 for _i, vv in enumerate(v):
                     if isinstance(vv, int | float) and not bounds[0] <= vv <= bounds[1]:
                         msg = f"{k} item {v} is out of bounds {self.field_info(k).get('bounds')}"
                         raise ValueError(msg)
         return self
-

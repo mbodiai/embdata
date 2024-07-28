@@ -1,9 +1,8 @@
-import inspect
+import importlib
 from functools import partial
-from typing import Any, Callable, List
+from typing import Any, Callable, List, Literal
 
 import numpy as np
-import plotext as plt
 import scipy.stats as sstats
 from pydantic import Field
 from pydantic.dataclasses import dataclass
@@ -16,6 +15,15 @@ from sklearn import decomposition
 from embdata.ndarray import NumpyArray
 from embdata.sample import Sample
 
+
+def import_plotting_backend(backend: Literal["matplotlib", "plotext"]) -> Any:
+    if backend == "matplotlib" and not importlib.util.find_spec("matplotlib"):
+        import matplotlib as mpl
+        mpl.use("Agg")
+        from matplotlib import pyplot as plt
+    elif backend == "plotext" and not importlib.util.find_spec("plotext"):
+        import plotext as plt
+    return plt
 
 @dataclass
 class Stats:
@@ -96,7 +104,8 @@ def stats(array: np.ndarray, axis=0, bias=True, sample_type: type[Sample] | None
     )
 
 
-def plot_trajectory(trajectory: np.ndarray, labels: list[str] | None = None, time_step: float = 0.1, show=True) -> None:
+def plot_trajectory(trajectory: np.ndarray, labels: list[str] | None = None, time_step: float = 0.1, show=True,
+            backend: Literal["matplotlib", "plotext"] = "plotext") -> None:
     """Plot the trajectory.
 
     Args:
@@ -108,6 +117,8 @@ def plot_trajectory(trajectory: np.ndarray, labels: list[str] | None = None, tim
     Returns:
       None
     """
+    plt = import_plotting_backend(backend)
+
     num_steps = trajectory.shape[0]
     num_plots = trajectory.shape[1]
     if labels is None and num_plots == 6:
@@ -181,6 +192,7 @@ class Trajectory:
     _map_history_kwargs: list[dict] = Field(default_factory=list)
     _episode: Any | None = None
 
+
     def __repr__(self) -> str:
         return f"Trajectory({self.stats()})"
 
@@ -238,7 +250,8 @@ class Trajectory:
             self.time_idxs,
             self.dim_labels,
             self.angular_dims,
-            _episode=self._episode)
+            _episode=self._episode,
+        )
 
     def __len__(self):
         return len(self.steps)
@@ -257,22 +270,25 @@ class Trajectory:
 
         super().__init__(*args, **kwargs)
 
-
-    def make_relative(self) -> "Trajectory":
+    def relative_to(self, step_difference=-1) -> "Trajectory":
         """Convert trajectory of absolute actions to relative actions.
 
         Returns:
           Trajectory: The converted relative trajectory.
         """
-        return Trajectory(
-            np.diff(self.array, axis=0),
+        t =  Trajectory(
+            np.diff(self.array,n=-step_difference, axis=0),
             self.freq_hz,
             self.time_idxs[1:],
             self.dim_labels,
             self.angular_dims,
         )
+        t._map_history.append(partial(self.absolute_from, initial_state=self.array[0])) 
+        t._map_history_kwargs.append({"initial_state": self.array[0]})  # noqa: SLF001
 
-    def make_absolute(self, initial_state: None | np.ndarray = None) -> "Trajectory":
+        return t
+
+    def absolute_from(self, initial_state: None | np.ndarray = None) -> "Trajectory":
         """Convert trajectory of relative actions to absolute actions.
 
         Args:
@@ -285,13 +301,15 @@ class Trajectory:
             initial_state = np.zeros(self.array.shape[1])
         self._map_history.append(partial(self.make_relative))
         self._map_history_kwargs.append({})
-        return Trajectory(
-            np.cumsum(self.array, axis=0) + initial_state,
+        t = Trajectory(
+            np.cumsum(np.concatenate([np.array([initial_state]), self.array], axis=0), axis=0),
             self.freq_hz,
             self.time_idxs,
             self.dim_labels,
             self.angular_dims,
         )
+        t._episode = self._episode
+        return t
 
     def episode(self) -> Any:
         if self._episode is None:
@@ -366,20 +384,24 @@ class Trajectory:
         self._fig.savefig(filename)
         return self
 
-    def show(self) -> "Trajectory":
+    def show(self,   backend: Literal["matplotlib", "plotext"] = "plotext") -> "Trajectory":
         """Display the current figure.
 
         Returns:
           None
         """
-        plt.show()
+        if self._fig is None:
+            msg = "No figure to show. Call plot() first."
+            raise ValueError(msg)
+        import_plotting_backend(backend).show()
 
-    def frequencies(self) -> "Trajectory":
+    def frequencies(self,backend: Literal["matplotlib", "plotext"] = "plotext") -> "Trajectory":
         """Plot the frequency spectrogram of the trajectory.
 
         Returns:
           Trajectory: The modified trajectory.
         """
+        plt = import_plotting_backend(backend)
         x = self.array
         nrows, ncols = 3, 3  # Adjust based on the number of dimensions
         fig, axes = plt.subplots(nrows, ncols, figsize=(15, 15), sharex=True, sharey=True)
@@ -409,12 +431,13 @@ class Trajectory:
         self._fig = fig
         return self
 
-    def frequencies_nd(self) -> "Trajectory":
-        """Plot the n-dimensional frequency spectrogram of the trajectory.
+    def frequencies_nd(self,backend: Literal["matplotlib", "plotext"] = "plotext") -> "Trajectory":
+        """Plot the nd frequencies of the trajectory.
 
         Returns:
           Trajectory: The modified trajectory.
         """
+        plt = import_plotting_backend(backend)
         n_dims = self.array.shape[1]
         N = len(self.array)
 
@@ -458,12 +481,13 @@ class Trajectory:
 
         return Trajectory(filtered_trajectory, self.freq_hz, self.time_idxs)
 
-    def spectrogram(self) -> "Trajectory":
+    def spectrogram(self, backend: Literal["matplotlib", "plotext"] = "plotext") -> "Trajectory":
         """Plot the spectrogram of the trajectory.
 
         Returns:
           Trajectory: The modified trajectory.
         """
+        plt = import_plotting_backend(backend)
         x = self.array
         fs = self.freq_hz
         f, t, Sxx = spectrogram(x, fs)
@@ -514,42 +538,36 @@ class Trajectory:
     def zero_count(self) -> float:
         return self.stats().zero_count
 
-    def transform(self, operation: Callable[[np.ndarray], np.ndarray] | str, **kwargs) -> "Trajectory":
-        """Apply a transformation to the trajectory.
+    # def transform(self, operation: Callable[[np.ndarray], np.ndarray] | str, **kwargs) -> "Trajectory":
+    #     """Apply a transformation to the trajectory.
 
-        Available operations are:
-        - [un]minmax: Apply min-max normalization to the trajectory.
-        - [un]standard: Apply standard normalization to the trajectory.
-        - pca: Apply PCA normalization to the trajectory.
-        - absolute: Convert the trajectory to absolute actions.
-        - relative: Convert the trajectory to relative actions.
+    #     Available operations are:
+    #     - [un]minmax: Apply min-max normalization to the trajectory.
+    #     - [un]standard: Apply standard normalization to the trajectory.
+    #     - pca: Apply PCA normalization to the trajectory.
+    #     - absolute: Convert the trajectory to absolute actions.
+    #     - relative: Convert the trajectory to relative actions.
 
+    #     Args:
+    #       operation (Callable | str): The operation to apply. Can be a callable or a string corresponding to a `make_` method on the Trajectory class.
+    #       **kwargs: Additional keyword arguments to pass to the operation.
+    #     """
+    #     if isinstance(operation, str):
+    #         try:
+    #             operation = getattr(self, "make_" + operation)
+    #         except AttributeError as e:
+    #             raise ValueError(f""""peration {operation} not found in Trajectory. Available operations are {[
+    #                 inspect.getmembers(self, predicate=lambda x: inspect.ismethod(x) and x.__name__.startswith("make_"))
+    #             ]}. See the corresponding methods starting with `make_` for kwargs.""") from e
+    #     elif not isinstance(operation, Callable):
+    #         raise ValueError("operation must be a callable or a string")
 
-        Args:
-          operation (Callable | str): The operation to apply. Can be a callable or a string corresponding to a `make_` method on the Trajectory class.
-          **kwargs: Additional keyword arguments to pass to the operation.
-        """
-        if isinstance(operation, str):
-            try:
-                operation = getattr(self, "make_" + operation)
-            except AttributeError as e:
-                msg = (
-                    f""""peration {operation} not found in Trajectory. Available operations are {[
-                    inspect.getmembers(self, predicate=lambda x: inspect.ismethod(x) and x.__name__.startswith("make_"))
-                ]}. See the corresponding methods starting with `make_` for kwargs."""
-                )
-                raise ValueError(msg) from e
-        elif not isinstance(operation, Callable):
-            msg = "operation must be a callable or a string"
-            raise ValueError(msg)
-
-        try:
-            return operation(**kwargs)
-        except TypeError as e:
-            msg = f"Operation {operation} failed with kwargs {kwargs}. Signature is {inspect.signature(operation)}"
-            raise ValueError(
-                msg,
-            ) from e
+    #     try:
+    #         return operation(**kwargs)
+    #     except TypeError as e:
+    #         raise ValueError(
+    #             f"Operation {operation} failed with kwargs {kwargs}. Signature is {inspect.signature(operation)}"
+    #         ) from e
 
     def minmax(self, min: float = 0, max: float = 1) -> "Trajectory":
         """Apply min-max normalization to the trajectory.
@@ -571,7 +589,7 @@ class Trajectory:
             self.angular_dims,
         )
 
-    def make_pca(self, whiten=True) -> "Trajectory":
+    def pca(self, whiten=True) -> "Trajectory":
         """Apply PCA normalization to the trajectory.
 
         Returns:

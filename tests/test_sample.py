@@ -34,6 +34,7 @@ def test_wrap_nested():
     assert sample.a == 1, "Wrapped attribute should be accessible as an attribute"
     assert sample.b.c == 2, "Nested wrapped attributes should be accessible as attributes"
 
+
 def test_wrap_dict():
     sample = Sample({"a": 1})
     assert sample.dict() == {"a": 1}
@@ -271,37 +272,38 @@ def test_dict_shallow():
 
 # def test_setdefault():
 #     sample = Sample(a=1, b={"c": 2, "d": [3, 4]}, e=Sample(f=5))
-    
+
 #     # Test setting default value for an existing attribute
 #     assert sample.setdefault("a", 10) == 1, "Existing attribute should not be modified"
-    
+
 #     # Test setting default value for a nested attribute
 #     assert sample.setdefault("b.c", 20) == 2, "Existing nested attribute should not be modified"
 #     assert sample.setdefault("b.e", 30) == 30, "New nested attribute should be set with default value"
-    
+
 #     # Test setting default value for a non-existing attribute
 #     assert sample.setdefault("x", 40) == 40, "New attribute should be set with default value"
-    
+
 #     # Test setting default value for a nested attribute with wildcard
 #     assert sample.setdefault("b.d.*", 50) == [3, 4], "Existing nested attribute with wildcard should not be modified"
 #     assert sample.setdefault("b.d.2", 60) == 60, "New nested attribute with wildcard should be set with default value"
-    
+
 #     # Test setting default value for a non-existing nested attribute with wildcard
 #     assert sample.setdefault("b.f.*", [70]) == [70], "New nested attribute with wildcard should be set with default value"
-    
 
-def test_flatten_with_to_and_to():                                                                                                                        
-     obj = Sample(a=1, b={"c": 2, "d": [3, 4]}, e=Sample(f=5, g={"h": 6, "i": 7}))                                                                                  
-     result = obj.flatten(include=["a", "b.c", "e.g.h"])                                                                                                                 
-     expected = [[1, 2, 6]]                                                                                                                                         
-     assert result == expected, f"Expected {expected}, but got {result}"                                                                                            
-                                                                                                                                                                    
-     result_dict = obj.flatten(include=["a", "b.c", "e.g.h"], to="dict")                                                                                        
-     expected_dict = [{"a": 1, "b.c": 2, "e.g.h": 6}]                                                                                                               
-     assert result_dict == expected_dict, f"Expected {expected_dict}, but got {result_dict}"  
 
-     result_dict = obj.flatten(include=["a", "c", "h"], to="dict")
-     assert result_dict == [{"a": 1, "c": 2, "h": 6}], f"Expected {expected_dict}, but got {result_dict}"
+def test_flatten_with_to_and_to():
+    obj = Sample(a=1, b={"c": 2, "d": [3, 4]}, e=Sample(f=5, g={"h": 6, "i": 7}))
+    result = obj.flatten(include=["a", "b.c", "e.g.h"])
+    expected = [1, 2, 6]
+    assert result == expected, f"Expected {expected}, but got {result}"
+
+    result_dict = obj.flatten(include=["a", "b.c", "e.g.h"], to="dicts")
+    expected_dict = [{"a": 1, "b.c": 2, "e.g.h": 6}]
+    assert result_dict == expected_dict, f"Expected {expected_dict}, but got {result_dict}"
+
+    result_dict = obj.flatten(include=["a", "c", "h"], to="dicts")
+    assert result_dict == [{"a": 1, "c": 2, "h": 6}], f"Expected {expected_dict}, but got {result_dict}"
+
 
 if __name__ == "__main__":
     pytest.main()

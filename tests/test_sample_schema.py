@@ -85,7 +85,7 @@ def test_sample_schema_with_numpy_array():
                 "items": {
                     "type": "number",
                 },
-                "maxItems": [0],
+                "shape": (224, 224, 3),
                 "title": "Numpy Array",
                 "type": "array",
             },
@@ -134,6 +134,7 @@ def test_sample_schema_with_null():
                 },
                 "title": "Numpy Array",
                 "type": "array",
+                "shape": (224, 224, 3),
             },
             "sleep": {
                 "title": "Sleep",

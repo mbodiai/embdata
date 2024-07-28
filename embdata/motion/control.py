@@ -111,6 +111,7 @@ class HandControl(Motion):
         description="Openness of the robot hand. 0 is closed, 1 is open.",
     )
 
+
 class AbsoluteHandControl(Motion):
     pose: Pose = AbsoluteMotionField(default_factory=Pose, description="Pose of the robot hand.")
     grasp: float = AbsoluteMotionField(
@@ -142,8 +143,12 @@ class MobileSingleHandControl(Motion):
         default_factory=PlanarPose,
         description="Location of the robot on the ground.",
     )
-    hand: HandControl | NumpyArray[7, float] = MotionField(default_factory=HandControl, description="Control for the robot hand.")
-    head: HeadControl | NumpyArray[2, float] | None = MotionField(default=None, description="Control for the robot head.")
+    hand: HandControl | NumpyArray[7, float] = MotionField(
+        default_factory=HandControl, description="Control for the robot hand."
+    )
+    head: HeadControl | NumpyArray[2, float] | None = MotionField(
+        default=None, description="Control for the robot head."
+    )
 
 
 class MobileSingleArmControl(Motion):

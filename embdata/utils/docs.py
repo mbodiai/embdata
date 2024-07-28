@@ -49,7 +49,7 @@ def document(*fns, inherit=False):
     - Put @document() above a class to document the class and its constructor.
     - Put @document("fn1", "fn2") above a class to also document methods fn1 and fn2.
     - Put @document("*fn3") with an asterisk above a class to document the instance attribute methods f3.
-    """
+    """  # noqa: D205
 
     def inner_doc(cls):
         global documentation_group
@@ -70,7 +70,7 @@ def document_fn(fn: Callable, cls) -> tuple[str, list[dict], dict, str | None]:
         parameters: A list of dicts for each parameter, storing data for the parameter name, annotation and doc
         return: A dict storing data for the returned annotation and doc
         example: Code for an example use of the fn.
-    """
+    """  # noqa: D205
     doc_str = inspect.getdoc(fn) or ""
     doc_lines = doc_str.split("\n")
     signature = inspect.signature(fn)
@@ -96,17 +96,13 @@ def document_fn(fn: Callable, cls) -> tuple[str, list[dict], dict, str | None]:
                 pass
             if not (line.startswith("    ") or line.strip() == ""):
                 msg = f"Documentation format for {fn.__name__} has format error in line: {line}"
-                raise SyntaxError(
-                    msg,
-                )
+                raise SyntaxError(msg)
             line = line[4:]
             if mode == "parameter":
                 colon_index = line.index(": ")
                 if colon_index < -1:
                     msg = f"Documentation format for {fn.__name__} has format error in line: {line}"
-                    raise SyntaxError(
-                        msg,
-                    )
+                    raise SyntaxError(msg)
                 parameter = line[:colon_index]
                 parameter_doc = line[colon_index + 2 :]
                 parameters[parameter] = parameter_doc
@@ -176,9 +172,7 @@ def document_cls(cls):
         else:
             if not (line.startswith("    ") or not line.strip()):
                 msg = f"Documentation format for {cls.__name__} has format error in line: {line}"
-                raise SyntaxError(
-                    msg,
-                )
+                raise SyntaxError(msg)
             tags[mode].append(line[4:])
     if "example" in tags:
         example = "\n".join(tags["example"])
@@ -253,16 +247,10 @@ def generate_documentation():
     for mode, class_list in classes_to_document.items():
         for i, (cls, _) in enumerate(class_list):
             for super_class in classes_inherit_documentation:
-                if (
-                    inspect.isclass(cls)
-                    and issubclass(cls, super_class)
-                    and cls != super_class
-                ):
+                if inspect.isclass(cls) and issubclass(cls, super_class) and cls != super_class:
                     for inherited_fn in classes_inherit_documentation[super_class]:
                         inherited_fn = dict(inherited_fn)
                         with contextlib.suppress(ValueError, AssertionError):
-                            inherited_fn["description"] = extract_instance_attr_doc(
-                                cls, inherited_fn["name"],
-                            )
+                            inherited_fn["description"] = extract_instance_attr_doc(cls, inherited_fn["name"])
                         documentation[mode][i]["fns"].append(inherited_fn)
     return documentation

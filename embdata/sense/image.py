@@ -25,9 +25,7 @@ The image can be resized to and from any size, compressed, and converted to and 
 
 ```python
 image = Image("path/to/image.png", size=new_size_tuple).save("path/to/new/image.jpg")
-image.save("path/to/new/image.jpg", quality=5)
-
-"""
+image.save("path/to/new/image.jpg", quality=5)"""
 
 import base64 as base64lib
 import io
@@ -60,10 +58,20 @@ from typing_extensions import Literal
 from embdata.ndarray import NumpyArray
 from embdata.sample import Sample
 
-ImageLikeArray = NumpyArray[3,Any, Any, np.uint8] | NumpyArray[Any, Any, 3, np.uint8]
-SupportsImage = NumpyArray[3,...,np.uint8] | InstanceOf[PILImage] | InstanceOf[Base64Str] | InstanceOf[AnyUrl] | InstanceOf[FilePath] | InstanceOf[bytes] | "Image" | InstanceOf[io.BytesIO]
+ImageLikeArray = NumpyArray[3, Any, Any, np.uint8] | NumpyArray[Any, Any, 3, np.uint8]
+SupportsImage = (
+    NumpyArray[3, ..., np.uint8]
+    | InstanceOf[PILImage]
+    | InstanceOf[Base64Str]
+    | InstanceOf[AnyUrl]
+    | InstanceOf[FilePath]
+    | InstanceOf[bytes]
+    | "Image"
+    | InstanceOf[io.BytesIO]
+)
 
 HIGHEST_QUALITY = 10
+
 
 class Image(Sample):
     """An image sample that can be represented in various formats.
@@ -91,6 +99,7 @@ class Image(Sample):
         >>> array = Image(image).array
         >>> base64 = Image(image).base64
     """
+
     SOURCE_TYPES: ClassVar[List[str]] = ["array", "base64", "path", "url", "bytes"]
     model_config: ConfigDict = ConfigDict(arbitrary_types_allowed=True, extras="forbid", validate_assignment=False)
 
@@ -106,12 +115,14 @@ class Image(Sample):
     path: FilePath | None = None
 
     @staticmethod
-    def supports(arg: SupportsImage) -> bool: # type: ignore # noqa
+    def supports(arg: SupportsImage) -> bool:  # type: ignore # noqa
         """Check if the input argument is a supported image type."""
+
         @validate_call
-        def _supports(arg: SupportsImage) -> bool: # type: ignore # noqa
+        def _supports(arg: SupportsImage) -> bool:  # type: ignore # noqa
             """Check if the input argument is a supported image type."""
             return True
+
         try:
             return _supports(arg)
         except (ValidationError, TypeError):
@@ -156,15 +167,15 @@ class Image(Sample):
             "encoding": self.encoding,
         }
 
-    def __init__( # noqa
+    def __init__(  # noqa
         self,
-        arg: SupportsImage | None = None, # type: ignore
+        arg: SupportsImage | None = None,  # type: ignore
         path: str | None = None,
         array: np.ndarray | None = None,
         base64: Base64Str | None = None,
         encoding: str = "jpeg",
         size: Tuple[int, ...] | None = None,
-        bytes: SupportsBytes | None = None, # noqa
+        bytes: SupportsBytes | None = None,  # noqa
         mode: Literal["RGB", "RGBA", "L", "P", "CMYK", "YCbCr", "I", "F"] | None = "RGB",
         **kwargs,
     ):
@@ -260,7 +271,6 @@ class Image(Sample):
             "encoding": encoding.lower(),
         }
 
-
     @dispatch_arg.register
     @classmethod
     def init_dict(cls, arg: dict, **kwargs) -> None:
@@ -273,11 +283,12 @@ class Image(Sample):
     @classmethod
     def init_bytesio(
         cls,
-        arg: SupportsImage | None = None, # type: ignore
-        size: Tuple[int, int]| None = None,
+        arg: SupportsImage | None = None,  # type: ignore
+        size: Tuple[int, int] | None = None,
         encoding="jpeg",
         mode: Literal["RGB", "RGBA", "L", "P", "CMYK", "YCbCr", "I", "F"] | None = "RGB",
-        **kwargs) -> None:
+        **kwargs,
+    ) -> None:
         kwargs.update(cls.pil_to_data(PILModule.open(arg, formats=[encoding.upper()]), encoding, size, mode))
         return kwargs
 
@@ -285,11 +296,12 @@ class Image(Sample):
     @classmethod
     def init_bytes(
         cls,
-        arg: SupportsImage | None = None, # type: ignore
-        size: Tuple[int, int]| None = None,
+        arg: SupportsImage | None = None,  # type: ignore
+        size: Tuple[int, int] | None = None,
         encoding="jpeg",
         mode: Literal["RGB", "RGBA", "L", "P", "CMYK", "YCbCr", "I", "F"] | None = "RGB",
-        **kwargs) -> None:
+        **kwargs,
+    ) -> None:
         io.BytesIO(arg)
         kwargs.update(cls.pil_to_data(PILModule.frombytes(arg, mode="r", size=size, data=arg), encoding, size, mode))
         return kwargs
@@ -299,10 +311,11 @@ class Image(Sample):
     def init_array(
         cls,
         arg: NumpyArray[3, Any, Any, np.uint8] | NumpyArray[Any, Any, 3, np.uint8] | None = None,
-        size: Tuple[int, int]| None = None,
+        size: Tuple[int, int] | None = None,
         encoding="jpeg",
         mode: Literal["RGB", "RGBA", "L", "P", "CMYK", "YCbCr", "I", "F"] | None = "RGB",
-        **kwargs) -> None:
+        **kwargs,
+    ) -> None:
         kwargs.update(cls.pil_to_data(PILModule.fromarray(arg), encoding, size, mode))
         return kwargs
 
@@ -315,7 +328,8 @@ class Image(Sample):
         action: Literal["download", "set"] = "set",
         size: Tuple[int, int] | None = None,
         mode: Literal["RGB", "RGBA", "L", "P", "CMYK", "YCbCr", "I", "F"] | None = "RGB",
-        **kwargs) -> None:
+        **kwargs,
+    ) -> None:
         """Decodes a base64 string to create an Image instance.
 
         This method takes a base64 encoded string representation of an image,
@@ -350,7 +364,7 @@ class Image(Sample):
             A small red square
         """
         if arg and Path(arg[:120]).exists():
-           return cls.dispatch_arg(Path(arg), encoding, size, mode, **kwargs)
+            return cls.dispatch_arg(Path(arg), encoding, size, mode, **kwargs)
         if arg.startswith(("data:image", "http")):
             image = cls.load_url(arg, action=action, **kwargs)
             kwargs.update(cls.pil_to_data(image, encoding, size, mode))
@@ -364,7 +378,8 @@ class Image(Sample):
         encoding: str = "jpeg",
         size: Tuple[int, int] | None = None,
         mode: Literal["RGB", "RGBA", "L", "P", "CMYK", "YCbCr", "I", "F"] | None = "RGB",
-        **kwargs) -> None:
+        **kwargs,
+    ) -> None:
         """Decodes a base64 string to create an Image instance."""
         image_data = base64lib.b64decode(arg)
         image = PILModule.open(io.BytesIO(image_data)).convert(mode)
@@ -379,7 +394,8 @@ class Image(Sample):
         encoding: str = "jpeg",
         size: Tuple[int, int] | None = None,
         mode: Literal["RGB", "RGBA", "L", "P", "CMYK", "YCbCr", "I", "F"] | None = "RGB",
-        **kwargs) -> None:
+        **kwargs,
+    ) -> None:
         """Creates an Image instance from a PIL image.
 
         Args:
@@ -397,8 +413,9 @@ class Image(Sample):
 
     @dispatch_arg.register(Path)
     @classmethod
-    def open(cls, arg: Path, encoding: str = "jpeg", size: Tuple[int] | None = None,
-                                                     mode: str = "RGB", **kwargs) -> Dict[str, Any]:
+    def open(
+        cls, arg: Path, encoding: str = "jpeg", size: Tuple[int] | None = None, mode: str = "RGB", **kwargs
+    ) -> Dict[str, Any]:
         """Opens an image from a file path and creates an Image instance.
 
         This method reads an image file from the specified path, converts it to RGB format,
@@ -467,12 +484,13 @@ class Image(Sample):
 
         if action == "download":
             from urllib.request import Request, urlopen
+
             user_agent = "Mozilla/5.0 (Windows; U; Windows NT 5.1; en-US; rv:1.9.0.7) Gecko/2009021910 Firefox/3.0.7"
             headers = {"User-Agent": user_agent}
             if not url.startswith(("http:", "https:")):
                 msg = "URL must start with 'http' or 'https'."
                 raise ValueError(msg)
-            with urlopen(Request(url, None, headers)) as response: # noqa
+            with urlopen(Request(url, None, headers)) as response:  # noqa
                 data = response.read()
                 image = PILModule.open(io.BytesIO(data))
             return image.convert(mode)

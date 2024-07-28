@@ -13,7 +13,6 @@ Example:
     This will generate several PNG files with visualizations of the processed data.
 """
 
-
 import os
 from typing import TYPE_CHECKING
 

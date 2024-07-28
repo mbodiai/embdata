@@ -16,5 +16,3 @@ def test_pose_to_transformation_matrix():
     pose_array = np.array([1, 2, 3, 0, 0, 0])
     result = pose_to_transformation_matrix(pose_array)
     np.testing.assert_array_almost_equal(result, expected)
-
-

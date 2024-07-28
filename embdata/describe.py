@@ -7,9 +7,10 @@
 from typing import Any, Dict
 
 import numpy as np
-from datasets import Dataset
+from datasets import Dataset, Value
 from rich import print, print_json, table
 from rich.console import Console
+from rich.pretty import pprint
 
 
 def as_table(ds: Any, sep: str = ".", show=True) -> Dict[str, Any]:
@@ -44,15 +45,24 @@ def as_table(ds: Any, sep: str = ".", show=True) -> Dict[str, Any]:
     rendered.add_column("Key", style="cyan")
     rendered.add_column("Value", style="magenta")
     for key, value in describe(ds, show=False).items():
-        rendered.add_row(key, str(value))
+        rendered.add_row(key, str(value)[:50])
     if show:
-        console = Console()
+        console = Console(markup=True,)
         console.print(rendered)
     return ds
 
 
-def full_paths(ds: Any, keys, sep: str = ".", show=False) -> Dict[str, Any]:
-    return {k:v for k, v in describe_keys(ds, sep, show).items() if k in keys}
+def full_paths(ds: Any, include: list[str] | str | None = None, sep: str = ".", show=False) -> Dict[str, Any]:
+    """Get the full paths of a dataset or dictionary. with the specified keys."""
+    include = [include] if isinstance(include, str) else include
+    print(f"indisde full paths Include: {include}")
+    print(" describe kyes inside full path:")
+    pprint(describe_keys(ds, sep, show))
+    for key, value in describe_keys(ds, sep, show).items():
+        print(f"key: {key} value: {value}")
+        print(f"key in include: {key in include}") 
+    return {k: v for k, v in describe_keys(ds, sep, show).items() if include is None or k in include}
+
 
 def describe_keys(ds: Any, sep: str = ".", show=False, path="") -> Dict[str, Any]:
     """Describe the keys of a nested dictionary or dataset.
@@ -87,7 +97,7 @@ def describe_keys(ds: Any, sep: str = ".", show=False, path="") -> Dict[str, Any
     if not hasattr(ds, "items"):
         return ""
     for key, value in ds.items():
-        keys[key] = f"{path}{sep}{key}" if path and key not in keys  else keys.get(key, key)
+        keys[key] = f"{path}{sep}{key}" if path and key not in keys else keys.get(key, key)
         key = keys[key]
         if isinstance(value, dict):
             sub_keys = describe_keys(value, sep, False)
@@ -132,14 +142,13 @@ def describe(ds: Any, name: str = "", compact: bool = True, show=True, check_ful
     if hasattr(ds, "dict"):
         ds = ds.dict()
 
-
     if compact:
         schema = {
             "type": "object"
             if isinstance(ds, dict)
             else "array"
             if isinstance(ds, list | Dataset)
-            else str(ds.dtype if hasattr(ds, "dtype") else type(ds)),
+            else str(ds.dtype if hasattr(ds, "dtype") and isinstance(ds, Value) else type(ds).__name__),
         }
     else:
         schema = {

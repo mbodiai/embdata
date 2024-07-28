@@ -51,15 +51,14 @@ def test_create_image_with_path(temp_file):
     assert img.base64 != ""
     assert img.array is not None
 
-def test_create_image_with_size():
 
+def test_create_image_with_size():
     img = Image(size=(640, 480))
     assert img.size is not None
     # Decode both base64 strings to images and compare
     assert img.base64 != ""
     assert img.base64 is not None
     assert img.array.shape == (480, 640, 3)
-
 
 
 def test_create_image_with_base64():

@@ -75,12 +75,17 @@ from datasets import Dataset, Features
 from gymnasium import spaces
 from pydantic import BaseModel, ConfigDict, Field, create_model
 from pydantic.fields import FieldInfo
+from rich import print_json
+from rich.pretty import pprint
 
-from embdata.describe import describe, full_paths
+from embdata.describe import describe, describe_keys, full_paths
 from embdata.features import to_features_dict
 
 OneDimensional = Annotated[Literal["dict", "np", "pt", "list", "sample"], "Numpy, PyTorch, list, sample, or dict"]
 
+def replace_ints_with_wildcard(s, sep=".") -> str:
+    pattern = rf"(?<=^{sep})\d+|(?<={sep})\d+(?={sep})|\d+(?={sep}|$)"
+    return re.sub(pattern, "*", s).rstrip(f"{sep}*").lstrip(f"{sep}*")
 
 class Sample(BaseModel):
     """A base model class for serializing, recording, and manipulating arbitray data."""
@@ -94,7 +99,7 @@ class Sample(BaseModel):
         from_attributes=True,
     )
 
-    def __init__(self, wrapped=None, **data):
+    def __init__(self, wrapped=None, **data) -> None: # noqa
         """A base model class for serializing, recording, and manipulating arbitray data.
 
         It accepts any keyword arguments and endows them with the following methods:
@@ -143,10 +148,12 @@ class Sample(BaseModel):
             if not data:
                 data = {k: v for k, v in wrapped.model_dump() if not k.startswith("_")}
         elif isinstance(wrapped, dict):
+            # Only wrap if no other data is provided.
             if not data:
-                data = {
-                    k: Sample(**v) if isinstance(v, dict) else v for k, v in wrapped.items() if not k.startswith("_")
-                }
+                data = {k: Sample(**v) if isinstance(v, dict) else v  for k, v in wrapped.items() if not k.startswith("_")}
+            # else:
+            #     wrapped.update(data)
+            #     data = wrapped
         elif self.__class__ == Sample:
             # Only the Sample class can wrap an arbitrary type.
             if isinstance(wrapped, list | tuple | np.ndarray | torch.Tensor | Dataset):
@@ -163,6 +170,14 @@ class Sample(BaseModel):
             data.update(self.from_space(wrapped).model_dump())
         elif "items" in data:
             data["_items"] = data.pop("items")
+        print(f"for class: {self.__class__}")
+        print(f"wrapped: {type(wrapped)}, data: {type(data)}")
+        print(f"wrapped keys: {wrapped.keys() if hasattr(wrapped, 'keys') else None}")
+        print(f"data keys: {data.keys() if hasattr(data, 'keys') else None}")
+        from rich.pretty import pprint
+        pprint(data, max_length=30)
+
+
         super().__init__(**data)
         self.__post_init__()
 
@@ -307,6 +322,7 @@ class Sample(BaseModel):
             for k, v in self.dump().items():
                 if not k.startswith("_"):
                     setattr(self._extra, k, v)
+
     def __hash__(self) -> int:
         """Return a hash of the Sample instance."""
 
@@ -330,9 +346,9 @@ class Sample(BaseModel):
             return str(obj)
         prefix += " "
         sep = ",\n" + prefix
-        out = f"{self.__class__.__name__}(\n{prefix}{sep.join([f'{k}={round(v, 3) if isinstance(v, float) else self._str(v,prefix)}' for k, v in obj if v is not None and k not in ignore])}"
-        if hasattr(self, "_items"):
-            out += f",\n{prefix}items=[\n{sep}{sep.join([self._str(v, prefix) for v in self._items])}]"
+        out = f"{obj.__class__.__name__}(\n{prefix}{sep.join([f'{k}={round(v, 3) if isinstance(v, float) else self._str(v,prefix)}' for k, v in obj if v is not None and k not in ignore])}"
+        if hasattr(obj, "_items"):
+            out += f",\n{prefix}items=[\n{sep}{sep.join([self._str(v, prefix) for v in obj._items])}]"
 
         return out + ",\n)" if out.removeprefix("Sample(").strip() else "Sample()"
 
@@ -348,7 +364,6 @@ class Sample(BaseModel):
             return self._str(self, prefix="", ignore=set(unnested))
         except Exception:
             return f"{self.__class__.__name__}({self.dump()})"
-
 
     def __repr__(self) -> str:
         """Return a string representation of the Sample instance."""
@@ -370,7 +385,10 @@ class Sample(BaseModel):
             return default
 
     def _dump(
-        self, exclude: set[str] | str | None = "None", as_field: str | None = None, recurse=True,
+        self,
+        exclude: set[str] | str | None = "None",
+        as_field: str | None = None,
+        recurse=True,
     ) -> Dict[str, Any] | Any:
         out = {}
         exclude = set() if exclude is None else exclude if isinstance(exclude, set) else {exclude}
@@ -390,7 +408,10 @@ class Sample(BaseModel):
         return {k: v for k, v in out.items() if v is not None or "None" not in exclude}
 
     def dump(
-        self, exclude: set[str] | str | None = "None", as_field: str | None = None, recurse=True,
+        self,
+        exclude: set[str] | str | None = "None",
+        as_field: str | None = None,
+        recurse=True,
     ) -> Dict[str, Any] | Any:
         """Dump the Sample instance to a dictionary or value at a specific field if present.
 
@@ -497,6 +518,7 @@ class Sample(BaseModel):
 
         unflattened, _ = unflatten_recursive(schema)
         return unflattened
+
     @classmethod
     def unflatten(cls, one_d_array_or_dict, schema=None) -> "Sample":
         """Unflatten a one-dimensional array or dictionary into a Sample instance.
@@ -518,7 +540,6 @@ class Sample(BaseModel):
         """
         schema = schema or cls().schema()
         return cls(**cls.unflatten_from_schema(one_d_array_or_dict, schema))
-
 
     # def rearrange(self, pattern: str, **kwargs) -> Any:
     #     """Pack, unpack, flatten, select indices according to an einops-style pattern.
@@ -565,9 +586,11 @@ class Sample(BaseModel):
             keys = []
             if isinstance(obj, Sample | dict):
                 for k, v in obj.items():
-                    if k == exclude:
-                        continue
                     new_key = f"{prefix}{k}" if prefix else k
+                    print(f"key: {k}, value: {v}, replace: {replace_ints_with_wildcard(k, sep)}")
+                    if any(e ==replace_ints_with_wildcard(k, sep) for e in (exclude if exclude is not None else [])):
+                        print(f"excluding: {k}")
+                        continue
                     subkeys, subouts = _flatten(v, f"{new_key}{sep}")
                     out.extend(subouts)
                     keys.extend(subkeys)
@@ -581,7 +604,7 @@ class Sample(BaseModel):
                     msg = f"Non-numerical value encountered: {obj}"
                     raise TypeError(msg)
                 if non_numerical == "ignore" and not isinstance(obj, int | float | np.number):
-                    return [],[]
+                    return [], []
                 out.append(obj)
                 keys.append(prefix.rstrip(sep))
             return keys, out
@@ -595,14 +618,20 @@ class Sample(BaseModel):
     def flatten(
         self,
         to: Literal[
-            "list", "lists",
-            "dict", "dicts",
-            "np", "numpy",
-            "pt", "torch", "pytorch",
-            "sample", "samples",
+            "list",
+            "lists",
+            "dict",
+            "dicts",
+            "np",
+            "numpy",
+            "pt",
+            "torch",
+            "pytorch",
+            "sample",
+            "samples",
         ] = "list",
         non_numerical: Literal["ignore", "forbid", "allow"] = "allow",
-        exclude: str| set[str] | None = None,
+        exclude: str | set[str] | None = None,
         include: str | List[str] | None = None,
         sep: str = ".",
     ) -> Dict[str, Any] | np.ndarray | torch.Tensor | List | Any:
@@ -664,11 +693,42 @@ class Sample(BaseModel):
         has_include = include is not None and len(include) > 0
         include = [] if include is None else [include] if isinstance(include, str) else include
         exclude = {} if exclude is None else {exclude} if isinstance(exclude, str) else exclude
+        # print(f"Describing keys")
+        describe_keys(self, show=True)
+        full_includes = full_paths(self, include, show=False).values()
+        if not full_includes:
+            full_includes = [v for v in  describe_keys(self, show=False).values() if v in include]
+        print("fpaths include")
+        pprint(full_includes)
+        print(f"fpath include ends")
+        # Get the full paths of the selected keys. e.g. c-> a.b.*.c
+        # print(f"include right before full includes2 {include}")
+        # full_includes = full_paths(self, include).values() if include else []
+        pprint(f"full_includes2: {full_includes}")
+        if not has_include and not exclude:
+            full_excludes = []
+        elif has_include:
+            full_excludes = set(describe_keys(self).values()) - (set(full_includes) | set(describe_keys(self, include).keys()))
+        else:
+            full_excludes = set(describe_keys(self).values())
+        pprint(f"full_includes: {full_includes}")
+        pprint(f"full_excludes: {full_excludes}")
         if to in ["numpy", "np", "torch", "pt"] and non_numerical != "forbid":
             non_numerical = "ignore"
 
-        if not has_include:
-            flattened_keys, flattened = self.flatten_recursive(self, exclude=exclude, non_numerical=non_numerical, sep=sep)
+        flattened_keys, flattened = self.flatten_recursive(
+            self, 
+            exclude=full_excludes, 
+            non_numerical=non_numerical, 
+            sep=sep)
+
+        if not has_include or to in ["np", "numpy", "pt", "torch", "lists"]:
+            flattened_keys, flattened = self.flatten_recursive(
+                self,
+                exclude=exclude,
+                non_numerical=non_numerical,
+                sep=sep,
+            )
             zipped = zip(flattened_keys, flattened, strict=False)
             if to == "sample":
                 return Sample(**dict(zipped))
@@ -681,50 +741,60 @@ class Sample(BaseModel):
             else:
                 return flattened
 
-        from embdata.describe import describe_keys
-
-        # Get the full paths of the selected keys. e.g. c-> a.b.*.c
-        full_path_keys = full_paths(self, include).values()
-        full_includes = list(full_path_keys) if include else []
-
-        exclude = set(describe_keys(self).values()) - set(full_includes)
-        flattened_keys, flattened = self.flatten_recursive(self, exclude=exclude, non_numerical=non_numerical, sep=sep)
-        def replace_ints_with_wildcard(s, sep="."):
-            pattern = rf"(?<=^{sep})\d+|(?<={sep})\d+(?={sep})|\d+(?={sep}|$)"
-            return re.sub(pattern, "*", s).rstrip(f"{sep}*").lstrip(f"{sep}*")
-
 
         result = []
         current_group = {k: [] for k in include}
         ninclude_processed = {k: 0 for k in include}
         flattened_keys = [replace_ints_with_wildcard(k, sep=sep) for k in flattened_keys]
-
+        # print(f"flattened_keys: {flattened_keys}")
+        # print(f"full_includes: {full_includes}")
+        # print(f"excluded_keys: {full_excludes}")
+        # print(f"include: {include}")
+        # print(f"full excludes: {exclude}")
         for flattened_key, value in zip(flattened_keys, flattened, strict=False):
             for selected_key, full_selected_key in zip(include, full_includes, strict=False):
                 # e.g.: a.b.*.c was selected and a.b.0.c.d should be flattened to the c part of a row
-                if full_selected_key in flattened_key:
+                if full_selected_key in flattened_key and\
+                not any(ignore_key == flattened_key for ignore_key in full_excludes):
                     current_group[selected_key].append(value)
                     ninclude_processed[selected_key] += 1
 
             # All keys have been processed, add a new row.
-            if all(num_processed == ninclude_processed[include[0]] for num_processed in ninclude_processed.values())\
-                and all(len(processed_items) > 0 for processed_items in current_group.values()):
-                    # Ensure that we limit to two dimensions.
-                    current_group = {k: v[0] if len(v) == 1 else v for k, v in current_group.items() if k not in exclude}
-                    flattened_key, flattened = self.flatten_recursive(current_group, exclude=exclude, non_numerical=non_numerical, sep=sep)
+            if all(
+                num_processed == ninclude_processed[include[0]] for num_processed in ninclude_processed.values()
+            ) and all(len(processed_items) > 0 for processed_items in current_group.values()):
+                # Ensure that we limit to two dimensions.
+                current_group = {k: v[0] if len(v) == 1 else v for k, v in current_group.items() if k not in exclude}
+                if to in ["dict", "sample"]:
+                    # Short circuit to avoid unnecessary processing.
+                    result.append(current_group)
+                elif to in ["list"]:
+                    flat_key, flattened = self.flatten_recursive(
+                        current_group,
+                        non_numerical=non_numerical,
+                        sep=sep,
+                    )
+
+                    result.extend(flattened)
+                else:
+                    flat_key, flattened = self.flatten_recursive(
+                        current_group,
+                        non_numerical=non_numerical,
+                        sep=sep,
+                    )
                     match to:
                         case "dicts":
-                            result.append(dict(zip(flattened_key, flattened, strict=False)))
+                            result.append(dict(zip(flat_key, flattened, strict=False)))
                         case "samples":
-                            result.append(Sample(**dict(zip(flattened_key, flattened, strict=False))))
+                            result.append(Sample(**dict(zip(flat_key, flattened, strict=False))))
                         case _:
                             result.append(flattened)
 
             if all(num_processed == ninclude_processed[include[0]] for num_processed in ninclude_processed.values()):
                 # Discard the current group and start a new one to avoid empty rows.
                 current_group = {k: [] for k in include}
-                ninclude_processed =  {k: 0 for k in include}
-
+                ninclude_processed = {k: 0 for k in include}
+        # print(f"result: {result}")
         flattened = list(result.values()) if to in ["dicts", "samples"] and not isinstance(result, list) else result
         if len(flattened) == 0:
             msg = f"No keys found for include: {include} in Sample: {self}"
@@ -872,9 +942,6 @@ class Sample(BaseModel):
             if isinstance(obj, dict):
                 obj = Sample(**obj)
                 _include = "simple"
-            elif isinstance(obj, Sample):
-                _include = include
-                title = "Sample"
             elif hasattr(obj, "_extra"):
                 title = obj.__class__.__name__
                 _include = include
@@ -904,7 +971,11 @@ class Sample(BaseModel):
                     if include == "simple" and k.startswith("_"):
                         continue
                     if k in obj:
-                        schema["properties"][k] = simplify(value, obj[k],title=schema["properties"][k].get("title", k.capitalize()))
+                        schema["properties"][k] = simplify(
+                            value,
+                            obj[k],
+                            title=schema["properties"][k].get("title", k.capitalize()),
+                        )
                 if not schema["properties"]:
                     schema = obj.schema(include=_include)
             if "allOf" in schema or "anyOf" in schema:
@@ -914,7 +985,7 @@ class Sample(BaseModel):
                 schema["title"] = title
             return schema
 
-        return simplify(schema, self, title="Sample")
+        return simplify(schema, self)
 
     def infer_features_dict(self) -> Dict[str, Any]:
         """Infers features from the data recusively."""
@@ -1190,6 +1261,15 @@ class Sample(BaseModel):
         return [mapper(zip(attributes, values, strict=False)) for values in unzipped]
 
     def unpack(self, to: Literal["dicts", "samples", "lists"] = "samples") -> List[Union["Sample", Dict]]:
+        """Unpack the Sample object into a list of Sample objects or dictionaries.
+
+        Example:
+            Sample(steps=[               [
+                Sample(a=1, b=1), ->       [Sample(a=1), Sample(a=2)],
+                Sample(a=2, b=2),          [Sample(b=1), Sample(b=2)],
+            ])                            ]
+            ).
+        """
         return [[x.dump() if to == "dicts" else x for x in samples] for _, samples in self]
 
     @classmethod

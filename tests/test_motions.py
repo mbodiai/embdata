@@ -166,20 +166,20 @@ def test_bounds():
         roll: float = MotionField(
             default=0,
             description="Roll about the X-axis in radians. Positive roll is clockwise.",
-            bounds=(-np.pi/2, np.pi/2),
+            bounds=(-np.pi / 2, np.pi / 2),
         )
         pitch: float = MotionField(
             default=0,
             description="Pitch about the Y-axis in radians. Positive pitch is down.",
-            bounds=(-np.pi/2, np.pi/2),
+            bounds=(-np.pi / 2, np.pi / 2),
         )
         yaw: float = MotionField(
             default=0,
             description="Yaw about the Z-axis in radians. Positive yaw is left.",
             bounds=(-np.pi, np.pi),
         )
-    class XarmHandControl(HandControl):
 
+    class XarmHandControl(HandControl):
         """Action for a 7D space representing x, y, z, roll, pitch, yaw, and oppenness of the hand."""
 
         pose: XarmPose6D = MotionField(default_factory=XarmPose6D, description="6D pose of the robot hand.")
@@ -188,15 +188,16 @@ def test_bounds():
             description="Openness of the robot hand. 0 is closed, 1 is open.",
             bounds=(0, 1),
         )
-    
+
     xarm = XarmHandControl()
     assert xarm.pose.field_info("x")["bounds"] == (-0.3, 0.4)
     assert xarm.pose.field_info("y")["bounds"] == (-0.4, 0.4)
     assert xarm.pose.field_info("z")["bounds"] == (-0.175, 0.4)
-    assert xarm.pose.field_info("roll")["bounds"] == (-np.pi/2, np.pi/2)
-    assert xarm.pose.field_info("pitch")["bounds"] == (-np.pi/2, np.pi/2)
+    assert xarm.pose.field_info("roll")["bounds"] == (-np.pi / 2, np.pi / 2)
+    assert xarm.pose.field_info("pitch")["bounds"] == (-np.pi / 2, np.pi / 2)
     assert xarm.pose.field_info("yaw")["bounds"] == (-np.pi, np.pi)
     assert xarm.field_info("grasp")["bounds"] == (0, 1)
+
 
 if __name__ == "__main__":
     pytest.main([__file__, "-vv"])

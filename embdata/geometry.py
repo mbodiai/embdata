@@ -172,9 +172,23 @@ class Coordinate(Sample):
         }
         return value * convert_to_rad_from[from_unit] * from_rad_convert_to[to_unit]
 
+    def relative_to(self, other: "Coordinate") -> "Coordinate":
+        return self.__class__.unflatten(self.numpy() - other.numpy())
+
+    def absolute_from(self, other: "Coordinate") -> "Coordinate":
+        return self.__class__.unflatten(self.numpy() + other.numpy())
+
+    def __add__(self, other: "Coordinate") -> "Coordinate":
+        """Add two motions together."""
+        return self.absolute_from(other)
+
+    def __sub__(self, other: "Coordinate") -> "Coordinate":
+        """Subtract two motions."""
+        return self.relative_to(other)
+
     def __array__(self):
-         """Return a numpy array representation of the pose."""
-         return np.array([item for _, item in self])
+        """Return a numpy array representation of the pose."""
+        return np.array([item for _, item in self])
 
     @model_validator(mode="after")
     def validate_bounds(self) -> Any:
@@ -335,17 +349,6 @@ class Pose6D(Coordinate):
             pose = self.from_position_orientation(data["position"], data["orientation"])
             data = pose.model_dump()
         super().__init__(**data)
-
-    @classmethod
-    def from_position_orientation(cls, position, orientation):  # noqa: ANN206
-        if len(position) != 3 or len(orientation) != 4:
-            msg = "Invalid position or orientation format"
-            raise ValueError(msg)
-        x, y, z = position
-        qw, qx, qy, qz = orientation
-        rotation = Rotation.from_quat([qx, qy, qz, qw])
-        roll, pitch, yaw = rotation.as_euler("xyz")
-        return cls(x=x, y=y, z=z, roll=roll, pitch=pitch, yaw=yaw)
 
     def to(self, container_or_unit=None, sequence="zyx", unit="m", angular_unit="rad", **kwargs) -> Any:
         """Convert the pose to a different unit, container, or representation.

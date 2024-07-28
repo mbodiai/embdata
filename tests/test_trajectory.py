@@ -25,7 +25,7 @@ def test_stats():
 def test_relative():
     array = np.array([[1, 2, 3], [4, 5, 6], [7, 8, 9]])
     trajectory = Trajectory(array, freq_hz=1)
-    relative_trajectory = trajectory.relative()
+    relative_trajectory = trajectory.relative_to(-1)
     expected_array = np.array([[3, 3, 3], [3, 3, 3]])
     assert np.array_equal(relative_trajectory.array, expected_array)
 
@@ -76,7 +76,7 @@ def test_minmax():
 def test_normalize():
     array = np.array([[1, 2, 3], [4, 5, 6], [7, 8, 9], [10, 11, 12]])
     trajectory = Trajectory(array, freq_hz=1)
-    normalized_trajectory = trajectory.standard()
+    normalized_trajectory = trajectory.standardize()
     expected_array = np.array(
         [
             [-1.3416407864998738, -1.3416407864998736, -1.3416407864998736],
@@ -93,8 +93,8 @@ def test_unnormalize():
     trajectory = Trajectory(steps=array, freq_hz=1)
     print(trajectory.stats)
     mean, std = trajectory.mean(), trajectory.std()
-    normalized_trajectory = trajectory.standard()
-    unnormalized_trajectory = normalized_trajectory.unstandard(mean, std).array
+    normalized_trajectory = trajectory.standardize()
+    unnormalized_trajectory = normalized_trajectory.unstandardize(mean, std).array
     expected_array = np.array([[1, 2, 3], [4, 5, 6], [7, 8, 9], [10, 11, 12]])
     assert np.allclose(unnormalized_trajectory, expected_array)
 
@@ -139,16 +139,17 @@ def pca():
     print("\nExplained variance ratio:")
     print(explained_variance_ratio)
 
+
 def test_pca():
     array = np.array([[1, 2, 3], [4, 5, 6], [7, 8, 9], [10, 11, 12]])
     trajectory = Trajectory(array, freq_hz=1)
     pca_trajectory = trajectory.pca(whiten=False)
     expected_array = np.array(
         [
-            [-7.79422863 , 0. ,        -0. ], 
-            [-2.59807621,  0.  ,        0.  ],
-            [ 2.59807621,  0.   ,       0.   ],
-            [ 7.79422863, -0.  ,        0.  ], 
+            [-7.79422863, 0.0, -0.0],
+            [-2.59807621, 0.0, 0.0],
+            [2.59807621, 0.0, 0.0],
+            [7.79422863, -0.0, 0.0],
         ]
     )
     pca()

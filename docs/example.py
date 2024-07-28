@@ -9,7 +9,7 @@ import torch.nn as nn
 def process_example(example):
     flattened = Sample(example).flatten(
         to="dict",
-        to=[
+        include=[
             "data.pickle.steps.observation.image.bytes",
             "data.pickle.steps.observation.natural_language_instruction",
             "data.pickle.steps.action",

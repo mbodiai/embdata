@@ -92,7 +92,7 @@ class Depth(Image):
 
     array: NumpyArray[1, Any, Any, np.uint16] | NumpyArray[Any, Any, np.uint16]
     size: tuple[int, int]
-    points: NumpyArray[3,..., float]
+    points: NumpyArray[3, ..., float]
     pil: InstanceOf[PILImage] | None = Field(
         None,
         repr=False,
@@ -113,7 +113,6 @@ class Depth(Image):
         except Exception as e:
             logging.debug(f"Failed to validate image data: {e}")
             return False
-
 
     def __init__(
         self,
@@ -441,7 +440,9 @@ class Depth(Image):
         elif "base64" in provided_fields:
             validated_values.update(
                 cls.from_base64(
-                    values["base64"], validated_values["encoding"], validated_values["size"],
+                    values["base64"],
+                    validated_values["encoding"],
+                    validated_values["size"],
                 ),
             )
 
@@ -492,7 +493,6 @@ class Depth(Image):
         plane_coefficients = np.append(ransac.estimator_.coef_, ransac.estimator_.intercept_)
         return inlier_mask, plane_coefficients
 
-
     def show(self) -> None:
         import platform
 
@@ -503,8 +503,6 @@ class Depth(Image):
         import matplotlib.pyplot as plt
 
         plt.imshow(self.array)
-
-
 
     def segment_cylinder(self, threshold: float = 0.01, max_trials: int = 1000) -> Tuple[np.ndarray, np.ndarray]:
         """Segment the largest cylinder using RANSAC.

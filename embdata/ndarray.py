@@ -32,14 +32,24 @@ from pydantic_numpy.helper.validation import (
 from rich import print
 from typing_extensions import TypedDict
 
-SupportedDTypes = type[np.generic] | type[np.number] | type[np.bool_] | type[np.int64] | type[np.dtypes.Int64DType] | type[np.uint64] | type[np.dtypes.UInt64DType] | type[np.float64] | type[np.timedelta64] | type[np.datetime64]
+SupportedDTypes = (
+    type[np.generic]
+    | type[np.number]
+    | type[np.bool_]
+    | type[np.int64]
+    | type[np.dtypes.Int64DType]
+    | type[np.uint64]
+    | type[np.dtypes.UInt64DType]
+    | type[np.float64]
+    | type[np.timedelta64]
+    | type[np.datetime64]
+)
 
 
 class NumpyDataDict(TypedDict):
     data: List
     data_type: SupportedDTypes
     shape: Tuple[int, ...]
-
 
 
 @singledispatch
@@ -57,8 +67,8 @@ def array_validator(array: np.ndarray, shape: Tuple[int, ...] | None, dtype: Sup
                 msg = "ShapeError"
                 raise PydanticCustomError(msg, details)
 
-    if dtype and array.dtype.type != dtype:
-        if issubclass(dtype, np.integer) and issubclass(array.dtype.type, np.floating):
+    if dtype and array.dtype.type != dtype and\
+        issubclass(dtype, np.integer) and issubclass(array.dtype.type, np.floating):
             array = np.round(array).astype(dtype, copy=False)
     if dtype and issubclass(dtype, np.dtypes.UInt64DType | np.dtypes.Int64DType):
         print("Converting to int64")
@@ -67,9 +77,15 @@ def array_validator(array: np.ndarray, shape: Tuple[int, ...] | None, dtype: Sup
     print(f"this reached for {array.dtype}, {dtype}")
     return array
 
+
 @array_validator.register
-def list_tuple_validator(array: list | tuple,  shape: Tuple[int, ...] | None, dtype: SupportedDTypes | None) -> npt.NDArray: # noqa
+def list_tuple_validator(
+    array: list | tuple,
+    shape: Tuple[int, ...] | None,
+    dtype: SupportedDTypes | None,
+) -> npt.NDArray:
     return array_validator.dispatch(np.ndarray)(np.asarray(array), shape, dtype)
+
 
 @array_validator.register
 def dict_validator(array: dict, shape: Tuple[int, ...] | None, dtype: SupportedDTypes | None) -> npt.NDArray:
@@ -78,7 +94,9 @@ def dict_validator(array: dict, shape: Tuple[int, ...] | None, dtype: SupportedD
 
 
 def create_array_validator(
-    shape: Tuple[int, ...] | None, dtype: SupportedDTypes | None) -> Callable[[Any], npt.NDArray]:
+    shape: Tuple[int, ...] | None,
+    dtype: SupportedDTypes | None,
+) -> Callable[[Any], npt.NDArray]:
     """Creates a validator function for NumPy arrays with a specified shape and data type."""
     return partial(array_validator, shape=shape, dtype=dtype)
 
@@ -186,7 +204,8 @@ def array_to_data_dict_serializer(array: npt.ArrayLike) -> NumpyDataDict:
     else:
         data = array.astype(float).tolist()
     dtype = str(array.dtype) if hasattr(array, "dtype") else "float"
-    return NumpyDataDict(data=data, data_type=dtype , shape=array.shape)
+    return NumpyDataDict(data=data, data_type=dtype, shape=array.shape)
+
 
 class NumpyArray:
     """Pydantic validation for shape and dtype. Specify shape with a tuple of integers, "*" or `Any` for any size.
@@ -207,11 +226,13 @@ class NumpyArray:
     >>> class MyModel(BaseModel):
     ...     uint8_array: NumpyArray[np.uint8]
     ...     must_have_exact_shape: NumpyArray[1, 2, 3]
-    ...     must_be_3d: NumpyArray["*","*","*"] # NumpyArray[Any, Any, Any] also works.
-    ...     must_be_1d: NumpyArray["*",] # NumpyArray[Any,] also works.
+    ...     must_be_3d: NumpyArray["*", "*", "*"]  # NumpyArray[Any, Any, Any] also works.
+    ...     must_be_1d: NumpyArray["*",]  # NumpyArray[Any,] also works.
     """
+
     shape: ClassVar[Tuple[PositiveInt, ...] | None] = None
     dtype: ClassVar[SupportedDTypes | None] = None
+
     def __repr__(self) -> str:
         if TYPE_CHECKING:
             class_params = str(*self.shape) if self.shape is not None else "*"
@@ -222,7 +243,6 @@ class NumpyArray:
 
     def __str__(self) -> str:
         return repr(self)
-
 
     @classmethod
     def __class_getitem__(cls, params=None) -> Any:
@@ -254,7 +274,6 @@ class NumpyArray:
         class ParameterizedNumpyArray(cls):
             shape = _shape
             dtype = _dtype
-
 
         return Annotated[np.ndarray | FilePath | MultiArrayNumpyFile, ParameterizedNumpyArray]
 
@@ -301,13 +320,18 @@ class NumpyArray:
 
     @classmethod
     def __get_pydantic_json_schema__(
-        cls, field_core_schema: core_schema.CoreSchema, handler: GetJsonSchemaHandler,
+        cls,
+        field_core_schema: core_schema.CoreSchema,
+        handler: GetJsonSchemaHandler,
     ) -> JsonSchemaValue:
         return get_numpy_json_schema(field_core_schema, handler, cls.shape, cls.dtype)
 
+
 if __name__ == "__main__":
     import doctest
+
     doctest.testmod(verbose=True)
+
     class MyModel(BaseModel):
         uint8_array: NumpyArray[np.uint8]
         must_have_exact_shape: NumpyArray[1, 2, 3]

@@ -1,4 +1,3 @@
-
 from typing import List
 
 from pydantic import Field
@@ -12,6 +11,7 @@ from embdata.sense.image import Image
 
 class SceneObject(Sample):
     """Model for Scene Object Poses."""
+
     name: str = ""
     pose: Pose = Field(default_factory=Pose)
     volume: float | None = None
@@ -23,6 +23,7 @@ class SceneObject(Sample):
 
 class Scene(Sample):
     """Model for Scene Data."""
+
     objects: List[SceneObject] = Field(default_factory=list, description="List of scene objects")
     image: Image | None = None
     annotated: Image | None = None
