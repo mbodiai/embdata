@@ -21,7 +21,8 @@ class Extrinsics(Sample):
         description="Rotation matrix from world to camera coordinate system",
     )
     translation_vector: NumpyArray[3, float] = Field(
-        default_factory=lambda: [0.0, 0.0, 0.0], description="Translation vector from world to camera coordinate system"
+        default_factory=lambda: [0.0, 0.0, 0.0],
+        description="Translation vector from world to camera coordinate system",
     )
 
 

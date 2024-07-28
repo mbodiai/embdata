@@ -144,10 +144,12 @@ class MobileSingleHandControl(Motion):
         description="Location of the robot on the ground.",
     )
     hand: HandControl | NumpyArray[7, float] = MotionField(
-        default_factory=HandControl, description="Control for the robot hand."
+        default_factory=HandControl,
+        description="Control for the robot hand.",
     )
     head: HeadControl | NumpyArray[2, float] | None = MotionField(
-        default=None, description="Control for the robot head."
+        default=None,
+        description="Control for the robot head.",
     )
 
 

@@ -47,7 +47,7 @@ def as_table(ds: Any, sep: str = ".", show=True) -> Dict[str, Any]:
     for key, value in describe(ds, show=False).items():
         rendered.add_row(key, str(value)[:50])
     if show:
-        console = Console(markup=True,)
+        console = Console(markup=True)
         console.print(rendered)
     return ds
 
@@ -60,7 +60,7 @@ def full_paths(ds: Any, include: list[str] | str | None = None, sep: str = ".", 
     pprint(describe_keys(ds, sep, show))
     for key, value in describe_keys(ds, sep, show).items():
         print(f"key: {key} value: {value}")
-        print(f"key in include: {key in include}") 
+        print(f"key in include: {key in include}")
     return {k: v for k, v in describe_keys(ds, sep, show).items() if include is None or k in include}
 
 

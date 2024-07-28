@@ -67,9 +67,13 @@ def array_validator(array: np.ndarray, shape: Tuple[int, ...] | None, dtype: Sup
                 msg = "ShapeError"
                 raise PydanticCustomError(msg, details)
 
-    if dtype and array.dtype.type != dtype and\
-        issubclass(dtype, np.integer) and issubclass(array.dtype.type, np.floating):
-            array = np.round(array).astype(dtype, copy=False)
+    if (
+        dtype
+        and array.dtype.type != dtype
+        and issubclass(dtype, np.integer)
+        and issubclass(array.dtype.type, np.floating)
+    ):
+        array = np.round(array).astype(dtype, copy=False)
     if dtype and issubclass(dtype, np.dtypes.UInt64DType | np.dtypes.Int64DType):
         print("Converting to int64")
         dtype = np.int64

@@ -414,7 +414,12 @@ class Image(Sample):
     @dispatch_arg.register(Path)
     @classmethod
     def open(
-        cls, arg: Path, encoding: str = "jpeg", size: Tuple[int] | None = None, mode: str = "RGB", **kwargs
+        cls,
+        arg: Path,
+        encoding: str = "jpeg",
+        size: Tuple[int] | None = None,
+        mode: str = "RGB",
+        **kwargs,
     ) -> Dict[str, Any]:
         """Opens an image from a file path and creates an Image instance.
 

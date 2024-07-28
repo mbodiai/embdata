@@ -75,7 +75,6 @@ from datasets import Dataset, Features
 from gymnasium import spaces
 from pydantic import BaseModel, ConfigDict, Field, create_model
 from pydantic.fields import FieldInfo
-from rich import print_json
 from rich.pretty import pprint
 
 from embdata.describe import describe, describe_keys, full_paths
@@ -83,9 +82,11 @@ from embdata.features import to_features_dict
 
 OneDimensional = Annotated[Literal["dict", "np", "pt", "list", "sample"], "Numpy, PyTorch, list, sample, or dict"]
 
+
 def replace_ints_with_wildcard(s, sep=".") -> str:
     pattern = rf"(?<=^{sep})\d+|(?<={sep})\d+(?={sep})|\d+(?={sep}|$)"
     return re.sub(pattern, "*", s).rstrip(f"{sep}*").lstrip(f"{sep}*")
+
 
 class Sample(BaseModel):
     """A base model class for serializing, recording, and manipulating arbitray data."""
@@ -99,7 +100,7 @@ class Sample(BaseModel):
         from_attributes=True,
     )
 
-    def __init__(self, wrapped=None, **data) -> None: # noqa
+    def __init__(self, wrapped=None, **data) -> None:  # noqa
         """A base model class for serializing, recording, and manipulating arbitray data.
 
         It accepts any keyword arguments and endows them with the following methods:
@@ -150,7 +151,9 @@ class Sample(BaseModel):
         elif isinstance(wrapped, dict):
             # Only wrap if no other data is provided.
             if not data:
-                data = {k: Sample(**v) if isinstance(v, dict) else v  for k, v in wrapped.items() if not k.startswith("_")}
+                data = {
+                    k: Sample(**v) if isinstance(v, dict) else v for k, v in wrapped.items() if not k.startswith("_")
+                }
             # else:
             #     wrapped.update(data)
             #     data = wrapped
@@ -170,13 +173,9 @@ class Sample(BaseModel):
             data.update(self.from_space(wrapped).model_dump())
         elif "items" in data:
             data["_items"] = data.pop("items")
-        print(f"for class: {self.__class__}")
-        print(f"wrapped: {type(wrapped)}, data: {type(data)}")
-        print(f"wrapped keys: {wrapped.keys() if hasattr(wrapped, 'keys') else None}")
-        print(f"data keys: {data.keys() if hasattr(data, 'keys') else None}")
         from rich.pretty import pprint
-        pprint(data, max_length=30)
 
+        pprint(data, max_length=30)
 
         super().__init__(**data)
         self.__post_init__()
@@ -587,9 +586,7 @@ class Sample(BaseModel):
             if isinstance(obj, Sample | dict):
                 for k, v in obj.items():
                     new_key = f"{prefix}{k}" if prefix else k
-                    print(f"key: {k}, value: {v}, replace: {replace_ints_with_wildcard(k, sep)}")
-                    if any(e ==replace_ints_with_wildcard(k, sep) for e in (exclude if exclude is not None else [])):
-                        print(f"excluding: {k}")
+                    if any(e == replace_ints_with_wildcard(k, sep) for e in (exclude if exclude is not None else [])):
                         continue
                     subkeys, subouts = _flatten(v, f"{new_key}{sep}")
                     out.extend(subouts)
@@ -697,10 +694,8 @@ class Sample(BaseModel):
         describe_keys(self, show=True)
         full_includes = full_paths(self, include, show=False).values()
         if not full_includes:
-            full_includes = [v for v in  describe_keys(self, show=False).values() if v in include]
-        print("fpaths include")
+            full_includes = [v for v in describe_keys(self, show=False).values() if v in include]
         pprint(full_includes)
-        print(f"fpath include ends")
         # Get the full paths of the selected keys. e.g. c-> a.b.*.c
         # print(f"include right before full includes2 {include}")
         # full_includes = full_paths(self, include).values() if include else []
@@ -708,7 +703,9 @@ class Sample(BaseModel):
         if not has_include and not exclude:
             full_excludes = []
         elif has_include:
-            full_excludes = set(describe_keys(self).values()) - (set(full_includes) | set(describe_keys(self, include).keys()))
+            full_excludes = set(describe_keys(self).values()) - (
+                set(full_includes) | set(describe_keys(self, include).keys())
+            )
         else:
             full_excludes = set(describe_keys(self).values())
         pprint(f"full_includes: {full_includes}")
@@ -717,10 +714,8 @@ class Sample(BaseModel):
             non_numerical = "ignore"
 
         flattened_keys, flattened = self.flatten_recursive(
-            self, 
-            exclude=full_excludes, 
-            non_numerical=non_numerical, 
-            sep=sep)
+            self, exclude=full_excludes, non_numerical=non_numerical, sep=sep
+        )
 
         if not has_include or to in ["np", "numpy", "pt", "torch", "lists"]:
             flattened_keys, flattened = self.flatten_recursive(
@@ -741,7 +736,6 @@ class Sample(BaseModel):
             else:
                 return flattened
 
-
         result = []
         current_group = {k: [] for k in include}
         ninclude_processed = {k: 0 for k in include}
@@ -754,8 +748,9 @@ class Sample(BaseModel):
         for flattened_key, value in zip(flattened_keys, flattened, strict=False):
             for selected_key, full_selected_key in zip(include, full_includes, strict=False):
                 # e.g.: a.b.*.c was selected and a.b.0.c.d should be flattened to the c part of a row
-                if full_selected_key in flattened_key and\
-                not any(ignore_key == flattened_key for ignore_key in full_excludes):
+                if full_selected_key in flattened_key and not any(
+                    ignore_key == flattened_key for ignore_key in full_excludes
+                ):
                     current_group[selected_key].append(value)
                     ninclude_processed[selected_key] += 1
 

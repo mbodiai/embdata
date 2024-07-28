@@ -19,11 +19,13 @@ from embdata.sample import Sample
 def import_plotting_backend(backend: Literal["matplotlib", "plotext"]) -> Any:
     if backend == "matplotlib" and not importlib.util.find_spec("matplotlib"):
         import matplotlib as mpl
+
         mpl.use("Agg")
         from matplotlib import pyplot as plt
     elif backend == "plotext" and not importlib.util.find_spec("plotext"):
         import plotext as plt
     return plt
+
 
 @dataclass
 class Stats:
@@ -104,8 +106,13 @@ def stats(array: np.ndarray, axis=0, bias=True, sample_type: type[Sample] | None
     )
 
 
-def plot_trajectory(trajectory: np.ndarray, labels: list[str] | None = None, time_step: float = 0.1, show=True,
-            backend: Literal["matplotlib", "plotext"] = "plotext") -> None:
+def plot_trajectory(
+    trajectory: np.ndarray,
+    labels: list[str] | None = None,
+    time_step: float = 0.1,
+    show=True,
+    backend: Literal["matplotlib", "plotext"] = "plotext",
+) -> None:
     """Plot the trajectory.
 
     Args:
@@ -192,7 +199,6 @@ class Trajectory:
     _map_history_kwargs: list[dict] = Field(default_factory=list)
     _episode: Any | None = None
 
-
     def __repr__(self) -> str:
         return f"Trajectory({self.stats()})"
 
@@ -276,14 +282,14 @@ class Trajectory:
         Returns:
           Trajectory: The converted relative trajectory.
         """
-        t =  Trajectory(
-            np.diff(self.array,n=-step_difference, axis=0),
+        t = Trajectory(
+            np.diff(self.array, n=-step_difference, axis=0),
             self.freq_hz,
             self.time_idxs[1:],
             self.dim_labels,
             self.angular_dims,
         )
-        t._map_history.append(partial(self.absolute_from, initial_state=self.array[0])) 
+        t._map_history.append(partial(self.absolute_from, initial_state=self.array[0]))
         t._map_history_kwargs.append({"initial_state": self.array[0]})  # noqa: SLF001
 
         return t
@@ -384,7 +390,7 @@ class Trajectory:
         self._fig.savefig(filename)
         return self
 
-    def show(self,   backend: Literal["matplotlib", "plotext"] = "plotext") -> "Trajectory":
+    def show(self, backend: Literal["matplotlib", "plotext"] = "plotext") -> "Trajectory":
         """Display the current figure.
 
         Returns:
@@ -395,7 +401,7 @@ class Trajectory:
             raise ValueError(msg)
         import_plotting_backend(backend).show()
 
-    def frequencies(self,backend: Literal["matplotlib", "plotext"] = "plotext") -> "Trajectory":
+    def frequencies(self, backend: Literal["matplotlib", "plotext"] = "plotext") -> "Trajectory":
         """Plot the frequency spectrogram of the trajectory.
 
         Returns:
@@ -431,7 +437,7 @@ class Trajectory:
         self._fig = fig
         return self
 
-    def frequencies_nd(self,backend: Literal["matplotlib", "plotext"] = "plotext") -> "Trajectory":
+    def frequencies_nd(self, backend: Literal["matplotlib", "plotext"] = "plotext") -> "Trajectory":
         """Plot the nd frequencies of the trajectory.
 
         Returns:

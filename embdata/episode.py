@@ -1,7 +1,6 @@
 import atexit
 import logging
 import sys
-from functools import cached_property
 from itertools import zip_longest
 from threading import Thread
 from typing import Any, Callable, Dict, Iterable, Iterator, List, Literal
@@ -19,7 +18,7 @@ from embdata.features import to_features_dict
 from embdata.motion import Motion
 from embdata.motion.control import AnyMotionControl, RelativePoseHandControl
 from embdata.sample import Sample
-from embdata.sense.image import Image, SupportsImage
+from embdata.sense.image import Image
 from embdata.trajectory import Trajectory
 from embdata.utils.iter_utils import get_iter_class
 
@@ -31,7 +30,9 @@ except ImportError:
 
 
 def convert_images(
-    values: Dict[str, Any] | Any, image_keys: set[str] | str | None = "image", toplevel=True
+    values: Dict[str, Any] | Any,
+    image_keys: set[str] | str | None = "image",
+    toplevel=True,
 ) -> "TimeStep":
     if not isinstance(values, dict | Sample) and not toplevel:
         if Image.supports(values):
@@ -60,6 +61,7 @@ def convert_images(
         else:
             obj[key] = value
     return obj
+
 
 class TimeStep(Sample):
     """Time step for a task."""
@@ -153,12 +155,12 @@ class TimeStep(Sample):
         )
 
 
-
 class ImageTask(Sample):
     """Canonical Observation."""
 
     image: Image
     task: str
+
 
 class VisionMotorStep(TimeStep):
     """Time step for vision-motor tasks."""
@@ -297,7 +299,12 @@ class Episode(Sample):
         steps = [
             Step(observation=o, action=a, state=s, supervision=sup, timestamp=i / freq_hz)
             for i, o, a, s, sup in zip_longest(
-                range(length), observations, actions, states, supervisions, fillvalue=Sample()
+                range(length),
+                observations,
+                actions,
+                states,
+                supervisions,
+                fillvalue=Sample(),
             )
         ]
         return cls(steps=steps, **kwargs)
@@ -334,12 +341,15 @@ class Episode(Sample):
             image_keys=image_keys,
         )
 
-
     def dataset(self) -> Dataset:
         if self.steps is None or len(self.steps) == 0:
             msg = "Episode has no steps"
             raise ValueError(msg)
-        image_feat = HFImage() if self.steps[0].get(self.image_keys[0] if isinstance(self.image_keys, list) else self.image_keys, None) else Value("string")
+        image_feat = (
+            HFImage()
+            if self.steps[0].get(self.image_keys[0] if isinstance(self.image_keys, list) else self.image_keys, None)
+            else Value("string")
+        )
         image = self.steps[0].flatten("dict", include=self.image_keys)
         image = image.pop(self.image_keys[0] if isinstance(self.image_keys, list) else self.image_keys, None)
         feat = Features(
@@ -357,7 +367,7 @@ class Episode(Sample):
             model_info = step.model_info()
             image = step.flatten("dict", include=self.image_keys)
             image = image.pop(self.image_keys[0] if isinstance(self.image_keys, list) else self.image_keys, None)
-            step = step.dump(as_field="pil") # noqa
+            step = step.dump(as_field="pil")  # noqa
             step_idx = step.pop("step_idx", None)
             episode_idx = step.pop("episode_idx", None)
             timestamp = step.pop("timestamp", None)
@@ -423,11 +433,9 @@ class Episode(Sample):
         if of == "step":
             return Trajectory(self.steps, freq_hz=freq_hz, episode=self)
 
-        if not any(k in field for field in self.steps[0].flatten("dict")\
-                 for k in of):
+        if not any(k in field for field in self.steps[0].flatten("dict") for k in of):
             msg = f"Field '{of}' not found in episode steps"
             raise ValueError(msg)
-
 
         data = self.flatten(to="numpy", include=of)
         return Trajectory(
@@ -444,7 +452,7 @@ class Episode(Sample):
         of: str | list[str] = "steps",
         nforward: int = 1,
         nbackward: int = 1,
-    pad_value: Any = None,
+        pad_value: Any = None,
         freq_hz: int | None = None,
     ) -> Iterable[Trajectory]:
         """Get a sliding window of the episode.
