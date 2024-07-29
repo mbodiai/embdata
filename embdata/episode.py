@@ -250,13 +250,29 @@ class Episode(Sample):
         return cls(steps=processed_steps, freq_hz=freq_hz, observation_key=observation_key, action_key=action_key, state_key=state_key, supervision_key=supervision_key, **kwargs)
 
     @classmethod
-    def from_lists(cls, observations: List[Sample | Dict | np.ndarray], actions: List[Sample | Dict | np.ndarray], states: List[Sample | Dict | np.ndarray] | None = None, supervisions: List[Sample | Dict | np.ndarray] | None = None, **kwargs) -> "Episode":
+    def from_lists(
+        cls,
+        observations: List[Sample | Dict | np.ndarray],
+        actions: List[Sample | Dict | np.ndarray],
+        states: List[Sample | Dict | np.ndarray] | None = None,
+        supervisions: List[Sample | Dict | np.ndarray] | None = None,
+        freq_hz: int | None = None,
+        **kwargs,
+    ) -> "Episode":
         Step = cls._step_class.get_default()
         observations = observations or []
         actions = actions or []
         states = states or []
         supervisions = supervisions or []
-        steps = [Step(observation=o, action=a, state=s, supervision=sup) for o, a, s, sup in zip_longest(observations, actions, states, supervisions)]
+        length = max(len(observations), len(actions), len(states), len(supervisions))
+        freq_hz = freq_hz or 1.0
+        kwargs.update({"freq_hz": freq_hz})
+        steps = [
+            Step(observation=o, action=a, state=s, supervision=sup, timestamp=i / freq_hz)
+            for i, o, a, s, sup in zip_longest(
+                range(length), observations, actions, states, supervisions, fillvalue=Sample()
+            )
+        ]
         return cls(steps=steps, **kwargs)
 
     @classmethod
@@ -280,7 +296,7 @@ class Episode(Sample):
             msg = "Episode has no steps"
             raise ValueError(msg)
         
-        features = {**self.steps[0].infer_features_dict(),**to_features_dict(self.steps[0].model_info())}
+        features = {**self.steps[0].infer_features_dict(),**{"info": to_features_dict(self.steps[0].model_info())}}
         data = []
         for step in self.steps:
             model_info = step.model_info()
@@ -306,6 +322,9 @@ class Episode(Sample):
             "timestamp": Value("float32"),
              **features,
         })
+        print("wtf")
+        print(feat)
+        print(data[0])
         with open("last_push.txt", "w+") as f:
             f.write(str(self.steps))
             f.write(str(data[0]))
