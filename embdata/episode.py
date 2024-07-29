@@ -175,21 +175,10 @@ class Episode(Sample):
         actions: List[Sample | Dict | np.ndarray],
         states: List[Sample | Dict | np.ndarray] | None = None,
         supervisions: List[Sample | Dict | np.ndarray] | None = None,
-        image_keys: str | list[str] = "image",
         freq_hz: int | None = None,
         **kwargs,
     ) -> "Episode":
-        """Create an episode from lists of observations, actions, states, and supervisions or other list of dicts.
-
-        Args:
-            observations (List[Sample | Dict | np.ndarray]): A list of observations.
-            actions (List[Sample | Dict | np.ndarray]): A list of actions.
-            states (List[Sample | Dict | np.ndarray], optional): A list of states. Defaults to None.
-            supervisions (List[Sample | Dict | np.ndarray], optional): A list of supervisions. Defaults to None.
-            image_keys (str | list[str], optional): The keys to use for images. Defaults to "image".
-            freq_hz (int, optional): The frequency in Hz. Defaults to None.
-        """
-        Step: type[TimeStep] = cls._step_class.get_default()  # noqa: N806
+        Step = cls._step_class.get_default()
         observations = observations or []
         actions = actions or []
         states = states or []
@@ -198,14 +187,9 @@ class Episode(Sample):
         freq_hz = freq_hz or 1.0
         kwargs.update({"freq_hz": freq_hz})
         steps = [
-            Step(observation=o, action=a, state=s, supervision=sup, timestamp=i / freq_hz, image_keys=image_keys)
+            Step(observation=o, action=a, state=s, supervision=sup, timestamp=i / freq_hz)
             for i, o, a, s, sup in zip_longest(
-                range(length),
-                observations,
-                actions,
-                states,
-                supervisions,
-                fillvalue=Sample(),
+                range(length), observations, actions, states, supervisions, fillvalue=Sample()
             )
         ]
         return cls(steps=steps, **kwargs)
@@ -262,7 +246,7 @@ class Episode(Sample):
             msg = "Episode has no steps"
             raise ValueError(msg)
         
-        features = {**self.steps[0].infer_features_dict(),**to_features_dict(self.steps[0].model_info())}
+        features = {**self.steps[0].infer_features_dict(),**{"info": to_features_dict(self.steps[0].model_info())}}
         data = []
         for step in self.steps:
             try:
@@ -296,6 +280,9 @@ class Episode(Sample):
             "timestamp": Value("float32"),
              **features,
         })
+        print("wtf")
+        print(feat)
+        print(data[0])
         with open("last_push.txt", "w+") as f:
             f.write(str(self.steps))
             f.write(str(data[0]))
