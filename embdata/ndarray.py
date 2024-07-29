@@ -75,10 +75,8 @@ def array_validator(array: np.ndarray, shape: Tuple[int, ...] | None, dtype: Sup
     ):
         array = np.round(array).astype(dtype, copy=False)
     if dtype and issubclass(dtype, np.dtypes.UInt64DType | np.dtypes.Int64DType):
-        print("Converting to int64")
         dtype = np.int64
         array = array.astype(dtype, copy=True)
-    print(f"this reached for {array.dtype}, {dtype}")
     return array
 
 

@@ -27,7 +27,7 @@ def main() -> None:
     states = s.flatten(to="state")
 
     e = Episode(zip(observations, actions, states, strict=False), freq_hz=5)
-    describe(e)
+
 
     # Convert it to LeRobot format
     lerobot_dataset = e.lerobot()

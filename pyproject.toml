@@ -112,7 +112,7 @@ select = [
   # flake8-simplify
   "SIM",
   # flake8-implicit-str-concat
-  "ISC",
+  # "ISC",
   # pep8-naming
   "N",
   # flake8-annotations

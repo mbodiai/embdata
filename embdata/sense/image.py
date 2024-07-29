@@ -25,7 +25,8 @@ The image can be resized to and from any size, compressed, and converted to and 
 
 ```python
 image = Image("path/to/image.png", size=new_size_tuple).save("path/to/new/image.jpg")
-image.save("path/to/new/image.jpg", quality=5)"""
+image.save("path/to/new/image.jpg", quality=5)
+"""
 
 import base64 as base64lib
 import io
@@ -176,7 +177,7 @@ class Image(Sample):
         encoding: str = "jpeg",
         size: Tuple[int, ...] | None = None,
         bytes: SupportsBytes | None = None,  # noqa
-        mode: Literal["RGB", "RGBA", "L", "P", "CMYK", "YCbCr", "I", "F"] | None = "RGB",
+        mode: Literal["RGB", "RGBA", "L", "P", "CMYK", "YCbCr", "I", "F"] | None = None,
         **kwargs,
     ):
         """Initializes an image. Either one source argument or size tuple must be provided.
@@ -191,7 +192,7 @@ class Image(Sample):
             encoding (Optional[str], optional): The encoding format of the image. Defaults to 'jpeg'.
             size (Optional[Tuple[int, int]], optional): The size of the image as a (width, height) tuple.
             bytes (Optional[bytes], optional): The bytes object of the image.
-            mode (Optional[str], optional): The mode to use for the image. Defaults to 'RGB'.
+            mode (Optional[str], optional): The mode to use for the image. Defaults to None.
             **kwargs: Additional keyword arguments.
         """
         kwargs["encoding"] = encoding or "jpeg"
@@ -239,7 +240,7 @@ class Image(Sample):
         return {key: value for key, value in values.items() if key is not None}
 
     @staticmethod
-    def pil_to_data(image: PILImage, encoding: str, size=None, mode="RGB") -> dict:
+    def pil_to_data(image: PILImage, encoding: str, size=None, mode: str | None = None) -> dict:
         """Creates an Image instance from a PIL image.
 
         Args:
@@ -286,7 +287,7 @@ class Image(Sample):
         arg: SupportsImage | None = None,  # type: ignore
         size: Tuple[int, int] | None = None,
         encoding="jpeg",
-        mode: Literal["RGB", "RGBA", "L", "P", "CMYK", "YCbCr", "I", "F"] | None = "RGB",
+        mode: Literal["RGB", "RGBA", "L", "P", "CMYK", "YCbCr", "I", "F"] | None = None,
         **kwargs,
     ) -> None:
         kwargs.update(cls.pil_to_data(PILModule.open(arg, formats=[encoding.upper()]), encoding, size, mode))
@@ -299,7 +300,7 @@ class Image(Sample):
         arg: SupportsImage | None = None,  # type: ignore
         size: Tuple[int, int] | None = None,
         encoding="jpeg",
-        mode: Literal["RGB", "RGBA", "L", "P", "CMYK", "YCbCr", "I", "F"] | None = "RGB",
+        mode: Literal["RGB", "RGBA", "L", "P", "CMYK", "YCbCr", "I", "F"] | None = None,
         **kwargs,
     ) -> None:
         io.BytesIO(arg)
@@ -313,7 +314,7 @@ class Image(Sample):
         arg: NumpyArray[3, Any, Any, np.uint8] | NumpyArray[Any, Any, 3, np.uint8] | None = None,
         size: Tuple[int, int] | None = None,
         encoding="jpeg",
-        mode: Literal["RGB", "RGBA", "L", "P", "CMYK", "YCbCr", "I", "F"] | None = "RGB",
+        mode: Literal["RGB", "RGBA", "L", "P", "CMYK", "YCbCr", "I", "F"] | None = None,
         **kwargs,
     ) -> None:
         kwargs.update(cls.pil_to_data(PILModule.fromarray(arg), encoding, size, mode))
@@ -327,7 +328,7 @@ class Image(Sample):
         encoding: str = "jpeg",
         action: Literal["download", "set"] = "set",
         size: Tuple[int, int] | None = None,
-        mode: Literal["RGB", "RGBA", "L", "P", "CMYK", "YCbCr", "I", "F"] | None = "RGB",
+        mode: Literal["RGB", "RGBA", "L", "P", "CMYK", "YCbCr", "I", "F"] | None = None,
         **kwargs,
     ) -> None:
         """Decodes a base64 string to create an Image instance.
@@ -377,7 +378,7 @@ class Image(Sample):
         arg: Base64Str,
         encoding: str = "jpeg",
         size: Tuple[int, int] | None = None,
-        mode: Literal["RGB", "RGBA", "L", "P", "CMYK", "YCbCr", "I", "F"] | None = "RGB",
+        mode: Literal["RGB", "RGBA", "L", "P", "CMYK", "YCbCr", "I", "F"] | None = None,
         **kwargs,
     ) -> None:
         """Decodes a base64 string to create an Image instance."""
@@ -393,7 +394,7 @@ class Image(Sample):
         arg: PILImage,
         encoding: str = "jpeg",
         size: Tuple[int, int] | None = None,
-        mode: Literal["RGB", "RGBA", "L", "P", "CMYK", "YCbCr", "I", "F"] | None = "RGB",
+        mode: Literal["RGB", "RGBA", "L", "P", "CMYK", "YCbCr", "I", "F"] | None = None,
         **kwargs,
     ) -> None:
         """Creates an Image instance from a PIL image.
@@ -418,12 +419,12 @@ class Image(Sample):
         arg: Path,
         encoding: str = "jpeg",
         size: Tuple[int] | None = None,
-        mode: str = "RGB",
+        mode: str | None = None,
         **kwargs,
     ) -> Dict[str, Any]:
         """Opens an image from a file path and creates an Image instance.
 
-        This method reads an image file from the specified path, converts it to RGB format,
+        This method reads an image file from the specified path,
         and creates an Image instance from it. It's a convenient way to load images from
         your local file system.
 
@@ -433,7 +434,7 @@ class Image(Sample):
                             Defaults to "jpeg".
             size (Optional[Tuple[int, int]]): The size of the image as a (width, height) tuple.
                                               If provided, the image will be resized.
-            mode (Optional[str]): The mode to use for the image. Defaults to "RGB".
+            mode (Optional[str]): The mode to use for the image.
             **kwargs: Additional keyword arguments.
 
         Returns:
@@ -450,7 +451,7 @@ class Image(Sample):
         return kwargs
 
     @staticmethod
-    def load_url(url: str, action: Literal["download", "set"], mode="RGB", **kwargs) -> PILImage | None:
+    def load_url(url: str, action: Literal["download", "set"], mode: str | None = None, **kwargs) -> PILImage | None:
         """Downloads an image from a URL or decodes it from a base64 data URI.
 
         This method can handle both regular image URLs and base64 data URIs.
@@ -461,7 +462,7 @@ class Image(Sample):
         Args:
             url (str): The URL of the image to download, or a base64 data URI.
             action (str): Either "download" or "set" to prompt the user before downloading.
-            mode (Optional[str]): The mode to use for the image. Defaults to "RGB".
+            mode (Optional[str]): The mode to use for the image. Defaults to None
 
         Returns:
             PIL.Image.Image | None: The downloaded and decoded image as a PIL Image object,

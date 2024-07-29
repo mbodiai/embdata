@@ -55,16 +55,10 @@ def as_table(ds: Any, sep: str = ".", show=True) -> Dict[str, Any]:
 def full_paths(ds: Any, include: list[str] | str | None = None, sep: str = ".", show=False) -> Dict[str, Any]:
     """Get the full paths of a dataset or dictionary. with the specified keys."""
     include = [include] if isinstance(include, str) else include
-    print(f"indisde full paths Include: {include}")
-    print(" describe kyes inside full path:")
-    pprint(describe_keys(ds, sep, show))
-    for key, value in describe_keys(ds, sep, show).items():
-        print(f"key: {key} value: {value}")
-        print(f"key in include: {key in include}")
     return {k: v for k, v in describe_keys(ds, sep, show).items() if include is None or k in include}
 
 
-def describe_keys(ds: Any, sep: str = ".", show=False, path="") -> Dict[str, Any]:
+def describe_keys(ds: Any, sep: str = ".", show=False, path="") -> Dict[str, Any]:  # noqa
     """Describe the keys of a nested dictionary or dataset.
 
     This function takes a nested dictionary or dataset and returns a flattened representation

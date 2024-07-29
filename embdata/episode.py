@@ -1,5 +1,6 @@
 import atexit
 import logging
+import os
 import sys
 from itertools import zip_longest
 from threading import Thread
@@ -28,39 +29,43 @@ try:
 except ImportError:
     logging.info("lerobot not found. Go to https://github.com/huggingface/lerobot to install it.")
 
+logger = logging.getLogger(__name__)
+if logger.level == logging.DEBUG or "MBENCH" in os.environ:
+    from mbench.profile import profileme
+    profileme()
 
 def convert_images(
     values: Dict[str, Any] | Any,
     image_keys: set[str] | str | None = "image",
     toplevel=True,
 ) -> "TimeStep":
-    if not isinstance(values, dict | Sample) and not toplevel:
-        if Image.supports(values):
-            try:
-                return Image(values)
-            except Exception:
-                return values
-        return values
-    elif not isinstance(values, dict | Sample):
-        return values
-    if isinstance(image_keys, str):
-        image_keys = {image_keys}
-    obj = {}
-    for key, value in values.items():
-        if key in image_keys:
-            try:
-                if isinstance(value, dict):
-                    obj[key] = Image(**value)
-                else:
-                    obj[key] = Image(value)
-            except Exception as e:  # noqa
-                logging.warning(f"Failed to convert {key} to Image: {e}")
-                obj[key] = value
-        elif isinstance(value, dict | Sample):
-            obj[key] = convert_images(value, image_keys, toplevel=False)
-        else:
-            obj[key] = value
-    return obj
+    # if not isinstance(values, dict | Sample) and not toplevel:
+    #     if Image.supports(values):
+    #         try:
+    #             return Image(values)
+    #         except Exception:
+    #             return values
+    #     return values
+    # elif not isinstance(values, dict | Sample):
+    #     return values
+    # if isinstance(image_keys, str):
+    #     image_keys = {image_keys}
+    # obj = {}
+    # for key, value in values.items():
+    #     if key in image_keys:
+    #         try:
+    #             if isinstance(value, dict):
+    #                 obj[key] = Image(**value)
+    #             else:
+    #                 obj[key] = Image(value)
+    #         except Exception as e:  # noqa
+    #             logging.warning(f"Failed to convert {key} to Image: {e}")
+    #             obj[key] = value
+    #     elif isinstance(value, dict | Sample):
+    #         obj[key] = convert_images(value, image_keys, toplevel=False)
+    #     else:
+    #         obj[key] = value
+    return values
 
 
 class TimeStep(Sample):
@@ -74,7 +79,7 @@ class TimeStep(Sample):
     state: Sample | None = None
     supervision: Any = None
     timestamp: float | None = None
-
+    image_keys: str | set[str] | None = "image"
     _observation_class: type[Sample] = PrivateAttr(default=Sample)
     _action_class: type[Sample] = PrivateAttr(default=Sample)
     _state_class: type[Sample] = PrivateAttr(default=Sample)
@@ -88,19 +93,20 @@ class TimeStep(Sample):
         observation_key: str | None = "observation",
         action_key: str | None = "action",
         supervision_key: str | None = "supervision",
+        state_key: str | None = "state",
     ) -> "TimeStep":
         obs = values.pop(observation_key, None)
         act = values.pop(action_key, None)
-        sta = values.pop("state", None)
+        sta = values.pop(state_key, None)
         sup = values.pop(supervision_key, None)
         timestamp = values.pop("timestamp", 0)
         step_idx = values.pop("step_idx", 0)
         episode_idx = values.pop("episode_idx", 0)
 
-        Obs = cls._observation_class.get_default()
+        Obs = cls._observation_class.get_default() # noqa: N806
         Act = cls._action_class.get_default()  # noqa: N806
         Sta = cls._state_class.get_default()  # noqa: N806
-        Sup = cls._supervision_class.get_default()
+        Sup = cls._supervision_class.get_default() # noqa: N806
         obs = Obs(**convert_images(obs, image_keys)) if obs is not None else None
         act = Act(**convert_images(act, image_keys)) if act is not None else None
         sta = Sta(**convert_images(sta, image_keys)) if sta is not None else None
@@ -202,6 +208,7 @@ class Episode(Sample):
         observation_key: str = "observation",
         action_key: str = "action",
         supervision_key: str | None = "supervision",
+        image_keys: str | list[str] | None = "image",
         metadata: Sample | Any | None = None,
         freq_hz: int | None = None,
         **kwargs,
@@ -211,7 +218,14 @@ class Episode(Sample):
             raise ValueError(msg)
         steps = list(steps) if not isinstance(steps, list) else steps
 
-        Step = Episode._step_class
+        if "step_class" in kwargs:
+            self._step_class = kwargs.pop("step_class")
+            Step = self._step_class
+        else:
+            try:
+                Step = self.__class__._step_class.get_default() # noqa: N806
+            except AttributeError:
+                Step = TimeStep
 
         if steps and not isinstance(steps[0], TimeStep | Dict | Sample):
             if isinstance(steps[0], dict) and observation_key in steps[0] and action_key in steps[0]:
@@ -220,6 +234,7 @@ class Episode(Sample):
                         observation=step[observation_key],
                         action=step[action_key],
                         supervision=step.get(supervision_key),
+                        image_keys=image_keys,
                     )
                     for step in steps
                 ]
@@ -230,11 +245,12 @@ class Episode(Sample):
                         action=step[1],
                         state=step[2] if len(step) > 2 else None,
                         supervision=step[3] if len(step) > 3 else None,
+                        image_keys=image_keys,
                     )
                     for step in steps
                 ]
 
-        super().__init__(steps=steps, metadata=metadata, freq_hz=freq_hz, **kwargs)
+        super().__init__(steps=steps, metadata=metadata, freq_hz=freq_hz, image_keys=image_keys, **kwargs)
 
     @classmethod
     def from_list(
@@ -285,10 +301,21 @@ class Episode(Sample):
         actions: List[Sample | Dict | np.ndarray],
         states: List[Sample | Dict | np.ndarray] | None = None,
         supervisions: List[Sample | Dict | np.ndarray] | None = None,
+        image_keys: str | list[str] = "image",
         freq_hz: int | None = None,
         **kwargs,
     ) -> "Episode":
-        Step = cls._step_class.get_default()
+        """Create an episode from lists of observations, actions, states, and supervisions or other list of dicts.
+        
+        Args:
+            observations (List[Sample | Dict | np.ndarray]): A list of observations.
+            actions (List[Sample | Dict | np.ndarray]): A list of actions.
+            states (List[Sample | Dict | np.ndarray], optional): A list of states. Defaults to None.
+            supervisions (List[Sample | Dict | np.ndarray], optional): A list of supervisions. Defaults to None.
+            image_keys (str | list[str], optional): The keys to use for images. Defaults to "image".
+            freq_hz (int, optional): The frequency in Hz. Defaults to None.
+        """
+        Step: type[TimeStep] = cls._step_class.get_default() # noqa: N806
         observations = observations or []
         actions = actions or []
         states = states or []
@@ -297,7 +324,7 @@ class Episode(Sample):
         freq_hz = freq_hz or 1.0
         kwargs.update({"freq_hz": freq_hz})
         steps = [
-            Step(observation=o, action=a, state=s, supervision=sup, timestamp=i / freq_hz)
+            Step(observation=o, action=a, state=s, supervision=sup, timestamp=i / freq_hz, image_keys=image_keys)
             for i, o, a, s, sup in zip_longest(
                 range(length),
                 observations,
@@ -320,6 +347,17 @@ class Episode(Sample):
         supervision_key: str | None = "supervision",
         freq_hz_key: str | None = "freq_hz",
     ) -> "Episode":
+        """Create an episode from a Hugging Face dataset.
+
+        Args:
+            dataset (Dataset): The dataset to create the episode from.
+            image_keys (str | list[str], optional): The keys to use for images. Defaults to "image".
+            observation_key (str, optional): The key to use for observations. Defaults to "observation".
+            action_key (str, optional): The key to use for actions. Defaults to "action".
+            state_key (str, optional): The key to use for states. Defaults to "state".
+            supervision_key (str, optional): The key to use for supervisions. Defaults to "supervision".
+            freq_hz_key (str, optional): The key to use for the frequency in Hz. Defaults to "freq_hz".
+        """
         if isinstance(dataset, DatasetDict):
             freq_hz = dataset.get(freq_hz_key, 1)
             freq_hz = freq_hz[0] if isinstance(freq_hz, list) else freq_hz
@@ -345,44 +383,42 @@ class Episode(Sample):
         if self.steps is None or len(self.steps) == 0:
             msg = "Episode has no steps"
             raise ValueError(msg)
-        image_feat = (
-            HFImage()
-            if self.steps[0].get(self.image_keys[0] if isinstance(self.image_keys, list) else self.image_keys, None)
-            else Value("string")
-        )
-        image = self.steps[0].flatten("dict", include=self.image_keys)
-        image = image.pop(self.image_keys[0] if isinstance(self.image_keys, list) else self.image_keys, None)
-        feat = Features(
-            {
+
+        image_feat = HFImage() if self.steps[0].flatten(include=self.image_keys) else Value("string") 
+        feat = {
                 "image": image_feat,
                 "episode_idx": Value("int64"),
                 "step_idx": Value("int64"),
                 "timestamp": Value("float32"),
                 **self.steps[0].infer_features_dict(),
-                "info": to_features_dict(self.steps[0].model_info()),
-            },
-        )
+            }
+        model_info = self.steps[0].model_info()
+        if model_info:
+            feat["info"] = to_features_dict(self.steps[0].model_info())
+        feat = Features(feat)
+
         data = []
         for step in self.steps:
-            model_info = step.model_info()
-            image = step.flatten("dict", include=self.image_keys)
-            image = image.pop(self.image_keys[0] if isinstance(self.image_keys, list) else self.image_keys, None)
+            try:
+                images = step.flatten("list", include=self.image_keys)
+                image = images[0] if images else "Absent"
+            except ValueError:
+                image = "Absent"
             step = step.dump(as_field="pil")  # noqa
             step_idx = step.pop("step_idx", None)
             episode_idx = step.pop("episode_idx", None)
             timestamp = step.pop("timestamp", None)
-            data.append(
-                {
+            step =  { # noqa
                     "image": image,
                     "episode_idx": episode_idx,
                     "step_idx": step_idx,
                     "timestamp": timestamp,
                     **step,
-                    "info": model_info,
-                },
-            )
+                }
+            if model_info:
+                step["info"] = model_info
+            data.append(step)
 
-        describe(feat)
         return Dataset.from_list(data, features=feat)
 
     def stats(self) -> dict:
@@ -628,7 +664,7 @@ class Episode(Sample):
             3
             >>> [len(ep) for ep in episodes]
             [2, 1, 2]
-            >>> [[step.observation.value for step in ep.iter()] for ep in episodes]
+            >>> [[step.observation.value for step in ep.steps] for ep in episodes]
             [[5, 10], [15], [8, 20]]
         """
         episodes = []

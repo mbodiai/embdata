@@ -75,17 +75,17 @@ from datasets import Dataset, Features
 from gymnasium import spaces
 from pydantic import BaseModel, ConfigDict, Field, create_model
 from pydantic.fields import FieldInfo
-from rich.pretty import pprint
 
 from embdata.describe import describe, describe_keys, full_paths
 from embdata.features import to_features_dict
+from embdata.utils import iter_utils, schema_utils, space_utils
 
 OneDimensional = Annotated[Literal["dict", "np", "pt", "list", "sample"], "Numpy, PyTorch, list, sample, or dict"]
 
-
-def replace_ints_with_wildcard(s, sep=".") -> str:
-    pattern = rf"(?<=^{sep})\d+|(?<={sep})\d+(?={sep})|\d+(?={sep}|$)"
-    return re.sub(pattern, "*", s).rstrip(f"{sep}*").lstrip(f"{sep}*")
+logger = logging.getLogger(__name__)
+if logger.level == logging.DEBUG:
+    import mbench
+    mbench.profileme()
 
 
 class Sample(BaseModel):
@@ -154,9 +154,6 @@ class Sample(BaseModel):
                 data = {
                     k: Sample(**v) if isinstance(v, dict) else v for k, v in wrapped.items() if not k.startswith("_")
                 }
-            # else:
-            #     wrapped.update(data)
-            #     data = wrapped
         elif self.__class__ == Sample:
             # Only the Sample class can wrap an arbitrary type.
             if isinstance(wrapped, list | tuple | np.ndarray | torch.Tensor | Dataset):
@@ -173,15 +170,12 @@ class Sample(BaseModel):
             data.update(self.from_space(wrapped).model_dump())
         elif "items" in data:
             data["_items"] = data.pop("items")
-        from rich.pretty import pprint
-
-        pprint(data, max_length=30)
 
         super().__init__(**data)
         self.__post_init__()
 
-    def __getitem__(self, key: str | int) -> Any:
-        """Return the value of the attribute with the specified key.
+    def __getitem__(self, key: str | int) -> Any:  # noqa: C901
+        """Implements nested or flat key access for the Sample object.
 
         If the key is an integer and the Sample object wraps a list, the value is returned at the specified index.
         If the key is a string and contains a separator ('.' or '/'), the value is returned at the specified nested key.
@@ -190,10 +184,9 @@ class Sample(BaseModel):
         og_key = key
         if isinstance(key, int) and hasattr(self, "_items"):
             return self._items[key]
-        elif isinstance(key, int) and hasattr(self, "wrapped") and isinstance(self.wrapped, List | Dataset):
+        if isinstance(key, int) and hasattr(self, "wrapped") and isinstance(self.wrapped, List | Dataset):
             return self.wrapped[key]
 
-        # print(f"keys: {self.__dict__.keys()}")
         if self.__class__ == Sample:
             if isinstance(key, int):
                 if hasattr(self, "_items"):
@@ -229,29 +222,14 @@ class Sample(BaseModel):
                         k = "_items" if k == "items" else k
                         obj = obj[k]
                 k = keys[-1] if keys[-1] != "items" else "_items"
-                # print(f"trying to get {k} from {obj}")
                 return obj[k] if k is not None else obj
-            # print(f"trying to get {key} from {self}")
             return getattr(self, key)
         except (AttributeError, KeyError, TypeError) as e:
-            # Keep og key since has the full qualified key.
             if hasattr(self, "_extra"):
-                # print(f"trying to get {og_key} from {self._extra.__dict__.keys()}")
                 sep = "." if "." in key else "/"
                 keys = og_key.replace("*", "all").replace(f"{sep}{sep}", sep).split(sep)
                 key = "__nest__".join(keys)
                 return getattr(self._extra, key)
-                try:
-                    if isinstance(key, str):
-                        try:
-                            return getattr(self._extra, key)
-                        except AttributeError:
-                            sep = "." if "." in key else "/"
-                            keys = key.replace("*", "all").replace(f"{sep}{sep}", sep).split(sep)
-                            key = "__nest__".join(keys)
-                            return getattr(self._extra, key)
-                except AttributeError:
-                    pass
             msg = f"Key: `{key}` not found in Sample {self}. Try using sample[key] instead if key is an integer or contains special characters."
             raise KeyError(msg) from e
 
@@ -262,7 +240,7 @@ class Sample(BaseModel):
         else:
             super().__setattr__(key, value)
 
-    def __setitem__(self, key: str | int, value: Any) -> None:
+    def __setitem__(self, key: str | int, value: Any) -> None: # noqa: C901
         """Set the value of the attribute with the specified key.
 
         If the key is an integer and the Sample object wraps a list, the value is set at the specified index.
@@ -291,7 +269,6 @@ class Sample(BaseModel):
                     if not hasattr(obj, k):
                         setattr(obj, k, Sample())
                     obj = obj[k]
-            # print(f"keys: {keys}, value: {value}, obj: {obj}, type: {type(obj)}")
             key = keys[-1] if keys[-1] != "items" else "_items"
             if isinstance(obj, dict):
                 obj[key] = value
@@ -328,12 +305,12 @@ class Sample(BaseModel):
         def hash_helper(obj):
             if isinstance(obj, list | tuple):
                 return hash(tuple(hash_helper(item) for item in obj))
-            elif isinstance(obj, dict):
+            if isinstance(obj, dict):
                 return hash(tuple((k, hash_helper(v)) for k, v in sorted(obj.items())))
-            elif isinstance(obj, Sample):
+            if isinstance(obj, Sample):
                 return hash(tuple(hash_helper(v) for v in obj.dump().values()))
-            else:
-                return hash(obj)
+
+            return hash(obj)
 
         return hash_helper(self.dump())
 
@@ -361,7 +338,7 @@ class Sample(BaseModel):
                 elif "/" in k:
                     unnested.add(k.split("/")[0])
             return self._str(self, prefix="", ignore=set(unnested))
-        except Exception:
+        except Exception: # noqa
             return f"{self.__class__.__name__}({self.dump()})"
 
     def __repr__(self) -> str:
@@ -477,47 +454,6 @@ class Sample(BaseModel):
             }
         return self.dump(exclude=exclude, recurse=True)
 
-    @staticmethod
-    def unflatten_from_schema(obj, schema) -> dict:
-        if isinstance(obj, np.ndarray | torch.Tensor):
-            obj = obj.tolist()
-        elif isinstance(obj, dict | Sample):
-            # return unflatten_dict(obj, schema=schema)
-            obj = list(obj.values())
-        if schema is None:
-            msg = "Schema is required for unflattening a non-dictionary object."
-            raise ValueError(msg)
-
-        def unflatten_recursive(schema_part, index=0):
-            if schema_part["type"] == "object":
-                result = {} if schema_part.get("title") != "Sample" else Sample()
-                for prop, prop_schema in schema_part["properties"].items():
-                    value, index = unflatten_recursive(prop_schema, index)
-                    value = Sample(**value) if prop_schema.get("title") == "Sample" else value
-                    result[prop] = value
-                if schema_part.get("title") == "Sample":
-                    return Sample(**result), index
-                return result, index
-            elif schema_part["type"] == "array":
-                items = []
-                if schema_part.get("shape"):
-                    array = obj[index : index + sum(schema_part["shape"])]
-                    if all(isinstance(i, list | tuple | np.ndarray | float | int) for i in array):
-                        result = np.array(array).reshape(schema_part["shape"])
-                        index += reduce(operator.mul, schema_part["shape"], 1)
-                        if schema_part.get("title") == "Sample":
-                            return Sample(**items), index
-                        return result, index
-                for _ in range(schema_part.get("maxItems", len(obj) - index)):
-                    value, index = unflatten_recursive(schema_part["items"], index)
-                    items.append(value)
-                return items, index
-            else:  # Assuming it's a primitive type
-                return obj[index], index + 1
-
-        unflattened, _ = unflatten_recursive(schema)
-        return unflattened
-
     @classmethod
     def unflatten(cls, one_d_array_or_dict, schema=None) -> "Sample":
         """Unflatten a one-dimensional array or dictionary into a Sample instance.
@@ -538,81 +474,9 @@ class Sample(BaseModel):
             Sample(x=1, y=2, z={'a': 3, 'b': 4}, extra_field=5)
         """
         schema = schema or cls().schema()
-        return cls(**cls.unflatten_from_schema(one_d_array_or_dict, schema))
+        return cls(**schema_utils.unflatten_from_schema(one_d_array_or_dict, schema, cls))
 
-    # def rearrange(self, pattern: str, **kwargs) -> Any:
-    #     """Pack, unpack, flatten, select indices according to an einops-style pattern.
-
-    #     rearrange('(b s) [action state] -> b s [actions state]', s=32) will select the action and state keys
-    #      and pack them into batches of size 32.
-    #     """
-    #     # Parse the input and output patterns
-    #     input_pattern, output_pattern = pattern.split('->')
-    #     input_pattern = input_pattern.strip()
-    #     output_pattern = output_pattern.strip()
-
-    #     # Extract keys from square brackets
-    #     input_keys = re.findall(r'\[([^\]]+)\]', input_pattern)
-    #     output_keys = re.findall(r'\[([^\]]+)\]', output_pattern)
-
-    #     # Flatten the sample and select only the required keys
-    #     flattened = self.flatten(to="dict")
-    #     selected_data = {key: flattened[key] for key in input_keys[0].split() if key in flattened}
-
-    #     # Convert selected data to numpy arrays
-    #     np_data = {k: np.array(v) for k, v in selected_data.items()}
-
-    #     # Apply einops rearrange
-    #     rearranged_data = einops_rearrange(np_data, pattern, **kwargs)
-
-    #     if isinstance(rearranged_data, dict):
-    #         # If the output is a dictionary, directly assign it to the output Sample
-    #         for k, v in rearranged_data.items():
-    #             setattr(output_sample, k, v.tolist() if isinstance(v, np.ndarray) else v)
-    #     else:
-    #         # If the output is not a dictionary, we need to reconstruct it based on the output pattern
-    #         output_keys = output_keys[0].split() if output_keys else input_keys[0].split()
-    #         for i, key in enumerate(output_keys):
-    #             setattr(output_sample, key, rearranged_data[..., i].tolist())
-
-    #     return output_sample
-    @staticmethod
-    def _flatten_recursive(obj, exclude: None | set = None, non_numerical="allow", sep="."):
-        def _flatten(obj, prefix=""):
-            if isinstance(obj, np.ndarray | torch.Tensor):
-                obj = obj.tolist()
-            out = []
-            keys = []
-            if isinstance(obj, Sample | dict):
-                for k, v in obj.items():
-                    new_key = f"{prefix}{k}" if prefix else k
-                    if any(e == replace_ints_with_wildcard(k, sep) for e in (exclude if exclude is not None else [])):
-                        continue
-                    subkeys, subouts = _flatten(v, f"{new_key}{sep}")
-                    out.extend(subouts)
-                    keys.extend(subkeys)
-            elif isinstance(obj, list):
-                for i, v in enumerate(obj):
-                    subkeys, subouts = _flatten(v, f"{prefix}{i}{sep}")
-                    out.extend(subouts)
-                    keys.extend(subkeys)
-            else:
-                if non_numerical == "forbid" and not isinstance(obj, int | float | np.number):
-                    msg = f"Non-numerical value encountered: {obj}"
-                    raise TypeError(msg)
-                if non_numerical == "ignore" and not isinstance(obj, int | float | np.number):
-                    return [], []
-                out.append(obj)
-                keys.append(prefix.rstrip(sep))
-            return keys, out
-
-        return _flatten(obj)
-
-    @staticmethod
-    def flatten_recursive(obj, exclude: None | set = None, non_numerical="allow", sep="."):
-        return Sample._flatten_recursive(obj, exclude=exclude, non_numerical=non_numerical, sep=sep)
-
-    def flatten(
+    def flatten(  # noqa
         self,
         to: Literal[
             "list",
@@ -690,16 +554,11 @@ class Sample(BaseModel):
         has_include = include is not None and len(include) > 0
         include = [] if include is None else [include] if isinstance(include, str) else include
         exclude = {} if exclude is None else {exclude} if isinstance(exclude, str) else exclude
-        # print(f"Describing keys")
-        describe_keys(self, show=True)
+
         full_includes = full_paths(self, include, show=False).values()
         if not full_includes:
             full_includes = [v for v in describe_keys(self, show=False).values() if v in include]
-        pprint(full_includes)
         # Get the full paths of the selected keys. e.g. c-> a.b.*.c
-        # print(f"include right before full includes2 {include}")
-        # full_includes = full_paths(self, include).values() if include else []
-        pprint(f"full_includes2: {full_includes}")
         if not has_include and not exclude:
             full_excludes = []
         elif has_include:
@@ -708,17 +567,15 @@ class Sample(BaseModel):
             )
         else:
             full_excludes = set(describe_keys(self).values())
-        pprint(f"full_includes: {full_includes}")
-        pprint(f"full_excludes: {full_excludes}")
         if to in ["numpy", "np", "torch", "pt"] and non_numerical != "forbid":
             non_numerical = "ignore"
 
-        flattened_keys, flattened = self.flatten_recursive(
-            self, exclude=full_excludes, non_numerical=non_numerical, sep=sep
+        flattened_keys, flattened = iter_utils.flatten_recursive(
+            self, exclude=full_excludes, non_numerical=non_numerical, sep=sep,
         )
 
         if not has_include or to in ["np", "numpy", "pt", "torch", "lists"]:
-            flattened_keys, flattened = self.flatten_recursive(
+            flattened_keys, flattened = iter_utils.flatten_recursive(
                 self,
                 exclude=exclude,
                 non_numerical=non_numerical,
@@ -727,24 +584,19 @@ class Sample(BaseModel):
             zipped = zip(flattened_keys, flattened, strict=False)
             if to == "sample":
                 return Sample(**dict(zipped))
-            elif to == "dict":
+            if to == "dict":
                 return dict(zipped)
-            elif to in ["np", "numpy"]:
+            if to in ["np", "numpy"]:
                 return np.array(flattened, dtype=object)
-            elif to in ["pt", "torch", "pytorch"]:
+            if to in ["pt", "torch", "pytorch"]:
                 return torch.tensor(flattened, dtype=torch.float32)
-            else:
-                return flattened
+
+            return flattened
 
         result = []
         current_group = {k: [] for k in include}
         ninclude_processed = {k: 0 for k in include}
-        flattened_keys = [replace_ints_with_wildcard(k, sep=sep) for k in flattened_keys]
-        # print(f"flattened_keys: {flattened_keys}")
-        # print(f"full_includes: {full_includes}")
-        # print(f"excluded_keys: {full_excludes}")
-        # print(f"include: {include}")
-        # print(f"full excludes: {exclude}")
+        flattened_keys = [iter_utils.replace_ints_with_wildcard(k, sep=sep) for k in flattened_keys]
         for flattened_key, value in zip(flattened_keys, flattened, strict=False):
             for selected_key, full_selected_key in zip(include, full_includes, strict=False):
                 # e.g.: a.b.*.c was selected and a.b.0.c.d should be flattened to the c part of a row
@@ -764,7 +616,7 @@ class Sample(BaseModel):
                     # Short circuit to avoid unnecessary processing.
                     result.append(current_group)
                 elif to in ["list"]:
-                    flat_key, flattened = self.flatten_recursive(
+                    flat_key, flattened = iter_utils.flatten_recursive(
                         current_group,
                         non_numerical=non_numerical,
                         sep=sep,
@@ -772,7 +624,7 @@ class Sample(BaseModel):
 
                     result.extend(flattened)
                 else:
-                    flat_key, flattened = self.flatten_recursive(
+                    flat_key, flattened = iter_utils.flatten_recursive(
                         current_group,
                         non_numerical=non_numerical,
                         sep=sep,
@@ -786,87 +638,17 @@ class Sample(BaseModel):
                             result.append(flattened)
 
             if all(num_processed == ninclude_processed[include[0]] for num_processed in ninclude_processed.values()):
-                # Discard the current group and start a new one to avoid empty rows.
                 current_group = {k: [] for k in include}
                 ninclude_processed = {k: 0 for k in include}
-        # print(f"result: {result}")
+
         flattened = list(result.values()) if to in ["dicts", "samples"] and not isinstance(result, list) else result
-        if len(flattened) == 0:
-            msg = f"No keys found for include: {include} in Sample: {self}"
-            raise ValueError(msg)
         if to == "np":
             return np.array(flattened, dtype=float)
         if to == "pt":
             return torch.tensor(flattened, dtype=float)
         return flattened
 
-    def squeeze(self):
-        for k, v in self:
-            if isinstance(v, Sample):
-                setattr(self, k, v.squeeze())
-            if isinstance(v, list) and len(v) == 1:
-                setattr(self, k, v[0])
-            if isinstance(v, dict) and len(v) == 1:
-                setattr(self, k, next(iter(v.values())))
-        return self
-
-    # def setdefault(self, key: str, default: Any, nest=True) -> Any:
-    #     """Set the default value for the attribute with the specified key."""
-    #     if not nest:
-    #         if key in self:
-    #             return self[key]
-    #         self[key] = default
-    #         return default
-    #     keys = key.split(".")
-    #     obj = self
-    #     for k in keys[:-1]:
-    #         k = "_items" if k == "items" else k
-    #         if k == "*":
-    #             return obj
-    #         if isinstance(obj, dict):
-    #             obj = obj.setdefault(k, {})
-    #             try:
-    #                 index = int(k)
-    #                 if index >= len(obj):
-    #                     obj.extend([None] * (index - len(obj) + 1))
-    #                 if obj[index] is None:
-    #                     obj[index] = {}
-    #                 obj = obj[index]
-    #             except ValueError:
-    #                 raise AttributeError(f"Invalid list index: {k}")
-    #         elif not isinstance(obj, Sample) and not hasattr(obj, k):
-    #             new_obj = Sample()
-    #             obj[k] = new_obj
-    #             obj = new_obj
-    #         elif hasattr(obj, k):
-    #             obj = getattr(obj, k)
-    #         else:
-    #             obj[k] = Sample()
-    #             obj = getattr(obj, k)
-    #     if isinstance(obj, dict):
-    #         if keys[-1] == "*":
-    #             return obj.setdefault("*", default if isinstance(default, list) else [default])
-    #         return obj.setdefault(keys[-1], default)
-    #     if isinstance(obj, list):
-    #         if keys[-1] == "*":
-    #             return obj
-    #         try:
-    #             index = int(keys[-1])
-    #             if index >= len(obj):
-    #                 obj.extend([None] * (index - len(obj) + 1))
-    #             if obj[index] is None:
-    #                 obj[index] = default
-    #             return obj[index]
-    #         except ValueError:
-    #             raise AttributeError(f"Invalid list index: {keys[-1]}")
-    #     if not hasattr(obj, keys[-1]):
-    #         if keys[-1] == "*":
-    #             setattr(obj, keys[-1], default if isinstance(default, list) else [default])
-    #         else:
-    #             setattr(obj, keys[-1], default)
-    #     return getattr(obj, keys[-1])
-
-    def schema(self, include: Literal["all", "descriptions", "info", "simple"] = "info") -> Dict:
+    def schema(self, include: Literal["all", "descriptions", "info", "simple", "tensor"] = "info") -> Dict:
         """Returns a simplified json schema.
 
         Args:
@@ -890,47 +672,7 @@ class Sample(BaseModel):
         if include == "all":
             return schema
 
-        def resolve_refs(schema: dict) -> dict:
-            def _resolve(obj, defs=None):
-                if isinstance(obj, dict):
-                    if obj and "$ref" in obj and defs is not None:
-                        ref_key = obj["$ref"].split("/")[-1]
-                        resolved = defs[ref_key]
-                        resolved.update({k: _resolve(v) for k, v in obj.items() if k != "$ref" and v is not None})
-                        return _resolve(resolved, defs)
-                    if "items" in obj:
-                        obj["items"] = _resolve(obj["items"], defs)
-                    if "properties" in obj:
-                        obj["properties"] = {
-                            k: _resolve(v, defs) for k, v in obj["properties"].items() if v is not None
-                        }
-                    if "allOf" in obj:
-                        all_of_resolved = {}
-                        for item in obj["allOf"]:
-                            resolved_item = _resolve(item, defs)
-                            all_of_resolved.update(resolved_item)
-                        obj.pop("allOf")
-                        obj.update(all_of_resolved)
-                    if "anyOf" in obj:
-                        first_non_null = None
-                        for item in obj["anyOf"]:
-                            if "type" in item and item["type"] == "null":
-                                break
-                            first_non_null = item
-                        if first_non_null is not None:
-                            obj.pop("anyOf")
-                            obj.update(_resolve(first_non_null, defs))
-                            return obj
-                    return {k: _resolve(v, defs) for k, v in obj.items() if v is not None}
-                return obj
-
-            schema_copy = copy.deepcopy(schema)
-            defs = schema_copy.get("$defs", {})
-            schema = _resolve(schema_copy, defs)
-            schema.pop("$defs", None)
-            return schema
-
-        schema = resolve_refs(schema)
+        schema = schema_utils.resolve_refs(schema)
 
         def simplify(schema, obj, title=""):
             title = title or schema.get("title", "")
@@ -953,7 +695,7 @@ class Sample(BaseModel):
                 # Handle numpy arrays
                 schema["type"] = "array"
                 schema["items"] = {"type": "number"}
-                # print(f"Schema: {schema}")
+
                 schema["shape"] = schema["properties"]["shape"]["default"]
                 if schema["shape"] == "Any" and obj is not None:
                     schema["shape"] = obj.shape
@@ -1080,61 +822,7 @@ class Sample(BaseModel):
 
         Only used for subclasses that do not override the space method.
         """
-        if isinstance(value, Enum) or get_origin(value) == Literal:
-            return spaces.Discrete(len(value.__args__))
-        if isinstance(value, bool):
-            return spaces.Discrete(2)
-        if isinstance(value, dict | Sample):
-            if isinstance(value, Sample):
-                value = value.dump()
-            return spaces.Dict(
-                {k: Sample.space_for(v, max_text_length, info) for k, v in value.items()},
-            )
-        if isinstance(value, str):
-            return spaces.Text(max_length=max_text_length)
-
-        if isinstance(value, int | float | list | tuple | np.ndarray | np.number):
-            bounds = None
-            dtype = None
-            shape = None
-            if info is not None:
-                shape = info.get("shape")
-                bounds = info.get("bounds")
-                dtype = info.get("dtype")
-            logging.debug(
-                "Generating space for value: %s, shape: %s, bounds: %s, dtype: %s",
-                value,
-                shape,
-                bounds[0] if bounds else None,
-                bounds[1] if bounds else None,
-                dtype,
-            )
-            try:
-                if not hasattr(value, "shape") and not hasattr(value, "__len__"):
-                    shape = ()
-                    dtype = type(value)
-                    low, high = bounds or (-np.inf, np.inf)
-                    return spaces.Box(low=low, high=high, shape=shape, dtype=dtype)
-                value = np.asarray(value, dtype=float)
-                shape = shape or value.shape
-                dtype = dtype or value.dtype
-                if bounds is None:
-                    low = np.full(shape, -np.inf, dtype=dtype)
-                    high = np.full(shape, np.inf, dtype=dtype)
-                else:
-                    low, high = bounds
-                return spaces.Box(low=low, high=high, shape=shape, dtype=dtype)
-            except Exception as e:
-                logging.info(f"Could not convert value {value} to numpy array: {e}")
-                if len(value) > 0 and isinstance(value[0], dict | Sample):
-                    return spaces.Tuple(
-                        [spaces.Dict(cls.space_for(v, max_text_length, info)) for v in value],
-                    )
-                return spaces.Tuple(
-                    [spaces.Dict(cls.space_for(value[0], max_text_length, info)) for value in value[:1]],
-                )
-        msg = f"Unsupported object {value} of type: {type(value)} for space generation"
-        raise ValueError(msg)
+        return space_utils.space_for(value, max_text_length=max_text_length, info=info)
 
     @classmethod
     def from_space(cls, space: spaces.Space) -> "Sample":
@@ -1414,14 +1102,10 @@ class Sample(BaseModel):
         """Return the JSON string representation of the Sample instance."""
         return self._json
 
-    @cached_property
-    def _features(self) -> Features:
+    def features(self) -> Features:
         """Convert the Sample instance to a HuggingFace Features object."""
         return Features(self.infer_features_dict())
 
-    def features(self) -> Features:
-        """Return the HuggingFace Features object for the Sample instance."""
-        return self._features
 
     def dataset(self) -> Dataset:
         """Convert the Sample instance to a HuggingFace Dataset object."""
