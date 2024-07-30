@@ -52,7 +52,7 @@ class NumpyDataDict(TypedDict):
     data_type: SupportedDTypes
     shape: Tuple[int, ...]
 
-if sys.get_version_info() < (3, 11):
+if sys.version_info < (3, 11):
     def array_validator(array: np.ndarray, shape: Tuple[int, ...] | None, dtype: SupportedDTypes | None) -> npt.NDArray:
         if shape is not None:
             expected_ndim = len(shape)

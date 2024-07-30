@@ -58,28 +58,28 @@ DepthArrayLike = NumpyArray[1, Any, Any, np.uint16] | NumpyArray[Any, Any, np.ui
 
 class Depth(Image):
     mode: Literal["RGB", "RGBA", "L", "P", "CMYK", "YCbCr", "I", "F"] = "I"
-    points: NumpyArray[3, Any, np.float32] = Field(default=None, description="The points in the image.")
-
+    points: NumpyArray[Any, 3,  np.float32] = Field(default_factory=lambda: np.zeros((0,3)), description="The points in the image.")
+    encoding: str = "png"
     @computed_field(return_type=DepthArrayLike)
     @cached_property
     def array(self) -> DepthArrayLike:
         """The image represented as a NumPy array."""
         return np.array(self.pil)
 
-    @computed_field(return_type=DepthArrayLike)
+
     def __init__(  # noqa
         self,
         arg: SupportsImage | None = None,  # type: ignore
         path: str | None = None,
         array: np.ndarray | None = None,
         base64: Base64Str | None = None,
-        encoding: str = "jpeg",
+        encoding: str = "png",
         size: Tuple[int, ...] | None = None,
         bytes: SupportsBytes | None = None,  # noqa
         mode: Literal["RGB", "RGBA", "L", "P", "CMYK", "YCbCr", "I", "F"] | None = "I",
         **kwargs,
     ):
-        """Initializes an image. Either one source argument or size tuple must be provided.
+        """Initializes a Depth representation. Unlike the Image class, an empty array is used as the default image.
 
         Args:
             arg (SupportsImage, optional): The primary image source.
@@ -96,9 +96,9 @@ class Depth(Image):
         """
         kwargs["encoding"] = encoding or "jpeg"
         kwargs["path"] = path
-        kwargs["size"] = size[:2] if isinstance(size, Tuple) else size
+        kwargs["size"] = size[:2] if isinstance(size, Tuple) else size if size is not None else (224,224)
         kwargs["mode"] = mode
-        kwargs["array"] = array
+        kwargs["array"] = array if array is not None else np.zeros(kwargs["size"] + (3,), dtype=np.uint8)
         kwargs["base64"] = base64
         kwargs["bytes"] = bytes
         if isinstance(arg, Image):
