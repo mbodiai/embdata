@@ -570,11 +570,13 @@ class Sample(BaseModel):
             full_excludes = set(describe_keys(self).values())
         if to in ["numpy", "np", "torch", "pt"] and non_numerical != "forbid":
             non_numerical = "ignore"
-
+        logging.debug("Full includes: %s", full_includes)
+        logging.debug("Full excludes: %s", full_excludes)
         flattened_keys, flattened = iter_utils.flatten_recursive(
             self, exclude=full_excludes, non_numerical=non_numerical, sep=sep,
         )
-
+        logging.debug("Flattened keys: %s", flattened_keys)
+        logging.debug("Flattened: %s", flattened)
         if not has_include:
             flattened_keys, flattened = iter_utils.flatten_recursive(
                 self,

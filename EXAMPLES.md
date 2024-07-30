@@ -43,7 +43,7 @@ from embdata.trajectory import Trajectory
 
 # Create a simple 2D trajectory
 steps = np.array([[0, 0], [1, 1], [2, 0], [3, 1], [4, 0]])
-traj = Trajectory(steps, freq_hz=10, dim_labels=["X", "Y"])
+traj = Trajectory(steps, freq_hz=10, keys=["X", "Y"])
 
 # Plot the trajectory
 traj.plot().show()

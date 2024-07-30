@@ -76,52 +76,37 @@ from embdata.describe import describe
 from embdata.episode import Episode, VisionMotorEpisode
 from embdata.sample import Sample
 
-# Method 1: Create an episode from a HuggingFace dataset
+"""Create an episode from a HuggingFace dataset"""
 ds = load_dataset("mbodiai/oxe_bridge_v2", split="train").take(10)
-describe(ds)
-ds = Sample(ds)
-obs, actions, states = ds.flatten(to="observation"), ds.flatten(to="action"), ds.flatten(to="state")
-zipped = zip(obs, actions, states, strict=False)
-episode = VisionMotorEpisode(steps=zipped, freq_hz=5, observation_key="observation", action_key="action", state_key="state")
+episode = Episode.from_dataset(ds)
+
+
+"""Or create an episode from just a list of dicts"""
+step = {
+    "observation": {"image": "path/pil_image/url/base64/bytes/whatever.jpg"},
+    "action": {"any_type_of_action": "action"},
+    "state": {
+        "you_get_the_idea": "state",
+    }
+}
+episode = Episode(steps=[step, step, step])
+
+
+"""Visualize the episode with rerun.io"""
 episode.show(mode="local") # Visualize the episode with rerun.io
 
-# Method 2: Create an episode from separate lists of observations, actions, and states
-observations = [{"image": ..., "task": "task1", "depth": ...},
-                {"image": ..., "task": "task2"},
-                {"image": , "task": "task2"}]
-actions = [Motion(position=[0.1, 0.2, 0.3], orientation=[0, 0, 0, 1]),
-           BimanualArmControl(joint_angles=[0.1, 0.2, 0.3, 0.4, 0.5, 0.6], ...)]
-           AnyMotionControl(velocity=0.1, joint_angles=[0.1, 0.2, 0.3, 0.4, 0.5, 0.6])]
-states = [{"scene_objects": ..., "reward": 0},
-          {"scene_objects": ..., "reward": 1}]
-episode2 = Episode(zip(observations, actions, states))
 
-
-# Method 3: Create an episode from a single list of dicts of any structure
-steps = [
-    {"observation": {"image": np.random.rand(224, 224, 3), "task": "pick"},
-     "action": {"position": [0.1, 0.2, 0.3], "orientation": [0, 0, 0, 1]}},
-    {"observation": {"image": np.random.rand(224, 224, 3), "task": "place"},
-     "action": {"position": [0.4, 0.5, 0.6], "orientation": [0, 1, 0, 0]}}
-]
-episode3 = Episode(steps)
-
-# Convert to LeRobot dataset
+"""Convert to a LeRobot dataset"""
 lerobot_dataset = episode1.lerobot()
 
-# Convert from LeRobot dataset back to Episode
-episode_from_lerobot = Episode.from_lerobot(lerobot_dataset)
+"""Convert to a HuggingFace dataset"""
+huggingface_dataset = episode.dataset()
 
-# Visualize the episode with rerun
-episode1.show(mode="local")
-# Iterate over steps
-for step in episode.iter():
-    print(f"Task: {step.observation.task}, Action: {step.action.position}")
 
-# Extract trajectory
+"""Upsample a field of the episode with bicubic interpolation."""
 action_trajectory = episode.trajectory(field="action", freq_hz=10)
 
-# Visualize episode
+"""
 episode.show(mode="local")
 ```
 
@@ -833,7 +818,7 @@ from embdata import Trajectory
 
 # Create a simple 2D trajectory
 steps = np.array([[0, 0], [1, 1], [2, 0], [3, 1], [4, 0]])
-traj = Trajectory(steps, freq_hz=10, dim_labels=['X', 'Y'])
+traj = Trajectory(steps, freq_hz=10, keys=['X', 'Y'])
 
 # Plot the trajectory
 traj.plot().show()
@@ -847,7 +832,7 @@ filtered_traj.plot().show()
 
 # Upsample with rotation splines and bicubic interpolation
 upsampled_traj = traj.resample(target_hz=20)
-print(upsampled_traj) # Output: Trajectory(steps=..., freq_hz=20, dim_labels=['X', 'Y'])
+print(upsampled_traj) # Output: Trajectory(steps=..., freq_hz=20, keys=['X', 'Y'])
 
 # Access data
 print(traj.array)  # Output: [[0 0] [1 1] [2 0] [3 1] [4 0]]
@@ -891,7 +876,7 @@ normalized_traj.plot().show()
 - `array`: The trajectory data as a NumPy array
 - `freq_hz`: The frequency of the trajectory in Hz
 - `time_idxs`: The time index of each step in the trajectory
-- `dim_labels`: The labels for each dimension of the trajectory
+- `keys`: The labels for each dimension of the trajectory
 
 The `Trajectory` class offers comprehensive methods for analyzing, visualizing, manipulating, and transforming trajectory data, making it easier to work with time series data in robotics and other applications.
 

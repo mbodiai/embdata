@@ -1,6 +1,6 @@
 import importlib
 from functools import partial
-from typing import Any, Callable, List, Literal
+from typing import Any, Callable, List, Literal, Tuple
 
 import numpy as np
 import scipy.stats as sstats
@@ -21,7 +21,8 @@ def import_plotting_backend(backend: Literal["matplotlib", "plotext"] = "plotext
         return importlib.import_module("matplotlib.pyplot")
     if backend == "plotext":
         return importlib.import_module("plotext")
-    raise ValueError(f"Unknown plotting backend {backend}")
+    msg = f"Unknown plotting backend {backend}"
+    raise ValueError(msg)
 
 
 
@@ -108,7 +109,6 @@ def plot_trajectory(
     trajectory: np.ndarray,
     labels: list[str] | None = None,
     time_step: float = 0.1,
-    show=True,
     backend: Literal["matplotlib", "plotext"] = "plotext",
 ) -> None:
     """Plot the trajectory.
@@ -138,8 +138,6 @@ def plot_trajectory(
         axs[i].plot(np.arange(num_steps) * time_step, trajectory[:, i])
         axs[i].set_ylabel(labels[i])
         axs[i].set_xlabel("Time (s)")
-    if show:
-        plt.show()
     return fig
 
 
@@ -154,7 +152,7 @@ class Trajectory:
         steps (NumpyArray | List[Sample | NumpyArray]): The trajectory data.
         freq_hz (float | None): The frequency of the trajectory in Hz.
         time_idxs (NumpyArray | None): The time index of each step in the trajectory.
-        dim_labels (list[str] | None): The labels for each dimension of the trajectory.
+        keys (list[str] | None): The labels for each dimension of the trajectory.
         angular_dims (list[int] | list[str] | None): The dimensions that are angular.
 
     Methods:
@@ -173,7 +171,7 @@ class Trajectory:
         >>> from embdata.trajectory import Trajectory
         >>> # Create a simple 2D trajectory
         >>> steps = np.array([[0, 0], [1, 1], [2, 0], [3, 1], [4, 0]])
-        >>> traj = Trajectory(steps, freq_hz=10, dim_labels=["X", "Y"])
+        >>> traj = Trajectory(steps, freq_hz=10, keys=["X", "Y"])
         >>> # Plot the trajectory
         >>> traj.plot().show()
         >>> # Compute and print statistics
@@ -186,7 +184,7 @@ class Trajectory:
     steps: NumpyArray | List[Sample | NumpyArray]
     freq_hz: float | None = Field(default=None, description="The frequency of the trajectory in Hz")
     time_idxs: NumpyArray | None = Field(default=None, description="The time index of each step in the trajectory")
-    dim_labels: list[str] | None = Field(default=None, description="The labels for each dimension of the trajectory")
+    keys: List[str] | str| Tuple | None = Field(default=None, description="The labels for each dimension of the trajectory")
     angular_dims: list[int] | list[str] | None = Field(default=None, description="The dimensions that are angular")
 
     _fig: Any | None = None
@@ -210,7 +208,7 @@ class Trajectory:
     def array(self) -> np.ndarray:
         if self._array is None:
             if isinstance(self.steps[0], Sample):
-                self._array = np.array([step.numpy() for step in self.steps])
+                self._array_ = np.array([step.numpy() for step in self.steps])
             else:
                 self._array = np.array(self.steps)
         return self._array
@@ -225,18 +223,19 @@ class Trajectory:
             self._stats = stats(self.array, axis=0, sample_type=self._sample_class)
         return self._stats
 
-    def plot(self, labels: list[str] | None = None) -> "Trajectory":
+    def plot(self, labels: list[str] | None = None, backend: Literal["matplotlib", "plotext"] = "plotext") -> "Trajectory":
         """Plot the trajectory. Saves the figure to the trajectory object. Call show() to display the figure.
 
         Args:
-          labels (list[str], optional): The labels for each dimension of the trajectory. Defaults to None.
-          time_step (float, optional): The time step between each step in the trajectory. Defaults to 0.1.
+            labels (list[str], optional): The labels for each dimension of the trajectory. Defaults to None.
+            time_step (float, optional): The time step between each step in the trajectory. Defaults to 0.1.
+            backend (Literal["matplotlib", "plotext"], optional): The plotting backend to use. Defaults to "plotext".
 
         Returns:
           Trajectory: The original trajectory.
 
         """
-        self._fig = plot_trajectory(self.array, labels, time_step=1 / self.freq_hz, show=False)
+        self._fig = plot_trajectory(self.array, labels, time_step=1 / self.freq_hz, backend=backend)
         return self
 
     def map(self, fn) -> "Trajectory":
@@ -252,7 +251,7 @@ class Trajectory:
             [fn(step) for step in self.steps],
             self.freq_hz,
             self.time_idxs,
-            self.dim_labels,
+            self.keys,
             self.angular_dims,
             _episode=self._episode,
         )
@@ -267,14 +266,14 @@ class Trajectory:
         return iter(self.steps)
 
     def __post_init__(self, *args, **kwargs):
-        if self.dim_labels is None:
-            self.dim_labels = [f"Dimension {i}" for i in range(self.array.shape[1])]
+        if self.keys is None:
+            self.keys = [f"Dimension {i}" for i in range(self.array.shape[1])]
         if self.time_idxs is None:
             self.time_idxs = np.arange(0, len(self.array)) / self.freq_hz
 
         super().__init__(*args, **kwargs)
 
-    def relative_to(self, step_difference=-1) -> "Trajectory":
+    def relative(self, step_difference=-1) -> "Trajectory":
         """Convert trajectory of absolute actions to relative actions.
 
         Returns:
@@ -284,15 +283,14 @@ class Trajectory:
             np.diff(self.array, n=-step_difference, axis=0),
             self.freq_hz,
             self.time_idxs[1:],
-            self.dim_labels,
+            self.keys,
             self.angular_dims,
         )
-        t._map_history.append(partial(self.absolute_from, initial_state=self.array[0]))
+        t._map_history.append(partial(self.absolute, initial_state=self.array[0]))
         t._map_history_kwargs.append({"initial_state": self.array[0]})  # noqa: SLF001
-
         return t
 
-    def absolute_from(self, initial_state: None | np.ndarray = None) -> "Trajectory":
+    def absolute(self, initial_state: None | np.ndarray = None) -> "Trajectory":
         """Convert trajectory of relative actions to absolute actions.
 
         Args:
@@ -309,8 +307,9 @@ class Trajectory:
             np.cumsum(np.concatenate([np.array([initial_state]), self.array], axis=0), axis=0),
             self.freq_hz,
             self.time_idxs,
-            self.dim_labels,
+            self.keys,
             self.angular_dims,
+            _episode=self._episode,
         )
         t._episode = self._episode
         return t
@@ -366,7 +365,7 @@ class Trajectory:
 
             if self.angular_dims:
                 angular_dims = (
-                    [self.dim_labels.index(dim) for dim in self.angular_dims]
+                    [self.keys.index(dim) for dim in self.angular_dims]
                     if isinstance(self.angular_dims[0], str)
                     else self.angular_dims
                 )
@@ -374,7 +373,7 @@ class Trajectory:
                     spline = RotationSpline(np.arange(0, len(self.array)) / self.freq_hz, self.array[:, i])
                     resampled_array[:, i] = spline(resampled_time_idxs)
 
-        return Trajectory(resampled_array, target_hz, resampled_time_idxs, self.dim_labels, self.angular_dims)
+        return Trajectory(resampled_array, target_hz, resampled_time_idxs, self.keys, self.angular_dims)
 
     def save(self, filename: str = "trajectory.png") -> None:
         """Save the current figure to a file.
@@ -415,14 +414,14 @@ class Trajectory:
         T = 1.0 / self.freq_hz
         freqs = np.fft.fftfreq(N, T)[: N // 2]
 
-        dim_labels = self.dim_labels or [f"Dimension {i}" for i in range(x.shape[1])]
+        keys = self.keys or [f"Dimension {i}" for i in range(x.shape[1])]
 
         for i in range(x.shape[1]):
             ax = axes[i] if i < len(axes) else axes[-1]
             fft_vals = np.fft.fft(x[:, i])
             magnitude = 2.0 / N * np.abs(fft_vals[0 : N // 2])
             ax.plot(freqs, magnitude)
-            ax.set_title(dim_labels[i])
+            ax.set_title(keys[i])
             ax.set_xlabel("Frequency [Hz]")
             ax.set_ylabel("Magnitude")
             ax.set_xlim(0, self.freq_hz / 2)  # Nyquist frequency
@@ -454,11 +453,11 @@ class Trajectory:
         Sxx = np.fft.fftshift(Sxx, axes=1)
         Sxx = np.log10(Sxx + 1e-10)  # Add small constant to avoid log(0)
 
-        dim_labels = self.dim_labels[:n_dims] if self.dim_labels else ["X", "Y", "Z", "Roll", "Pitch", "Yaw"]
+        keys = self.keys[:n_dims] if self.keys else ["X", "Y", "Z", "Roll", "Pitch", "Yaw"]
 
         for i, ax in enumerate(axs):
             im = ax.pcolormesh(freqs, t, Sxx[:, :, i], shading="gouraud", cmap="viridis")
-            ax.set_title(dim_labels[i])
+            ax.set_title(keys[i])
             ax.set_xlabel("Frequency [Hz]")
             ax.set_ylabel("Time [s]")
             ax.set_ylim(t[0], t[-1])
@@ -589,7 +588,7 @@ class Trajectory:
             (self.array - min_vals) / (max_vals - min_vals) * (max - min) + min,
             self.freq_hz,
             self.time_idxs,
-            self.dim_labels,
+            self.keys,
             self.angular_dims,
         )
 
@@ -604,7 +603,7 @@ class Trajectory:
             pca.fit_transform(self.array),
             self.freq_hz,
             self.time_idxs,
-            self.dim_labels,
+            self.keys,
             self.angular_dims,
         )
 
@@ -616,7 +615,7 @@ class Trajectory:
         """
         mean = np.mean(self.array, axis=0)
         std = np.std(self.array, axis=0)
-        return Trajectory((self.array - mean) / std, self.freq_hz, self.time_idxs, self.dim_labels, self.angular_dims)
+        return Trajectory((self.array - mean) / std, self.freq_hz, self.time_idxs, self.keys, self.angular_dims)
 
     def unminmax(
         self,
@@ -628,12 +627,12 @@ class Trajectory:
         norm_max = np.max(self.array, axis=0)
         array = (self.array - norm_min) / (norm_max - norm_min) * (orig_max - orig_min) + orig_min
         steps = [self._sample_class(step) for step in array] if self._sample_class is not None else array
-        return Trajectory(steps, self.freq_hz, self.time_idxs, self.dim_labels, self.angular_dims)
+        return Trajectory(steps, self.freq_hz, self.time_idxs, self.keys, self.angular_dims)
 
     def unstandardize(self, mean: np.ndarray, std: np.ndarray) -> "Trajectory":
         array = (self.array * std) + mean
         steps = [self._sample_class(step) for step in array] if self._sample_class is not None else array
-        return Trajectory(steps, self.freq_hz, self.time_idxs, self.dim_labels, self.angular_dims)
+        return Trajectory(steps, self.freq_hz, self.time_idxs, self.keys, self.angular_dims)
 
 
 def main() -> None:
@@ -653,7 +652,7 @@ def main() -> None:
     trajectory = Trajectory(
         ds,
         freq_hz=5,
-        dim_labels=[
+        keys=[
             "X",
             "Y",
             "Z",

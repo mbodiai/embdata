@@ -15,7 +15,7 @@ from embdata.motion.control import AnyMotionControl, RelativePoseHandControl
 
 @pytest.fixture
 def time_step():
-    return TimeStep(observation=Sample("observation"), action=Sample("action"), supervision=Sample("supervision"))
+    return TimeStep(observation=Sample("observation"), action=Sample(1), supervision=Sample("supervision"))
 
 
 def test_episode_initialization(time_step):
@@ -115,10 +115,10 @@ def test_episode_from_list(time_step):
     # assert episode[1].supervision == steps[1]["supervision"]
 
 
-# def test_episode_trajectory(time_step):
-#     episode = Episode(steps=[time_step, time_step, time_step])
-#     trajectory = episode.trajectory("action", freq_hz=1)
-#     assert len(trajectory) == 3
+def test_episode_trajectory(time_step):
+    episode = Episode(steps=[time_step, time_step, time_step])
+    trajectory = episode.trajectory("action", freq_hz=1)
+    assert len(trajectory) == 3
 
 
 def test_episode_append(time_step):

@@ -58,8 +58,9 @@ DepthArrayLike = NumpyArray[1, Any, Any, np.uint16] | NumpyArray[Any, Any, np.ui
 
 class Depth(Image):
     mode: Literal["RGB", "RGBA", "L", "P", "CMYK", "YCbCr", "I", "F"] = "I"
-    points: NumpyArray[Any, 3,  np.float32] = Field(default_factory=lambda: np.zeros((0,3)), description="The points in the image.")
-    encoding: str = "png"
+    points: NumpyArray[Any, 3,  np.float32] | None = None
+    encoding: Literal["png"] = "png"
+
     @computed_field(return_type=DepthArrayLike)
     @cached_property
     def array(self) -> DepthArrayLike:
@@ -94,11 +95,11 @@ class Depth(Image):
             mode (Optional[str], optional): The mode to use for the image. Defaults to 'RGB'.
             **kwargs: Additional keyword arguments.
         """
-        kwargs["encoding"] = encoding or "jpeg"
+        kwargs["encoding"] = encoding or "png"
         kwargs["path"] = path
         kwargs["size"] = size[:2] if isinstance(size, Tuple) else size if size is not None else (224,224)
         kwargs["mode"] = mode
-        kwargs["array"] = array if array is not None else np.zeros(kwargs["size"] + (3,), dtype=np.uint8)
+        kwargs["array"] = array
         kwargs["base64"] = base64
         kwargs["bytes"] = bytes
         if isinstance(arg, Image):
@@ -111,7 +112,10 @@ class Depth(Image):
                     break
             if arg is None and kwargs.get("size") is not None:
                 arg = np.zeros(kwargs["size"] + (3,), dtype=np.uint8)
-        kwargs = Image.dispatch_arg(arg, **kwargs)
+        if arg is None:
+            arg = np.zeros((224, 224, 3), dtype=np.uint16)
+        if isinstance(arg, np.ndarray):
+            kwargs["array"] = arg
         super().__init__(**kwargs)
 
     @classmethod
@@ -131,9 +135,9 @@ class Depth(Image):
         kmeans = KMeans(n_clusters=n_clusters)
         return kmeans.fit_predict(self.points.T)
 
-    def segment_plane(self, threshold: float = 0.01, max_trials: int = 1000) -> Tuple[np.ndarray, np.ndarray]:
+    def segment_plane(self, min_samples=3, threshold: float = 0.01, max_trials: int = 1000) -> Tuple[np.ndarray, np.ndarray]:
         """Segment the largest plane using RANSAC."""
-        ransac = RANSACRegressor(residual_threshold=threshold, max_trials=max_trials)
+        ransac = RANSACRegressor(min_samples=min_samples,residual_threshold=threshold, max_trials=max_trials)
         ransac.fit(self.points[:2].T, self.points[2])
         inlier_mask = ransac.inlier_mask_
         plane_coefficients = np.append(ransac.estimator_.coef_, ransac.estimator_.intercept_)
@@ -150,19 +154,28 @@ class Depth(Image):
 
         plt.imshow(self.array)
 
-    def segment_cylinder(self, threshold: float = 0.01, max_trials: int = 1000) -> Tuple[np.ndarray, np.ndarray]:
+    def segment_cylinder(self, min_samples=3, threshold: float = 0.01, max_trials: int = 1000) -> Tuple[np.ndarray, np.ndarray]:
         """Segment the largest cylinder using RANSAC.
 
         Args:
+            min_samples (int): The minimum number of data points to fit a model.
             threshold (float): The maximum distance for a point to be considered as an inlier.
             max_trials (int): The maximum number of iterations for RANSAC.
 
         Returns:
-            Tuple[np.ndarray, np.ndarray]: The inlier mask and the cylinder coefficients.
+            Tuple[np.ndarray, np.ndarray]: The inlier points and their indices.
         """
         poly = PolynomialFeatures(degree=2)
-        ransac = make_pipeline(poly, RANSACRegressor(residual_threshold=threshold, max_trials=max_trials))
-        ransac.fit(self.points[:2].T, self.points[2])
+        ransac = make_pipeline(poly, RANSACRegressor(min_samples=min_samples, residual_threshold=threshold, max_trials=max_trials))
+
+        X = self.points[:, :2]  # Assuming self.points is of shape (n_points, 3)
+        y = self.points[:, 2]
+
+        ransac.fit(X, y)
+
         inlier_mask = ransac.named_steps["ransacregressor"].inlier_mask_
-        cylinder_coefficients = ransac.named_steps["ransacregressor"].estimator_.coef_
-        return inlier_mask, cylinder_coefficients
+        inlier_points = self.points[inlier_mask]
+        inlier_indices = np.where(inlier_mask)[0]
+
+        return inlier_points, inlier_indices
+

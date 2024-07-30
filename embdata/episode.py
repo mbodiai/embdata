@@ -9,12 +9,11 @@ from typing import Any, Callable, Dict, Iterable, Iterator, List, Literal
 import numpy as np
 import rerun as rr
 import torch
-from datasets import Dataset, DatasetDict, Features, Sequence, Value
+from datasets import Dataset, DatasetDict, Features, IterableDataset, Sequence, Value
 from datasets import Image as HFImage
 from pydantic import ConfigDict, Field, PrivateAttr, model_validator
 from rerun.archetypes import Image as RRImage
 
-from embdata.describe import describe
 from embdata.features import to_features_dict
 from embdata.motion import Motion
 from embdata.motion.control import AnyMotionControl, RelativePoseHandControl
@@ -27,46 +26,16 @@ try:
     from lerobot.common.datasets.lerobot_dataset import LeRobotDataset
     from lerobot.common.datasets.utils import calculate_episode_data_index, hf_transform_to_torch
 except ImportError:
-    logging.info("lerobot not found. Go to https://github.com/huggingface/lerobot to install it.")
+    logging.info("lerobot not found. Optionally install at https://github.com/huggingface/lerobot.")
 
 logger = logging.getLogger(__name__)
 if logger.level == logging.DEBUG or "MBENCH" in os.environ:
     from mbench.profile import profileme
     profileme()
 
-def convert_images(
-    values: Dict[str, Any] | Any,
-    image_keys: set[str] | str | None = "image",
-    toplevel=True,
-) -> "TimeStep":
-    # if not isinstance(values, dict | Sample) and not toplevel:
-    #     if Image.supports(values):
-    #         try:
-    #             return Image(values)
-    #         except Exception:
-    #             return values
-    #     return values
-    # elif not isinstance(values, dict | Sample):
-    #     return values
-    # if isinstance(image_keys, str):
-    #     image_keys = {image_keys}
-    # obj = {}
-    # for key, value in values.items():
-    #     if key in image_keys:
-    #         try:
-    #             if isinstance(value, dict):
-    #                 obj[key] = Image(**value)
-    #             else:
-    #                 obj[key] = Image(value)
-    #         except Exception as e:  # noqa
-    #             logging.warning(f"Failed to convert {key} to Image: {e}")
-    #             obj[key] = value
-    #     elif isinstance(value, dict | Sample):
-    #         obj[key] = convert_images(value, image_keys, toplevel=False)
-    #     else:
-    #         obj[key] = value
-    return values
-
+def convert_images(d, image_keys=None):
+    # TODO(sebastian): Figure out if this is needed.
+    return d
 
 class TimeStep(Sample):
     """Time step for a task."""
@@ -86,7 +55,7 @@ class TimeStep(Sample):
     _supervision_class: type[Sample] = PrivateAttr(default=Sample)
 
     @classmethod
-    def from_dict(
+    def from_dict(  # noqa: PLR0913
         cls,
         values: Dict[str, Any],
         image_keys: str | set | None = "image",
@@ -188,6 +157,7 @@ class Episode(Sample):
     steps: list[TimeStep] = Field(default_factory=list)
     metadata: Sample | Any | None = None
     freq_hz: int | float | None = None
+    stats: dict | None = None
     _action_class: type[Sample] = PrivateAttr(default=Sample)
     _state_class: type[Sample] = PrivateAttr(default=Sample)
     _observation_class: type[Sample] = PrivateAttr(default=Sample)
@@ -362,6 +332,10 @@ class Episode(Sample):
             supervision_key (str, optional): The key to use for supervisions. Defaults to "supervision".
             freq_hz_key (str, optional): The key to use for the frequency in Hz. Defaults to "freq_hz".
         """
+        if isinstance(dataset, IterableDataset):
+            msg = "IterableDataset not supported"
+            raise TypeError(msg)
+
         if isinstance(dataset, DatasetDict):
             freq_hz = dataset.get(freq_hz_key, 1)
             freq_hz = freq_hz[0] if isinstance(freq_hz, list) else freq_hz
@@ -426,11 +400,11 @@ class Episode(Sample):
         return Dataset.from_list(data, features=feat)
 
     def stats(self) -> dict:
-        return self.trajectory().stats()
+        return self.trajectory().stats
 
     def __repr__(self) -> str:
         if not hasattr(self, "stats"):
-            self.stats = self.trajectory().stats()
+            stats = self.trajectory().stats
             stats = str(self.stats).replace("\n ", "\n  ")
         return f"Episode(\n  {stats}\n)"
 
@@ -464,27 +438,35 @@ class Episode(Sample):
 
         """
         of = of if isinstance(of, list) else [of]
-        of = [f[:-1] if f.endswith("s") else f for f in of]
+        of = [f[:-1] if f.endswith("s") and f in ("observations, actions, states, supervisions") else f for f in of]
         if self.steps is None or len(self.steps) == 0:
             msg = "Episode has no steps"
             raise ValueError(msg)
 
         freq_hz = freq_hz or self.freq_hz or 1
         if of == "step":
-            return Trajectory(self.steps, freq_hz=freq_hz, episode=self)
+            data = self.flatten(to="samples")
+            if not data:
+                msg = "Episode has no steps"
+                raise ValueError(msg)
+            keys = [key.removeprefix("steps.*.") for key in data[0]]
+            return Trajectory(self.steps, freq_hz=freq_hz, episode=self, keys=keys)
 
         if not any(k in field for field in self.steps[0].flatten("dict") for k in of):
             msg = f"Field '{of}' not found in episode steps"
             raise ValueError(msg)
 
-        data = self.flatten(to="numpy", include=of)
+        data = [step[to] for step in self.steps for to in of]
+        if not data:
+            msg = f"Field '{of}' not found with any numerical values in episode steps"
+            raise ValueError(msg)
+        keys = [type(key) for key in data[0]]
         return Trajectory(
             steps=data,
             freq_hz=freq_hz,
-            dim_labels=list(data[0].keys()) if isinstance(data[0], dict) else None,
+            keys=keys,
             _episode=self,
-            # _sample_keys=of,
-            # _episode_keys=of,
+            _sample_keys=of,
         )
 
     def window(

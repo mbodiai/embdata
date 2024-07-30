@@ -25,7 +25,7 @@ def test_stats():
 def test_relative():
     array = np.array([[1, 2, 3], [4, 5, 6], [7, 8, 9]])
     trajectory = Trajectory(array, freq_hz=1)
-    relative_trajectory = trajectory.relative_to(-1)
+    relative_trajectory = trajectory.relative(-1)
     expected_array = np.array([[3, 3, 3], [3, 3, 3]])
     assert np.array_equal(relative_trajectory.array, expected_array)
 
