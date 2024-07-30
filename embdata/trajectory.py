@@ -1,6 +1,11 @@
 import inspect
 from functools import partial
+<<<<<<< Updated upstream
 from typing import Any, Callable, List
+=======
+import importlib.util
+from typing import Any, Callable, List, Literal
+>>>>>>> Stashed changes
 
 import plotext as plt
 import numpy as np
@@ -17,6 +22,21 @@ from embdata.ndarray import NumpyArray
 from embdata.sample import Sample
 
 
+<<<<<<< Updated upstream
+=======
+def import_plotting_backend(backend: Literal["matplotlib", "plotext"] = "plotext") -> Any:
+    if backend == "matplotlib" and not importlib.util.find_spec("matplotlib"):
+        import matplotlib as mpl
+        mpl.use("Agg")
+        return importlib.import_module("pyplot", "matplotlib")
+    elif backend == "plotext" and not importlib.util.find_spec("plotext"):
+        return importlib.import_module("plotext")
+    elif backend not in ["matplotlib", "plotext"]:
+        raise ValueError(f"Invalid plotting backend {backend}. Choose 'matplotlib' or 'plotext'")
+    return importlib.import_module("matplotlib.pyplot") if backend == "matplotlib" else importlib.import_module("plotext")
+
+
+>>>>>>> Stashed changes
 @dataclass
 class Stats:
     mean: Any | None = None
@@ -108,6 +128,11 @@ def plot_trajectory(trajectory: np.ndarray, labels: list[str] | None = None, tim
     Returns:
       None
     """
+<<<<<<< Updated upstream
+=======
+    plt = import_plotting_backend("matplotlib")
+
+>>>>>>> Stashed changes
     num_steps = trajectory.shape[0]
     num_plots = trajectory.shape[1]
     if labels is None and num_plots == 6:
@@ -193,10 +218,11 @@ class Trajectory:
     @property
     def array(self) -> np.ndarray:
         if self._array is None:
+            length = len(self.steps)
             if isinstance(self.steps[0], Sample):
-                self._array = np.array([step.numpy() for step in self.steps])
+                self._array = np.array([step.numpy() for step in self.steps]).reshape(length, -1)
             else:
-                self._array = np.array(self.steps)
+                self._array = np.array(self.steps).reshape(length, -1)
         return self._array
 
     def stats(self) -> Stats:
