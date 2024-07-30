@@ -16,15 +16,13 @@ from embdata.ndarray import NumpyArray
 from embdata.sample import Sample
 
 
-def import_plotting_backend(backend: Literal["matplotlib", "plotext"]) -> Any:
-    if backend == "matplotlib" and not importlib.util.find_spec("matplotlib"):
-        import matplotlib as mpl
+def import_plotting_backend(backend: Literal["matplotlib", "plotext"] = "plotext") -> Any:
+    if backend == "matplotlib":
+        return importlib.import_module("matplotlib.pyplot")
+    if backend == "plotext":
+        return importlib.import_module("plotext")
+    raise ValueError(f"Unknown plotting backend {backend}")
 
-        mpl.use("Agg")
-        from matplotlib import pyplot as plt
-    elif backend == "plotext" and not importlib.util.find_spec("plotext"):
-        import plotext as plt
-    return plt
 
 
 @dataclass

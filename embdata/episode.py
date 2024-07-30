@@ -123,6 +123,10 @@ class TimeStep(Sample):
             **{k: v for k, v in values.items() if k not in field_names},
         )
 
+    @classmethod
+    def from_iterable(cls, step: tuple, image_keys="image", **kwargs) -> "TimeStep":
+        return cls(*step, image_keys=image_keys, **kwargs)
+
     def __init__(
         self,
         observation: Sample | Dict | np.ndarray,
@@ -223,11 +227,11 @@ class Episode(Sample):
             Step = self._step_class
         else:
             try:
-                Step = self.__class__._step_class.get_default() # noqa: N806
+                Step = self.__class__._step_class.get_default() # noqa
             except AttributeError:
                 Step = TimeStep
 
-        if steps and not isinstance(steps[0], TimeStep | Dict | Sample):
+        if steps and not isinstance(steps[0], TimeStep | Sample):
             if isinstance(steps[0], dict) and observation_key in steps[0] and action_key in steps[0]:
                 steps = [
                     Step(
@@ -306,7 +310,7 @@ class Episode(Sample):
         **kwargs,
     ) -> "Episode":
         """Create an episode from lists of observations, actions, states, and supervisions or other list of dicts.
-        
+
         Args:
             observations (List[Sample | Dict | np.ndarray]): A list of observations.
             actions (List[Sample | Dict | np.ndarray]): A list of actions.
@@ -478,7 +482,7 @@ class Episode(Sample):
             steps=data,
             freq_hz=freq_hz,
             dim_labels=list(data[0].keys()) if isinstance(data[0], dict) else None,
-            _episode=self._episode,
+            _episode=self,
             # _sample_keys=of,
             # _episode_keys=of,
         )

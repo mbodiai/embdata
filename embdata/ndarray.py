@@ -1,5 +1,6 @@
 from functools import partial, singledispatch
 from pathlib import Path
+import sys
 from typing import (
     TYPE_CHECKING,
     Annotated,
@@ -51,48 +52,74 @@ class NumpyDataDict(TypedDict):
     data_type: SupportedDTypes
     shape: Tuple[int, ...]
 
-
-@singledispatch
-def array_validator(array: np.ndarray, shape: Tuple[int, ...] | None, dtype: SupportedDTypes | None) -> npt.NDArray:
-    if shape is not None:
-        expected_ndim = len(shape)
-        actual_ndim = array.ndim
-        if actual_ndim != expected_ndim:
-            details = f"Array has {actual_ndim} dimensions, expected {expected_ndim}"
-            msg = "ShapeError"
-            raise PydanticCustomError(msg, details)
-        for i, (expected, actual) in enumerate(zip(shape, array.shape, strict=False)):
-            if expected != -1 and expected is not None and expected != actual:
-                details = f"Dimension {i} has size {actual}, expected {expected}"
+if sys.get_version_info() < (3, 11):
+    def array_validator(array: np.ndarray, shape: Tuple[int, ...] | None, dtype: SupportedDTypes | None) -> npt.NDArray:
+        if shape is not None:
+            expected_ndim = len(shape)
+            actual_ndim = array.ndim
+            if actual_ndim != expected_ndim:
+                details = f"Array has {actual_ndim} dimensions, expected {expected_ndim}"
                 msg = "ShapeError"
                 raise PydanticCustomError(msg, details)
+            for i, (expected, actual) in enumerate(zip(shape, array.shape, strict=False)):
+                if expected != -1 and expected is not None and expected != actual:
+                    details = f"Dimension {i} has size {actual}, expected {expected}"
+                    msg = "ShapeError"
+                    raise PydanticCustomError(msg, details)
 
-    if (
-        dtype
-        and array.dtype.type != dtype
-        and issubclass(dtype, np.integer)
-        and issubclass(array.dtype.type, np.floating)
-    ):
-        array = np.round(array).astype(dtype, copy=False)
-    if dtype and issubclass(dtype, np.dtypes.UInt64DType | np.dtypes.Int64DType):
-        dtype = np.int64
-        array = array.astype(dtype, copy=True)
-    return array
+        if (
+            dtype
+            and array.dtype.type != dtype
+            and issubclass(dtype, np.integer)
+            and issubclass(array.dtype.type, np.floating)
+        ):
+            array = np.round(array).astype(dtype, copy=False)
+        if dtype and issubclass(dtype, np.dtypes.UInt64DType | np.dtypes.Int64DType):
+            dtype = np.int64
+            array = array.astype(dtype, copy=True)
+        return array
+else:
+    @singledispatch
+    def array_validator(array: np.ndarray, shape: Tuple[int, ...] | None, dtype: SupportedDTypes | None) -> npt.NDArray:
+        if shape is not None:
+            expected_ndim = len(shape)
+            actual_ndim = array.ndim
+            if actual_ndim != expected_ndim:
+                details = f"Array has {actual_ndim} dimensions, expected {expected_ndim}"
+                msg = "ShapeError"
+                raise PydanticCustomError(msg, details)
+            for i, (expected, actual) in enumerate(zip(shape, array.shape, strict=False)):
+                if expected != -1 and expected is not None and expected != actual:
+                    details = f"Dimension {i} has size {actual}, expected {expected}"
+                    msg = "ShapeError"
+                    raise PydanticCustomError(msg, details)
+
+        if (
+            dtype
+            and array.dtype.type != dtype
+            and issubclass(dtype, np.integer)
+            and issubclass(array.dtype.type, np.floating)
+        ):
+            array = np.round(array).astype(dtype, copy=False)
+        if dtype and issubclass(dtype, np.dtypes.UInt64DType | np.dtypes.Int64DType):
+            dtype = np.int64
+            array = array.astype(dtype, copy=True)
+        return array
 
 
-@array_validator.register
-def list_tuple_validator(
-    array: list | tuple,
-    shape: Tuple[int, ...] | None,
-    dtype: SupportedDTypes | None,
-) -> npt.NDArray:
-    return array_validator.dispatch(np.ndarray)(np.asarray(array), shape, dtype)
+    @array_validator.register
+    def list_tuple_validator(
+        array: list | tuple,
+        shape: Tuple[int, ...] | None,
+        dtype: SupportedDTypes | None,
+    ) -> npt.NDArray:
+        return array_validator.dispatch(np.ndarray)(np.asarray(array), shape, dtype)
 
 
-@array_validator.register
-def dict_validator(array: dict, shape: Tuple[int, ...] | None, dtype: SupportedDTypes | None) -> npt.NDArray:
-    array = np.array(array["data"]).astype(array["data_type"]).reshape(array["shape"])
-    return array_validator.dispatch(np.ndarray)(array, shape, dtype)
+    @array_validator.register
+    def dict_validator(array: dict, shape: Tuple[int, ...] | None, dtype: SupportedDTypes | None) -> npt.NDArray:
+        array = np.array(array["data"]).astype(array["data_type"]).reshape(array["shape"])
+        return array_validator.dispatch(np.ndarray)(array, shape, dtype)
 
 
 def create_array_validator(

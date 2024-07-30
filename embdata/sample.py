@@ -61,6 +61,7 @@ Examples:
 import copy
 import logging
 import operator
+import os
 import re
 from enum import Enum
 from functools import cached_property, reduce
@@ -83,7 +84,7 @@ from embdata.utils import iter_utils, schema_utils, space_utils
 OneDimensional = Annotated[Literal["dict", "np", "pt", "list", "sample"], "Numpy, PyTorch, list, sample, or dict"]
 
 logger = logging.getLogger(__name__)
-if logger.level == logging.DEBUG:
+if logger.level == logging.DEBUG or "MBENCH" in os.environ:
     import mbench
     mbench.profileme()
 
@@ -574,7 +575,7 @@ class Sample(BaseModel):
             self, exclude=full_excludes, non_numerical=non_numerical, sep=sep,
         )
 
-        if not has_include or to in ["np", "numpy", "pt", "torch", "lists"]:
+        if not has_include:
             flattened_keys, flattened = iter_utils.flatten_recursive(
                 self,
                 exclude=exclude,
@@ -611,10 +612,12 @@ class Sample(BaseModel):
                 num_processed == ninclude_processed[include[0]] for num_processed in ninclude_processed.values()
             ) and all(len(processed_items) > 0 for processed_items in current_group.values()):
                 # Ensure that we limit to two dimensions.
+                logging.debug("Entering with current group: %s", current_group)
                 current_group = {k: v[0] if len(v) == 1 else v for k, v in current_group.items() if k not in exclude}
                 if to in ["dict", "sample"]:
                     # Short circuit to avoid unnecessary processing.
                     result.append(current_group)
+                    logging.debug("Flattened for dict: %s", result)
                 elif to in ["list"]:
                     flat_key, flattened = iter_utils.flatten_recursive(
                         current_group,
@@ -622,25 +625,30 @@ class Sample(BaseModel):
                         sep=sep,
                     )
 
+                    logging.debug("Flattened for list: %s", flattened)
                     result.extend(flattened)
                 else:
+                    logging.debug("Flattened for other: %s", result)
                     flat_key, flattened = iter_utils.flatten_recursive(
                         current_group,
                         non_numerical=non_numerical,
                         sep=sep,
                     )
+                    logging.debug("Flattened: %s", flattened)
                     match to:
                         case "dicts":
                             result.append(dict(zip(flat_key, flattened, strict=False)))
                         case "samples":
                             result.append(Sample(**dict(zip(flat_key, flattened, strict=False))))
                         case _:
+                            logging.debug("Current group: %s", current_group)
                             result.append(flattened)
 
             if all(num_processed == ninclude_processed[include[0]] for num_processed in ninclude_processed.values()):
+                logging.debug("Resetting current group %s", current_group)
                 current_group = {k: [] for k in include}
                 ninclude_processed = {k: 0 for k in include}
-
+        logging.debug("to: %s, result: %s", to, result)
         flattened = list(result.values()) if to in ["dicts", "samples"] and not isinstance(result, list) else result
         if to == "np":
             return np.array(flattened, dtype=float)

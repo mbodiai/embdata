@@ -11,9 +11,7 @@ from embdata.sample import Sample
 from datasets import load_dataset
 from embdata.sense.image import Image
 from embdata.motion.control import AnyMotionControl, RelativePoseHandControl
-from mbench.profile import profileme
 
-profileme()
 
 @pytest.fixture
 def time_step():
