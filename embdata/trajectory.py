@@ -1,11 +1,7 @@
 import inspect
 from functools import partial
-<<<<<<< Updated upstream
-from typing import Any, Callable, List
-=======
 import importlib.util
 from typing import Any, Callable, List, Literal
->>>>>>> Stashed changes
 
 import plotext as plt
 import numpy as np
@@ -22,8 +18,6 @@ from embdata.ndarray import NumpyArray
 from embdata.sample import Sample
 
 
-<<<<<<< Updated upstream
-=======
 def import_plotting_backend(backend: Literal["matplotlib", "plotext"] = "plotext") -> Any:
     if backend == "matplotlib" and not importlib.util.find_spec("matplotlib"):
         import matplotlib as mpl
@@ -36,7 +30,6 @@ def import_plotting_backend(backend: Literal["matplotlib", "plotext"] = "plotext
     return importlib.import_module("matplotlib.pyplot") if backend == "matplotlib" else importlib.import_module("plotext")
 
 
->>>>>>> Stashed changes
 @dataclass
 class Stats:
     mean: Any | None = None
@@ -128,11 +121,8 @@ def plot_trajectory(trajectory: np.ndarray, labels: list[str] | None = None, tim
     Returns:
       None
     """
-<<<<<<< Updated upstream
-=======
     plt = import_plotting_backend("matplotlib")
 
->>>>>>> Stashed changes
     num_steps = trajectory.shape[0]
     num_plots = trajectory.shape[1]
     if labels is None and num_plots == 6:

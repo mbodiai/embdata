@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-"""Wrap any common image representation in an Image class to convert to any other common format.
+"""Wrap any common image representation in an Image class to convert to any other common format.c
 
 The following image representations are supported:
 - NumPy array
