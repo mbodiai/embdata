@@ -7,6 +7,8 @@ from itertools import zip_longest
 from threading import Thread
 from typing import Any, Callable, Dict, Iterable, Iterator, List, Literal
 
+import cv2
+from embdata.geometry import Pose
 import numpy as np
 import rerun as rr
 import torch
@@ -19,10 +21,10 @@ from embdata.describe import describe
 from embdata.features import to_features_dict
 from embdata.motion.control import AnyMotionControl, RelativePoseHandControl
 from embdata.sample import Sample
-from embdata.sense.image import Image
-from embdata.time import ImageTask, TimeStep, VisionMotorStep
-from embdata.trajectory import Stats, Trajectory
-from embdata.utils.iter_utils import get_iter_class
+from embdata.sense.image import Image, SupportsImage
+from embdata.trajectory import Trajectory
+import rerun.blueprint as rrb
+from camera_params import CameraParams, Intrinsics, Extrinsics, DistortionParams
 
 try:
     from lerobot.common.datasets.lerobot_dataset import LeRobotDataset
@@ -280,9 +282,7 @@ class Episode(Sample):
             "timestamp": Value("float32"),
              **features,
         })
-        print("wtf")
-        print(feat)
-        print(data[0])
+
         with open("last_push.txt", "w+") as f:
             f.write(str(self.steps))
             f.write(str(data[0]))
@@ -697,33 +697,90 @@ class Episode(Sample):
 
     def rerun(self, mode=Literal["local", "remote"], port=5003, ws_port=5004) -> "Episode":
         """Start a rerun server."""
-        rr.init("rerun-mbodied-data", spawn=mode == "local")
-        # blueprint = rr.blueprint.Blueprint(
-            # rr.blueprint.Spatial3DView(background=RRImage(Image(size=(224, 224)).pil)),
-            # auto_layout=True,
-            # auto_space_views=True,
-        # )
-        rr.serve(open_browser=False, web_port=port, ws_port=ws_port)
+        params = CameraParams(
+        intrinsic=Intrinsics(focal_length_x=911.0, focal_length_y=911.0, optical_center_x=653.0, optical_center_y=371.0),
+        
+        extrinsic=Extrinsics(
+            rotation=np.array([-2.1703, 2.186, 0.053587]).reshape(3, 1),
+            translation=np.array([0.09483, 0.25683, 1.2942]).reshape(3, 1)
+        ),
+        distortion=DistortionParams(k1=0.0, k2=0.0, p1=0.0, p2=0.0, k3=0.0), 
+        depth_scale=0.001
+    )
+        
+        distortion_params = np.array([params.distortion.k1, params.distortion.k2, params.distortion.p1, params.distortion.p2, params.distortion.k3])
+        
+        rr.init("rerun-mbodied-data", spawn=True)
+
+        # rr.serve(open_browser=False, web_port=port, ws_port=ws_port)
         for i, step in enumerate(self.steps):
             if not hasattr(step, "timestamp") or step.timestamp is None:
                 step.timestamp = i / 5
             rr.set_time_sequence("frame_index", i)
             rr.set_time_seconds("timestamp", step.timestamp)
-            rr.log("observation", RRImage(step.observation.image.pil)) if step.observation.image else None
-            rr.send_blueprint(
-                rr.blueprint.Blueprint(
-                    rr.blueprint.Spatial3DView(background=RRImage(step.observation.image.pil)),
-                    auto_layout=True,
-                    auto_space_views=True,
-                ),
+
+            rr.log("observation/image", rr.Image(data=step.observation.image.array)) if step.observation.image else None
+
+            # Convert rotation vector to rotation matrix
+            R, _ = cv2.Rodrigues(np.array(params.extrinsic.rotation).reshape(3, 1))
+
+            projected_start_points_2d = []
+            projected_end_points_2d = []    
+            translation = np.array([params.extrinsic.translation[0], params.extrinsic.translation[1], params.extrinsic.translation[2]]).reshape(3, 1)
+            end_effector_offset = 0.175
+            if i == 0:
+                start_pose: Pose = Pose(x=0.3, y=0.0, z=0.325, roll=0.0, pitch=0.0, yaw=0.0)
+                end_pose: Pose = self.steps[min(i + 4, len(self.steps) - 1)].absolute_pose.pose
+            else:
+                start_pose: Pose = self.steps[i - 1].absolute_pose.pose
+                end_pose: Pose = self.steps[min(i + 4, len(self.steps) - 1)].absolute_pose.pose
+                        
+            # Switch x and z coordinates for the 3D points
+            start_position_3d = np.array([start_pose.z - end_effector_offset, -start_pose.y, start_pose.x]).reshape(3, 1)
+            end_position_3d = np.array([end_pose.z - end_effector_offset, -end_pose.y, end_pose.x]).reshape(3, 1)
+
+            # Transform the 3D point to the camera frame
+            position_3d_camera_frame = np.dot(R, start_position_3d) + translation
+            end_position_3d_camera_frame = np.dot(R, end_position_3d) + translation
+
+
+            # Project the transformed 3D point to 2D
+            start_point_2d, _ = cv2.projectPoints(position_3d_camera_frame, np.zeros((3,1)), np.zeros((3,1)), params.intrinsic.matrix(), np.array(distortion_params))
+            end_point_2d, _ = cv2.projectPoints(end_position_3d_camera_frame, np.zeros((3,1)), np.zeros((3,1)), params.intrinsic.matrix(), np.array(distortion_params))
+            
+            projected_start_points_2d.append(start_point_2d[0][0])
+            projected_end_points_2d.append(end_point_2d[0][0])
+
+        
+            colors = (255, 0, 0)
+            radii = 10
+            start_points_2d_array = np.array(projected_start_points_2d)
+            end_points_2d_array = np.array(projected_end_points_2d)
+            vectors = end_points_2d_array - start_points_2d_array
+            print(f"Start points: {start_points_2d_array}, End points: {end_points_2d_array}, Vectors: {vectors}")
+            rr.log("points", rr.Points2D(start_points_2d_array, colors=colors, radii=radii))
+            rr.log("arrows", rr.Arrows2D(vectors=vectors, origins=start_points_2d_array, colors=colors, radii=radii))
+            rr.log("arrows", rr.Arrows2D(vectors=vectors, origins=start_points_2d_array, colors=colors, radii=radii))
+            rr.log("arrows", rr.Arrows2D(vectors=vectors, origins=start_points_2d_array, colors=colors, radii=radii))
+            rr.log("arrows", rr.Arrows2D(vectors=vectors, origins=start_points_2d_array, colors=colors, radii=radii))
+            # for dim, val in step.action.flatten("dict").items():
+            #     print(f"Action {dim} with {val}")
+            #     rr.log(f"action/{dim}", rr.Scalar(val))
+            # if step.action.flatten(to="dict"):
+            #     # This should be step.state.pose ...
+            #     origin = step.action.numpy()[:3] if step.action else [0, 0, 0]
+            #     direction = step.action.numpy()[:3]
+            #     rr.log("action/pose_arrow", rr.Arrows3D(vectors=direction, origins=origin))
+
+            blueprint = rrb.Blueprint(
+                rrb.Spatial2DView(
+                    origin="/", 
+                    name="scene",
+                    background=rr.Image(data=step.observation.image.array),
+                )
             )
-            for dim, val in step.action.flatten("dict").items():
-                rr.log(f"action/{dim}", rr.Scalar(val))
-            if step.action.flatten(to="pose"):
-                # TODO: This should be step.state.pose ...
-                origin = step.action.numpy()[:3] if step.action else [0, 0, 0]
-                direction = step.action.numpy()[:3]
-                rr.log("action/pose_arrow", rr.Arrows3D(vectors=direction, origins=origin))
+            rr.send_blueprint(blueprint)
+            
 
         try:
             while hasattr(self, "_rr_thread") and self._rr_thread.is_alive():
@@ -745,7 +802,6 @@ class Episode(Sample):
         if hasattr(self, "_rr_thread"):
             self._rr_thread.join()
         self._rr_thread = None
-
 
 class VisionMotorEpisode(Episode):
     """An episode for vision-motor tasks."""
