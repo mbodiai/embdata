@@ -716,7 +716,6 @@ class Episode(Sample):
         """Start a rerun server."""
         params = CameraParams(
             intrinsic=Intrinsics(focal_length_x=911.0, focal_length_y=911.0, optical_center_x=653.0, optical_center_y=371.0),
-            
             extrinsic=Extrinsics(
                 rotation=[-2.1703, 2.186, 0.053587],
                 translation=[0.09483, 0.25683, 1.2942]
@@ -738,25 +737,31 @@ class Episode(Sample):
             rr.set_time_sequence("frame_index", i)
             rr.set_time_seconds("timestamp", step.timestamp)
 
-            rr.log("observation/image", rr.Image(data=step.observation.image.array)) if step.observation.image else None
+            rr.log("image", rr.Image(data=step.observation.image.array)) if step.observation.image else None
 
             # Convert rotation vector to rotation matrix
             R, _ = cv2.Rodrigues(np.array(params.extrinsic.rotation).reshape(3, 1))
 
-            projected_start_point_2d = []
-            projected_end_point_2d = []    
+            projected_start_points_2d = []
+            projected_end_points_2d = []    
 
             end_effector_offset = 0.175
-            next_n = 5
-            
+            next_n = 4
+            colors = (255, 0, 0)
+            radii = 10
             for j in range(next_n):
-                if i == 0:
+                current_index = i + j
+                next_index = current_index + 1
+                if next_index >= len(self.steps):
+                    break
+                
+                if current_index == 0:
                     start_pose: Pose = Pose(x=0.3, y=0.0, z=0.325, roll=0.0, pitch=0.0, yaw=0.0)
-                    end_pose: Pose = self.steps[min(i + 1, len(self.steps) - 1)].absolute_pose.pose
                 else:
-                    start_pose: Pose = self.steps[i - 1].absolute_pose.pose
-                    end_pose: Pose = self.steps[min(i + 1, len(self.steps) - 1)].absolute_pose.pose
-                    
+                    start_pose: Pose = self.steps[current_index].absolute_pose.pose
+                
+                end_pose: Pose = self.steps[next_index].absolute_pose.pose
+
                 # Switch x and z coordinates for the 3D points
                 start_position_3d = np.array([start_pose.z - end_effector_offset, -start_pose.y, start_pose.x]).reshape(3, 1)
                 end_position_3d = np.array([end_pose.z - end_effector_offset, -end_pose.y, end_pose.x]).reshape(3, 1)
@@ -765,41 +770,38 @@ class Episode(Sample):
                 position_3d_camera_frame = np.dot(R, start_position_3d) + translation
                 end_position_3d_camera_frame = np.dot(R, end_position_3d) + translation
 
-
                 # Project the transformed 3D point to 2D
                 start_point_2d, _ = cv2.projectPoints(position_3d_camera_frame, np.zeros((3,1)), np.zeros((3,1)), params.intrinsic.matrix(), np.array(distortion_params))
                 end_point_2d, _ = cv2.projectPoints(end_position_3d_camera_frame, np.zeros((3,1)), np.zeros((3,1)), params.intrinsic.matrix(), np.array(distortion_params))
                 
-                projected_start_point_2d.append(start_point_2d[0][0])
-                projected_end_point_2d.append(end_point_2d[0][0])
+                projected_start_points_2d.append(start_point_2d[0][0])
+                projected_end_points_2d.append(end_point_2d[0][0])
 
-            
-                colors = (255, 0, 0)
-                radii = 10
-                start_point_2d_array = np.array(projected_start_point_2d)
-                end_point_2d_array = np.array(projected_end_point_2d)
-                vectors = end_point_2d_array - start_point_2d_array
-                print(f"Start points: {start_point_2d_array}, End points: {end_point_2d_array}, Vectors: {vectors}")
+                start_points_2d_array = np.array(projected_start_points_2d)
+                end_points_2d_array = np.array(projected_end_points_2d)
+                vectors = end_points_2d_array - start_points_2d_array
+                print(f"Start points: {start_points_2d_array}, End points: {end_points_2d_array}, Vectors: {vectors}")
                 # rr.log("points", rr.Points2D(start_points_2d_array, colors=colors, radii=radii))
-                rr.log("arrows", rr.Arrows2D(vectors=vectors, origins=start_point_2d_array, colors=colors, radii=radii))
+                rr.log("arrows", rr.Arrows2D(vectors=vectors, origins=start_points_2d_array, colors=colors, radii=radii))
+                                                                             
 
-            #     print(f"Action {dim} with {val}")
-            #     rr.log(f"action/{dim}", rr.Scalar(val))
-            # if step.action.flatten(to="dict"):
-            #     # This should be step.state.pose ...
-            #     origin = step.action.numpy()[:3] if step.action else [0, 0, 0]
-            #     direction = step.action.numpy()[:3]
-            #     rr.log("action/pose_arrow", rr.Arrows3D(vectors=direction, origins=origin))
-
+            print(f"Scene Objects: {step.state.scene.scene_objects}"),
             blueprint = rrb.Blueprint(
                 rrb.Spatial2DView(
                     origin="/", 
                     name="scene",
                     background=rr.Image(data=step.observation.image.array),
-                )
+                    visible=True,
+                ),
             )
-            rr.send_blueprint(blueprint)
             
+            rr.send_blueprint(blueprint)
+
+            scene_objects = step.state.scene.scene_objects
+            for obj in scene_objects:
+                rr.log(f"objects/{obj['object_name']}/x", rr.Scalar(obj['object_pose']["x"]))
+                rr.log(f"objects/{obj['object_name']}/y", rr.Scalar(obj['object_pose']["y"]))
+                rr.log(f"objects/{obj['object_name']}/z", rr.Scalar(obj['object_pose']["z"]))   
 
         try:
             while hasattr(self, "_rr_thread") and self._rr_thread.is_alive():
@@ -807,6 +809,8 @@ class Episode(Sample):
         except KeyboardInterrupt:
             self.close_view()
             sys.exit()
+
+
 
     def show(self, mode: Literal["local", "remote"] | None = None, port=5003) -> None:
         if mode is None:
