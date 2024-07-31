@@ -698,18 +698,20 @@ class Episode(Sample):
     def rerun(self, mode=Literal["local", "remote"], port=5003, ws_port=5004) -> "Episode":
         """Start a rerun server."""
         params = CameraParams(
-        intrinsic=Intrinsics(focal_length_x=911.0, focal_length_y=911.0, optical_center_x=653.0, optical_center_y=371.0),
+            intrinsic=Intrinsics(focal_length_x=911.0, focal_length_y=911.0, optical_center_x=653.0, optical_center_y=371.0),
+            
+            extrinsic=Extrinsics(
+                rotation=[-2.1703, 2.186, 0.053587],
+                translation=[0.09483, 0.25683, 1.2942]
+            ),
+            distortion=DistortionParams(k1=0.0, k2=0.0, p1=0.0, p2=0.0, k3=0.0), 
+            depth_scale=0.001
+        )
         
-        extrinsic=Extrinsics(
-            rotation=np.array([-2.1703, 2.186, 0.053587]).reshape(3, 1),
-            translation=np.array([0.09483, 0.25683, 1.2942]).reshape(3, 1)
-        ),
-        distortion=DistortionParams(k1=0.0, k2=0.0, p1=0.0, p2=0.0, k3=0.0), 
-        depth_scale=0.001
-    )
-        
-        distortion_params = np.array([params.distortion.k1, params.distortion.k2, params.distortion.p1, params.distortion.p2, params.distortion.k3])
-        
+        distortion_params = params.distortion.to("np")
+        distortion_params = distortion_params.reshape(5, 1)
+        translation = np.array(params.extrinsic.translation).reshape(3, 1)
+
         rr.init("rerun-mbodied-data", spawn=True)
 
         # rr.serve(open_browser=False, web_port=port, ws_port=ws_port)
@@ -724,46 +726,46 @@ class Episode(Sample):
             # Convert rotation vector to rotation matrix
             R, _ = cv2.Rodrigues(np.array(params.extrinsic.rotation).reshape(3, 1))
 
-            projected_start_points_2d = []
-            projected_end_points_2d = []    
-            translation = np.array([params.extrinsic.translation[0], params.extrinsic.translation[1], params.extrinsic.translation[2]]).reshape(3, 1)
+            projected_start_point_2d = []
+            projected_end_point_2d = []    
+
             end_effector_offset = 0.175
-            if i == 0:
-                start_pose: Pose = Pose(x=0.3, y=0.0, z=0.325, roll=0.0, pitch=0.0, yaw=0.0)
-                end_pose: Pose = self.steps[min(i + 4, len(self.steps) - 1)].absolute_pose.pose
-            else:
-                start_pose: Pose = self.steps[i - 1].absolute_pose.pose
-                end_pose: Pose = self.steps[min(i + 4, len(self.steps) - 1)].absolute_pose.pose
-                        
-            # Switch x and z coordinates for the 3D points
-            start_position_3d = np.array([start_pose.z - end_effector_offset, -start_pose.y, start_pose.x]).reshape(3, 1)
-            end_position_3d = np.array([end_pose.z - end_effector_offset, -end_pose.y, end_pose.x]).reshape(3, 1)
-
-            # Transform the 3D point to the camera frame
-            position_3d_camera_frame = np.dot(R, start_position_3d) + translation
-            end_position_3d_camera_frame = np.dot(R, end_position_3d) + translation
-
-
-            # Project the transformed 3D point to 2D
-            start_point_2d, _ = cv2.projectPoints(position_3d_camera_frame, np.zeros((3,1)), np.zeros((3,1)), params.intrinsic.matrix(), np.array(distortion_params))
-            end_point_2d, _ = cv2.projectPoints(end_position_3d_camera_frame, np.zeros((3,1)), np.zeros((3,1)), params.intrinsic.matrix(), np.array(distortion_params))
+            next_n = 5
             
-            projected_start_points_2d.append(start_point_2d[0][0])
-            projected_end_points_2d.append(end_point_2d[0][0])
+            for j in range(next_n):
+                if i == 0:
+                    start_pose: Pose = Pose(x=0.3, y=0.0, z=0.325, roll=0.0, pitch=0.0, yaw=0.0)
+                    end_pose: Pose = self.steps[min(i + 1, len(self.steps) - 1)].absolute_pose.pose
+                else:
+                    start_pose: Pose = self.steps[i - 1].absolute_pose.pose
+                    end_pose: Pose = self.steps[min(i + 1, len(self.steps) - 1)].absolute_pose.pose
+                    
+                # Switch x and z coordinates for the 3D points
+                start_position_3d = np.array([start_pose.z - end_effector_offset, -start_pose.y, start_pose.x]).reshape(3, 1)
+                end_position_3d = np.array([end_pose.z - end_effector_offset, -end_pose.y, end_pose.x]).reshape(3, 1)
 
-        
-            colors = (255, 0, 0)
-            radii = 10
-            start_points_2d_array = np.array(projected_start_points_2d)
-            end_points_2d_array = np.array(projected_end_points_2d)
-            vectors = end_points_2d_array - start_points_2d_array
-            print(f"Start points: {start_points_2d_array}, End points: {end_points_2d_array}, Vectors: {vectors}")
-            rr.log("points", rr.Points2D(start_points_2d_array, colors=colors, radii=radii))
-            rr.log("arrows", rr.Arrows2D(vectors=vectors, origins=start_points_2d_array, colors=colors, radii=radii))
-            rr.log("arrows", rr.Arrows2D(vectors=vectors, origins=start_points_2d_array, colors=colors, radii=radii))
-            rr.log("arrows", rr.Arrows2D(vectors=vectors, origins=start_points_2d_array, colors=colors, radii=radii))
-            rr.log("arrows", rr.Arrows2D(vectors=vectors, origins=start_points_2d_array, colors=colors, radii=radii))
-            # for dim, val in step.action.flatten("dict").items():
+                # Transform the 3D point to the camera frame
+                position_3d_camera_frame = np.dot(R, start_position_3d) + translation
+                end_position_3d_camera_frame = np.dot(R, end_position_3d) + translation
+
+
+                # Project the transformed 3D point to 2D
+                start_point_2d, _ = cv2.projectPoints(position_3d_camera_frame, np.zeros((3,1)), np.zeros((3,1)), params.intrinsic.matrix(), np.array(distortion_params))
+                end_point_2d, _ = cv2.projectPoints(end_position_3d_camera_frame, np.zeros((3,1)), np.zeros((3,1)), params.intrinsic.matrix(), np.array(distortion_params))
+                
+                projected_start_point_2d.append(start_point_2d[0][0])
+                projected_end_point_2d.append(end_point_2d[0][0])
+
+            
+                colors = (255, 0, 0)
+                radii = 10
+                start_point_2d_array = np.array(projected_start_point_2d)
+                end_point_2d_array = np.array(projected_end_point_2d)
+                vectors = end_point_2d_array - start_point_2d_array
+                print(f"Start points: {start_point_2d_array}, End points: {end_point_2d_array}, Vectors: {vectors}")
+                # rr.log("points", rr.Points2D(start_points_2d_array, colors=colors, radii=radii))
+                rr.log("arrows", rr.Arrows2D(vectors=vectors, origins=start_point_2d_array, colors=colors, radii=radii))
+
             #     print(f"Action {dim} with {val}")
             #     rr.log(f"action/{dim}", rr.Scalar(val))
             # if step.action.flatten(to="dict"):
