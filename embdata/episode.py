@@ -1,5 +1,3 @@
-import atexit
-from functools import cached_property
 import logging
 import sys
 from itertools import zip_longest
@@ -7,31 +5,29 @@ from threading import Thread
 from typing import Any, Callable, Dict, Iterable, Iterator, List, Literal
 
 import cv2
-from embdata.geometry import Pose
 import numpy as np
 import rerun as rr
 import torch
-from datasets import Dataset, Features, Sequence, Value, DatasetDict
+from datasets import Dataset, DatasetDict, Features, Sequence, Value
 from datasets import Image as HFImage
-from pydantic import ConfigDict, Field, PrivateAttr, model_validator
-from rerun.archetypes import Image as RRImage
+from pydantic import ConfigDict, Field, PrivateAttr
 
-from embdata.describe import describe
 from embdata.features import to_features_dict
+from embdata.geometry import Pose
 from embdata.motion import Motion
 from embdata.motion.control import AnyMotionControl, RelativePoseHandControl
 from embdata.sample import Sample
+from embdata.sense.camera import CameraParams, DistortionParams, Extrinsics, Intrinsics
 from embdata.sense.image import Image, SupportsImage
 from embdata.trajectory import Trajectory
+
 import rerun.blueprint as rrb
-from camera_params import CameraParams, Intrinsics, Extrinsics, DistortionParams
 
 try:
     from lerobot.common.datasets.lerobot_dataset import LeRobotDataset
     from lerobot.common.datasets.utils import calculate_episode_data_index, hf_transform_to_torch
 except ImportError:
     logging.info("lerobot not found. Go to https://github.com/huggingface/lerobot to install it.")
-
 
 
 def convert_images(values: Dict[str, Any] | Any, image_keys: set[str] | str | None = "image") -> "TimeStep":
@@ -370,8 +366,6 @@ class Episode(Sample):
 
         Example:
             Understand the relationship between frequency and grasping.
-
-
         """
         of = of if isinstance(of, list) else [of]
         of = [f[:-1] if f.endswith("s") else f for f in of]
@@ -730,7 +724,7 @@ class Episode(Sample):
 
         rr.init("rerun-mbodied-data", spawn=True)
 
-        # rr.serve(open_browser=False, web_port=port, ws_port=ws_port)
+        rr.serve(open_browser=False, web_port=port, ws_port=ws_port)
         for i, step in enumerate(self.steps):
             if not hasattr(step, "timestamp") or step.timestamp is None:
                 step.timestamp = i / 5
@@ -780,17 +774,15 @@ class Episode(Sample):
                 start_points_2d_array = np.array(projected_start_points_2d)
                 end_points_2d_array = np.array(projected_end_points_2d)
                 vectors = end_points_2d_array - start_points_2d_array
-                print(f"Start points: {start_points_2d_array}, End points: {end_points_2d_array}, Vectors: {vectors}")
                 # rr.log("points", rr.Points2D(start_points_2d_array, colors=colors, radii=radii))
                 rr.log("arrows", rr.Arrows2D(vectors=vectors, origins=start_points_2d_array, colors=colors, radii=radii))
                                                                              
 
-            print(f"Scene Objects: {step.state.scene.scene_objects}"),
             blueprint = rrb.Blueprint(
                 rrb.Spatial2DView(
                     origin="/", 
                     name="scene",
-                    background=rr.Image(data=step.observation.image.array),
+                    background=[rr.Image(data=step.observation.image.array)],
                     visible=True,
                 ),
             )
@@ -801,30 +793,30 @@ class Episode(Sample):
             for obj in scene_objects:
                 rr.log(f"objects/{obj['object_name']}/x", rr.Scalar(obj['object_pose']["x"]))
                 rr.log(f"objects/{obj['object_name']}/y", rr.Scalar(obj['object_pose']["y"]))
-                rr.log(f"objects/{obj['object_name']}/z", rr.Scalar(obj['object_pose']["z"]))   
+                rr.log(f"objects/{obj['object_name']}/z", rr.Scalar(obj['object_pose']["z"]))  
 
+
+    def show(self, mode: Literal["local", "remote"] | None = None, port=5003, ws_port=5004) -> None:
+        if mode is None:
+            msg = "Please specify a mode: 'local' or 'remote'"
+            raise ValueError(msg)
+        thread = Thread(target=self.rerun, kwargs={"port": port, "mode": mode, "ws_port": ws_port},
+                        daemon=True)
+        self._rr_thread = thread
+        thread.start()
         try:
-            while hasattr(self, "_rr_thread") and self._rr_thread.is_alive():
+            while hasattr(self, "_rr_thread"):
                 pass
         except KeyboardInterrupt:
             self.close_view()
             sys.exit()
-
-
-
-    def show(self, mode: Literal["local", "remote"] | None = None, port=5003) -> None:
-        if mode is None:
-            msg = "Please specify a mode: 'local' or 'remote'"
-            raise ValueError(msg)
-        thread = Thread(target=self.rerun, kwargs={"port": port, "mode": mode})
-        self._rr_thread = thread
-        atexit.register(self.close_view)
-        thread.start()
+        finally:
+            self.close_view()
+        
 
     def close_view(self) -> None:
         if hasattr(self, "_rr_thread"):
-            self._rr_thread.join()
-        self._rr_thread = None
+            self._rr_thread = None
 
 class VisionMotorEpisode(Episode):
     """An episode for vision-motor tasks."""
