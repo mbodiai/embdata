@@ -1,4 +1,4 @@
-import atexit
+import logging
 import sys
 import traceback
 from itertools import zip_longest
@@ -6,30 +6,144 @@ from threading import Thread
 from typing import Any, Callable, Dict, Iterable, Iterator, List, Literal
 
 import cv2
-from embdata.geometry import Pose
 import numpy as np
 import rerun as rr
 import rerun_sdk as rr_sdk
 import torch
-from datasets import Dataset, DatasetDict, Features, IterableDataset, Sequence, Value
+from datasets import Dataset, DatasetDict, Features, Sequence, Value
 from datasets import Image as HFImage
 from pydantic import ConfigDict, Field, PrivateAttr
 
 from embdata.features import to_features_dict
+from embdata.geometry import Pose
+from embdata.motion import Motion
 from embdata.motion.control import AnyMotionControl, RelativePoseHandControl
 from embdata.sample import Sample
+from embdata.sense.camera import CameraParams, DistortionParams, Extrinsics, Intrinsics
 from embdata.sense.image import Image, SupportsImage
 from embdata.trajectory import Trajectory
+
 import rerun.blueprint as rrb
-sys.path.append("/home/user/Zaid/hri/HRI")
-from camera_params import CameraParams, Intrinsics, Extrinsics, DistortionParams
-import logging
 
 try:
     from lerobot.common.datasets.lerobot_dataset import LeRobotDataset
     from lerobot.common.datasets.utils import calculate_episode_data_index, hf_transform_to_torch
 except ImportError:
-    logging.info("lerobot not found. Optionally install at https://github.com/huggingface/lerobot.")
+    logging.info("lerobot not found. Go to https://github.com/huggingface/lerobot to install it.")
+
+
+def convert_images(values: Dict[str, Any] | Any, image_keys: set[str] | str | None = "image") -> "TimeStep":
+        if not isinstance(values, dict | Sample):
+            if Image.supports(values):
+                try:
+                    return Image(values)
+                except Exception:
+                    return values
+            return values
+        if isinstance(image_keys, str):
+            image_keys = {image_keys}
+        obj = {}
+        for key, value in values.items():
+            if key in image_keys:
+                try :
+                    if isinstance(value, dict):
+                        obj[key] = Image(**value)
+                    else:
+                        obj[key] = Image(value)
+                except Exception as e: # noqa
+                    logging.warning(f"Failed to convert {key} to Image: {e}")
+                    obj[key] = value
+            elif isinstance(value, dict | Sample):
+                obj[key] = convert_images(value)
+            else:
+                obj[key] = value
+        return obj
+
+class TimeStep(Sample):
+    """Time step for a task."""
+
+    episode_idx: int | None = 0
+    step_idx: int | None = 0
+    model_config = ConfigDict(arbitrary_types_allowed=True, extra="allow")
+    observation: Sample | None = None
+    action: Sample | None = None
+    state: Sample | None = None
+    supervision: Any = None
+    timestamp: float | None = None
+
+    _observation_class: type[Sample] = PrivateAttr(default=Sample)
+    _action_class: type[Sample] = PrivateAttr(default=Sample)
+    _state_class: type[Sample] = PrivateAttr(default=Sample)
+    _supervision_class: type[Sample] = PrivateAttr(default=Sample)
+    
+    @classmethod
+    def from_dict(cls, values: Dict[str, Any], image_keys: str | set | None = "image",
+            observation_key: str | None = "observation", action_key: str | None = "action", supervision_key: str | None = "supervision") -> "TimeStep":
+        obs = values.pop(observation_key, None)
+        act = values.pop(action_key, None)
+        sta = values.pop("state", None)
+        sup = values.pop(supervision_key, None)
+        timestamp = values.pop("timestamp", 0)
+        step_idx = values.pop("step_idx", 0)
+        episode_idx = values.pop("episode_idx", 0)
+
+        Obs = cls._observation_class.get_default()
+        Act = cls._action_class.get_default()  # noqa: N806, SLF001
+        Sta = cls._state_class.get_default()  # noqa: N806, SLF001
+        Sup = cls._supervision_class.get_default()
+        obs = Obs(**convert_images(obs, image_keys)) if obs is not None else None
+        act = Act(**convert_images(act, image_keys)) if act is not None else None
+        sta = Sta(**convert_images(sta, image_keys)) if sta is not None else None
+        sup = Sup(**convert_images(sup, image_keys)) if sup is not None else None
+        field_names = cls.model_fields.keys()
+        return cls(
+            observation=obs,
+            action=act,
+            state=sta,
+            supervision=sup,
+            episode_idx=episode_idx,
+            step_idx=step_idx,
+            timestamp=timestamp,
+            **{k: v for k, v in values.items() if k not in field_names},
+        )
+
+    def __init__(
+        self,
+        observation: Sample | Dict | np.ndarray, 
+        action: Sample | Dict | np.ndarray,
+        state: Sample | Dict | np.ndarray | None = None, 
+        supervision: Any | None = None, 
+        episode_idx: int | None = 0,
+        step_idx: int | None = 0,
+        timestamp: float | None = None,
+        image_keys: str | set[str] | None = "image",
+         **kwargs):
+
+        obs = observation
+        act = action
+        sta = state
+        sup = supervision
+
+        Obs = TimeStep._observation_class.get_default() if not isinstance(obs, Sample) else obs.__class__
+        Act = TimeStep._action_class.get_default() if not isinstance(act, Sample) else act.__class__
+        Sta = TimeStep._state_class.get_default() if not isinstance(sta, Sample) else sta.__class__
+        Sup = TimeStep._supervision_class.get_default() if not isinstance(sup, Sample) else Sample
+        obs = Obs(**convert_images(obs, image_keys)) if obs is not None else None
+        act = Act(**convert_images(act, image_keys)) if act is not None else None
+        sta = Sta(**convert_images(sta, image_keys)) if sta is not None else None
+        sup = Sup(**convert_images(supervision)) if supervision is not None else None
+
+        super().__init__(  # noqa: PLE0101
+            observation=observation,
+            action=action,
+            state=state, 
+            supervision=supervision, 
+            episode_idx=episode_idx, 
+            step_idx=step_idx, 
+            timestamp=timestamp, 
+            **{k: v for k, v in kwargs.items() if k not in ["observation", "action", "state", "supervision"]},
+        )
+
 
 logger = logging.getLogger(__name__)
 if logger.level == logging.DEBUG or "MBENCH" in os.environ:
@@ -325,8 +439,6 @@ class Episode(Sample):
 
         Example:
             Understand the relationship between frequency and grasping.
-
-
         """
         step_keys = {"observations", "actions", "states", "steps", "supervisions"}
         of = of if isinstance(of, list) else [of]
