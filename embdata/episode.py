@@ -1,36 +1,34 @@
-import atexit
+import logging
 import sys
 from itertools import zip_longest
 from threading import Thread
 from typing import Any, Callable, Dict, Iterable, Iterator, List, Literal
 
 import cv2
-from embdata.geometry import Pose
 import numpy as np
 import rerun as rr
 import rerun_sdk as rr_sdk
 import torch
-from datasets import Dataset, Features, Sequence, Value, DatasetDict
+from datasets import Dataset, DatasetDict, Features, Sequence, Value
 from datasets import Image as HFImage
 from pydantic import ConfigDict, Field, PrivateAttr
 
 from embdata.features import to_features_dict
+from embdata.geometry import Pose
 from embdata.motion import Motion
 from embdata.motion.control import AnyMotionControl, RelativePoseHandControl
 from embdata.sample import Sample
+from embdata.sense.camera import CameraParams, DistortionParams, Extrinsics, Intrinsics
 from embdata.sense.image import Image, SupportsImage
 from embdata.trajectory import Trajectory
+
 import rerun.blueprint as rrb
-sys.path.append("/home/user/Zaid/hri/HRI")
-from camera_params import CameraParams, Intrinsics, Extrinsics, DistortionParams
-import logging
 
 try:
     from lerobot.common.datasets.lerobot_dataset import LeRobotDataset
     from lerobot.common.datasets.utils import calculate_episode_data_index, hf_transform_to_torch
 except ImportError:
     logging.info("lerobot not found. Go to https://github.com/huggingface/lerobot to install it.")
-
 
 
 def convert_images(values: Dict[str, Any] | Any, image_keys: set[str] | str | None = "image") -> "TimeStep":
@@ -369,8 +367,6 @@ class Episode(Sample):
 
         Example:
             Understand the relationship between frequency and grasping.
-
-
         """
         of = of if isinstance(of, list) else [of]
         of = [f[:-1] if f.endswith("s") else f for f in of]
