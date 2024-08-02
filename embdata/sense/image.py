@@ -134,7 +134,7 @@ class Image(Sample):
 
     @computed_field
     @cached_property
-    def url(self) -> AnyUrl:
+    def url(self) -> str:
         """The URL of the image."""
         return f"data:image/{self.encoding};base64,{self.base64}"
 
@@ -219,16 +219,13 @@ class Image(Sample):
 
     @model_validator(mode="before")
     @classmethod
-    def ensure_pil(cls, values: Dict[str, SupportsImage]) -> None:
+    def ensure_pil(cls, values: Dict[str, SupportsImage]) -> None: # noqa
         """Ensure the image is represented as a PIL Image object."""
         sources = ["array", "base64", "path", "url", "bytes"]
         if values.get("pil") is None:
             arg = reduce(lambda x, y: x if x is not None else y, [values.get(key) for key in sources])
             values.update(cls.dispatch_arg(arg, **values))
-            print("Ensure PIL")
-            print({key: type(value) for key, value in values.items()})
         values = {key: value for key, value in values.items() if key is not None}
-        print({key: type(value) for key, value in values.items() if key is not None})
         return values
 
     @staticmethod
