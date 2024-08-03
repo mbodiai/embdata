@@ -226,6 +226,10 @@ class Coordinate(Sample):
         return self
 
 
+from typing import TypeVar, Union, Tuple
+
+T = TypeVar('T', bound='Pose3D')
+
 class Pose3D(Coordinate):
     """Absolute coordinates for a 3D space representing x, y, and theta.
 
@@ -239,6 +243,12 @@ class Pose3D(Coordinate):
 
     Examples:
         >>> import math
+        >>> pose = Pose3D(1, 2, math.pi / 2)
+        >>> pose
+        Pose3D(x=1.0, y=2.0, theta=1.5707963267948966)
+        >>> pose = Pose3D([1, 2, math.pi / 2])
+        >>> pose
+        Pose3D(x=1.0, y=2.0, theta=1.5707963267948966)
         >>> pose = Pose3D(x=1, y=2, theta=math.pi / 2)
         >>> pose
         Pose3D(x=1.0, y=2.0, theta=1.5707963267948966)
@@ -249,6 +259,18 @@ class Pose3D(Coordinate):
     x: float = CoordinateField(unit="m", default=0.0)
     y: float = CoordinateField(unit="m", default=0.0)
     theta: float = CoordinateField(unit="rad", default=0.0)
+
+    def __init__(self: T, *args, **kwargs):
+        if len(args) == 1 and isinstance(args[0], (list, tuple)) and len(args[0]) == 3:
+            super().__init__(x=args[0][0], y=args[0][1], theta=args[0][2])
+        elif len(args) == 3:
+            super().__init__(x=args[0], y=args[1], theta=args[2])
+        else:
+            super().__init__(**kwargs)
+
+    @classmethod
+    def from_position_orientation(cls: Type[T], position: Union[Tuple[float, float], List[float]], orientation: float) -> T:
+        return cls(x=position[0], y=position[1], theta=orientation)
 
     def to(self, container_or_unit=None, unit="m", angular_unit="rad", **kwargs) -> Any:
         """Convert the pose to a different unit or container.
@@ -308,11 +330,23 @@ class Pose3D(Coordinate):
 PlanarPose: TypeAlias = Pose3D
 
 
+from typing import TypeVar, Union, Tuple, List
+
+T = TypeVar('T', bound='Pose6D')
+
 class Pose6D(Coordinate):
     """Absolute coordinates for a 6D space representing x, y, z, roll, pitch, and yaw.
 
     Examples:
+        >>> pose = Pose6D(1, 2, 3, 0, 0, np.pi / 2)
+        >>> pose
+        Pose6D(x=1.0, y=2.0, z=3.0, roll=0.0, pitch=0.0, yaw=1.5707963267948966)
+        >>> pose = Pose6D([1, 2, 3, 0, 0, np.pi / 2])
+        >>> pose
+        Pose6D(x=1.0, y=2.0, z=3.0, roll=0.0, pitch=0.0, yaw=1.5707963267948966)
         >>> pose = Pose6D(x=1, y=2, z=3, roll=0, pitch=0, yaw=np.pi / 2)
+        >>> pose
+        Pose6D(x=1.0, y=2.0, z=3.0, roll=0.0, pitch=0.0, yaw=1.5707963267948966)
         >>> pose.to("cm")
         Pose6D(x=100.0, y=200.0, z=300.0, roll=0.0, pitch=0.0, yaw=1.5707963267948966)
         >>> pose.to("deg")
@@ -323,7 +357,6 @@ class Pose6D(Coordinate):
         array([[ 0., -1.,  0.],
                [ 1.,  0.,  0.],
                [ 0.,  0.,  1.]])
-
     """
 
     x: float = CoordinateField(unit="m", default=0.0)
@@ -333,8 +366,19 @@ class Pose6D(Coordinate):
     pitch: float = CoordinateField(unit="rad", default=0.0)
     yaw: float = CoordinateField(unit="rad", default=0.0)
 
+    def __init__(self: T, *args, **kwargs):
+        if len(args) == 1 and isinstance(args[0], (list, tuple)) and len(args[0]) == 6:
+            super().__init__(x=args[0][0], y=args[0][1], z=args[0][2], roll=args[0][3], pitch=args[0][4], yaw=args[0][5])
+        elif len(args) == 6:
+            super().__init__(x=args[0], y=args[1], z=args[2], roll=args[3], pitch=args[4], yaw=args[5])
+        elif "position" in kwargs and "orientation" in kwargs:
+            pose = self.from_position_orientation(kwargs["position"], kwargs["orientation"])
+            super().__init__(**pose.model_dump())
+        else:
+            super().__init__(**kwargs)
+
     @classmethod
-    def from_position_orientation(cls, position, orientation) -> "Pose6D":
+    def from_position_orientation(cls: Type[T], position: Union[Tuple[float, float, float], List[float]], orientation: Union[Tuple[float, float, float, float], List[float]]) -> T:
         if len(position) != 3 or len(orientation) != 4:
             msg = "Invalid position or orientation format"
             raise ValueError(msg)
@@ -343,12 +387,6 @@ class Pose6D(Coordinate):
         rotation = Rotation.from_quat([qx, qy, qz, qw])
         roll, pitch, yaw = rotation.as_euler("xyz")
         return cls(x=x, y=y, z=z, roll=roll, pitch=pitch, yaw=yaw)
-
-    def __init__(self, **data):
-        if "position" in data and "orientation" in data:
-            pose = self.from_position_orientation(data["position"], data["orientation"])
-            data = pose.model_dump()
-        super().__init__(**data)
 
     def to(self, container_or_unit=None, sequence="zyx", unit="m", angular_unit="rad", **kwargs) -> Any:
         """Convert the pose to a different unit, container, or representation.
