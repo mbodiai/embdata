@@ -117,7 +117,7 @@ class Coordinate(Sample):
             1.0
             >>> Coordinate.convert_linear_unit(1.0, "m", "ft")
             3.280839895013123
-            >>> Coordinate.convert_linear_unit(12.0, "in", "cm")
+            >>> round(Coordinate.convert_linear_unit(12.0, "in", "cm"), 2)
             30.48
         """
         conversion_from_factors = {
@@ -233,6 +233,7 @@ class Coordinate(Sample):
 T = TypeVar("T", bound="Pose3D")
 
 class Pose3D(Coordinate):
+    model_config = ConfigDict(repr_str_template="{x=:.3f}, y={y:.3f}, theta={theta:.3f}")
     """Absolute coordinates for a 3D space representing x, y, and theta.
 
     This class represents a pose in 3D space with x and y coordinates for position
@@ -358,6 +359,7 @@ PlanarPose: TypeAlias = Pose3D
 T = TypeVar("T", bound="Pose6D")
 
 class Pose6D(Coordinate):
+    model_config = ConfigDict(repr_str_template="{x=:.3f}, y={y:.3f}, z={z:.3f}, roll={roll:.3f}, pitch={pitch:.3f}, yaw={yaw:.3f}")
     """Absolute coordinates for a 6D space representing x, y, z, roll, pitch, and yaw.
 
     Examples:
@@ -505,13 +507,13 @@ class Pose6D(Coordinate):
             **{k: (float, v[1]) for k, v in converted_fields.items()},
         )(**{k: v[0] for k, v in converted_fields.items()})
 
-    def quaternion(self, sequence="zyx") -> np.ndarray:
+    def quaternion(self, sequence="xyz") -> np.ndarray:
         """Convert roll, pitch, yaw to a quaternion based on the given sequence.
 
         This method uses scipy's Rotation class to perform the conversion.
 
         Args:
-            sequence (str, optional): The sequence of rotations. Defaults to "zyx".
+            sequence (str, optional): The sequence of rotations. Defaults to "xyz".
 
         Returns:
             np.ndarray: A quaternion representation of the pose's orientation.
@@ -524,13 +526,13 @@ class Pose6D(Coordinate):
         rotation = Rotation.from_euler(sequence, [self.roll, self.pitch, self.yaw])
         return rotation.as_quat()
 
-    def rotation_matrix(self, sequence="zyx") -> np.ndarray:
+    def rotation_matrix(self, sequence="xyz") -> np.ndarray:
         """Convert roll, pitch, yaw to a rotation matrix based on the given sequence.
 
         This method uses scipy's Rotation class to perform the conversion.
 
         Args:
-            sequence (str, optional): The sequence of rotations. Defaults to "zyx".
+            sequence (str, optional): The sequence of rotations. Defaults to "xyz".
 
         Returns:
             np.ndarray: A 3x3 rotation matrix representing the pose's orientation.
@@ -538,9 +540,9 @@ class Pose6D(Coordinate):
         Example:
             >>> pose = Pose6D(x=0, y=0, z=0, roll=0, pitch=np.pi / 2, yaw=0)
             >>> np.round(pose.rotation_matrix(), 3)
-            array([[ 0., -0.,  1.],
+            array([[ 0.,  0.,  1.],
                    [ 0.,  1.,  0.],
-                   [-1., -0.,  0.]])
+                   [-1.,  0.,  0.]])
         """
         rotation = Rotation.from_euler(sequence, [self.roll, self.pitch, self.yaw])
         return rotation.as_matrix()
