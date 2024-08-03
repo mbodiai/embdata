@@ -92,17 +92,14 @@ def describe_keys(ds: Any, sep: str = ".", show=False, path="") -> Dict[str, Any
                 new_key = f"{prefix}{key}" if prefix else key
                 result[key] = new_key
                 recurse(value, f"{new_key}{sep}")
-        elif isinstance(current, (list, Dataset)):
-            if current:
-                recurse(current[0], f"{prefix}*{sep}")
+        elif isinstance(current, list | Dataset) and current:
+            recurse(current[0], f"{prefix}*{sep}")
 
-    if isinstance(ds, (list, Dataset)) and ds:
+    if isinstance(ds, list | Dataset) and ds:
         ds = ds[0]
     if hasattr(ds, "dump") and hasattr(ds, "dict"):
         ds = ds.dump()
-    
     recurse(ds, path)
-    
     if show:
         print(result)
     return result
