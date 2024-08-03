@@ -235,7 +235,7 @@ class Coordinate(Sample):
 T = TypeVar("T", bound="Pose3D")
 
 class Pose3D(Coordinate):
-    model_config = ConfigDict(repr_str_template="{x=:.3f}, y={y:.3f}, theta={theta:.3f}")
+    model_config = ConfigDict(repr_str_template="x={x:.3f}, y={y:.3f}, theta={theta:.3f}")
     """Absolute coordinates for a 3D space representing x, y, and theta.
 
     This class represents a pose in 3D space with x and y coordinates for position
@@ -299,6 +299,10 @@ class Pose3D(Coordinate):
         return cls(x=position[0], y=position[1], theta=orientation)
 
     def to(self, container_or_unit=None, unit="m", angular_unit="rad", **kwargs) -> Any:
+        if container_or_unit == "cm":
+            return Pose3D(x=self.x * 100, y=self.y * 100, theta=self.theta)
+        elif container_or_unit == "deg":
+            return Pose3D(x=self.x, y=self.y, theta=math.degrees(self.theta))
         """Convert the pose to a different unit or container.
 
         This method allows for flexible conversion of the Pose3D object to different units
@@ -361,7 +365,7 @@ PlanarPose: TypeAlias = Pose3D
 T = TypeVar("T", bound="Pose6D")
 
 class Pose6D(Coordinate):
-    model_config = ConfigDict(repr_str_template="{x=:.3f}, y={y:.3f}, z={z:.3f}, roll={roll:.3f}, pitch={pitch:.3f}, yaw={yaw:.3f}")
+    model_config = ConfigDict(repr_str_template="x={x:.3f}, y={y:.3f}, z={z:.3f}, roll={roll:.3f}, pitch={pitch:.3f}, yaw={yaw:.3f}")
     """Absolute coordinates for a 6D space representing x, y, z, roll, pitch, and yaw.
 
     Examples:
@@ -444,6 +448,10 @@ class Pose6D(Coordinate):
         return cls(x=x, y=y, z=z, roll=roll, pitch=pitch, yaw=yaw)
 
     def to(self, container_or_unit=None, sequence="zyx", unit="m", angular_unit="rad", **kwargs) -> Any:
+        if container_or_unit == "cm":
+            return Pose6D(x=self.x * 100, y=self.y * 100, z=self.z * 100, roll=self.roll, pitch=self.pitch, yaw=self.yaw)
+        elif container_or_unit == "deg":
+            return Pose6D(x=self.x, y=self.y, z=self.z, roll=math.degrees(self.roll), pitch=math.degrees(self.pitch), yaw=math.degrees(self.yaw))
         """Convert the pose to a different unit, container, or representation.
 
         This method provides a versatile way to transform the Pose6D object into various
@@ -523,7 +531,7 @@ class Pose6D(Coordinate):
         Example:
             >>> pose = Pose6D(x=0, y=0, z=0, roll=np.pi / 4, pitch=0, yaw=np.pi / 2)
             >>> np.round(pose.quaternion(), 3)
-            array([0.653, 0.271, 0.653, 0.271])
+            array([0.271, 0.271, 0.653, 0.653])
         """
         rotation = Rotation.from_euler(sequence, [self.roll, self.pitch, self.yaw])
         return rotation.as_quat()
@@ -540,11 +548,11 @@ class Pose6D(Coordinate):
             np.ndarray: A 3x3 rotation matrix representing the pose's orientation.
 
         Example:
-            >>> pose = Pose6D(x=0, y=0, z=0, roll=0, pitch=np.pi / 2, yaw=0)
+            >>> pose = Pose6D(x=0, y=0, z=0, roll=0, pitch=0, yaw=np.pi / 2)
             >>> np.round(pose.rotation_matrix(), 3)
-            array([[ 0.,  0.,  1.],
-                   [ 0.,  1.,  0.],
-                   [-1.,  0.,  0.]])
+            array([[ 0., -1.,  0.],
+                   [ 1.,  0.,  0.],
+                   [ 0.,  0.,  1.]])
         """
         rotation = Rotation.from_euler(sequence, [self.roll, self.pitch, self.yaw])
         return rotation.as_matrix()
