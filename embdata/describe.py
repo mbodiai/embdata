@@ -116,13 +116,17 @@ def describe_keys(ds: Any, sep: str = ".", show=False, path="", include: set | N
     """
     result = full_paths(ds, sep, show, include)
     
-    # Add 'b.c', 'b.d', etc. keys for nested list structures
-    for key, value in list(result.items()):
+    # Remove full path keys with '*' if a shorter version exists
+    keys_to_remove = []
+    for key in result:
         if '*' in key:
             parts = key.split(sep)
-            if len(parts) > 2:
-                short_key = f"{parts[0]}.{parts[-1]}"
-                result[short_key] = value
+            short_key = f"{parts[0]}.{parts[-1]}"
+            if short_key in result:
+                keys_to_remove.append(key)
+    
+    for key in keys_to_remove:
+        del result[key]
     
     return result
 
