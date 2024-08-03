@@ -19,8 +19,9 @@ Example:
     Traceback (most recent call last):
     ...
     pydantic_core._pydantic_core.ValidationError: 1 validation error for BoundedPose6D
-      Value error, x value 10.0 is not within bounds (0, 5) [type=value_error, input_value={'x': 10, 'y': 2, 'z': 3,...0, 'pitch': 0, 'yaw': 0}, input_type=dict]
-        For further information visit https://errors.pydantic.dev/2.8/v/value_error
+    x
+      Input should be less than or equal to 5 [type=less_than_equal, input_value=10, input_type=int]
+        For further information visit https://errors.pydantic.dev/2.8/v/less_than_equal
 """
 
 from typing import Any, List, Literal, Tuple, Type, TypeAlias, TypeVar, Union
