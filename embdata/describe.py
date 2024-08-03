@@ -92,10 +92,20 @@ def describe_keys(ds: Any, sep: str = ".", show=False, path="", include: set | N
                 new_key = f"{prefix}{key}" if prefix else key
                 if include is None or key in include or new_key in include:
                     result[key] = new_key
-                    result[new_key] = new_key
+                    if prefix:
+                        result[new_key] = new_key
                 recurse(value, f"{new_key}{sep}")
         elif isinstance(current, list | Dataset) and current:
-            recurse(current[0], f"{prefix}*{sep}")
+            all_keys = set()
+            for item in current:
+                if isinstance(item, dict):
+                    all_keys.update(item.keys())
+            for key in all_keys:
+                new_key = f"{prefix}*{sep}{key}"
+                if include is None or key in include or new_key in include:
+                    result[key] = new_key
+                    if prefix:
+                        result[f"{prefix}{key}"] = new_key
 
     if isinstance(ds, list | Dataset) and ds:
         ds = ds[0]
