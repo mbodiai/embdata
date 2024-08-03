@@ -10,9 +10,17 @@ Example:
     >>> import math
     >>> pose_3d = Pose3D(x=1, y=2, theta=math.pi / 2)
     >>> pose_3d.to("cm")
-    Pose3D(x=100.0, y=200.0, theta=1.5707963267948966)
+    Pose3D(
+        x=100.0,
+        y=200.0,
+        theta=1.5707963267948966,
+    )
     >>> pose_3d.to("deg")
-    Pose3D(x=1.0, y=2.0, theta=90.0)
+    Pose3D(
+        x=1.0,
+        y=2.0,
+        theta=90.0,
+    )
     >>> class BoundedPose6D(Pose6D):
     ...     x: float = CoordinateField(bounds=(0, 5))
     >>> pose_6d = BoundedPose6D(x=10, y=2, z=3, roll=0, pitch=0, yaw=0)
@@ -24,11 +32,11 @@ Example:
         For further information visit https://errors.pydantic.dev/2.8/v/less_than_equal
 """
 
-from typing import Any, List, Literal, Tuple, Type, TypeAlias, TypeVar, Union
 import math
+from typing import Any, List, Literal, Tuple, Type, TypeAlias, TypeVar
 
 import numpy as np
-from pydantic import ConfigDict, Field, create_model
+from pydantic import ConfigDict, Field, create_model, model_validator
 from scipy.spatial.transform import Rotation
 
 from embdata.sample import Sample
@@ -46,12 +54,6 @@ def CoordinateField(  # noqa
     description: str | None = None,
     **kwargs,
 ):
-    def validate_bounds(v):
-        if bounds != "undefined":
-            if not bounds[0] <= v <= bounds[1]:
-                raise ValueError(f"Value {v} is not within bounds {bounds}")
-        return v
-
     ge = le = None
     if bounds != "undefined" and bounds is not None:
         ge, le = bounds
@@ -70,59 +72,11 @@ def CoordinateField(  # noqa
         ge=ge,
         le=le,
     )
-    """Create a Pydantic Field with extra metadata for coordinates.
 
-    This function extends Pydantic's Field with additional metadata specific to coordinate systems,
-    including reference frame, unit, and bounds information.
-
-    Args:
-        default: Default value for the field.
-        default_factory: Factory for creating the default value.
-        reference_frame: Reference frame for the coordinates.
-        unit: Unit of the coordinate (LinearUnit, AngularUnit, or TemporalUnit).
-        bounds: Tuple representing the allowed range for the coordinate value.
-        description: Description of the field.
-        **kwargs: Additional keyword arguments for field configuration.
-
-    Returns:
-        Field: Pydantic Field with extra metadata.
-
-    Examples:
-        >>> from pydantic import BaseModel
-        >>> class RobotControl(BaseModel):
-        ...     x: float = CoordinateField(unit="m", bounds=(0, 10))
-        ...     angle: float = CoordinateField(unit="rad", bounds=(0, 6.28))
-        >>> control = RobotControl(x=5, angle=3.14)
-        >>> control.dict()
-        {'x': 5.0, 'angle': 3.14}
-        >>> RobotControl(x=15, angle=3.14)
-        Traceback (most recent call last):
-        ...
-        pydantic_core._pydantic_core.ValidationError: 1 validation error for RobotControl
-          Value error, x value 15.0 is not within bounds (0, 10) [type=value_error, input_value={'x': 15, 'angle': 3.14}, input_type=dict]
-            For further information visit https://errors.pydantic.dev/2.8/v/value_error
-    """
-    json_schema_extra = {
-        "_info": {
-            "reference_frame": reference_frame,
-            "unit": unit,
-            "bounds": bounds,
-            **kwargs,
-        },
-    }
-    return Field(
-        default=default,
-        json_schema_extra=json_schema_extra,
-        description=description,
-        default_factory=default_factory,
-    )
 
 
 class Coordinate(Sample):
     """A list of numbers representing a coordinate in the world frame for an arbitrary space."""
-
-    model_config = ConfigDict(arbitrary_types_allowed=True, populate_by_name=True)
-
     @staticmethod
     def convert_linear_unit(value: float, from_unit: str, to_unit: str) -> float:
         """Convert a value from one linear unit to another.
@@ -225,36 +179,44 @@ class Coordinate(Sample):
         self.validate_bounds()
         self.validate_shape()
 
-    def validate_bounds(self):
+    @model_validator(mode="after")
+    def validate_bounds(self) -> "Coordinate":
         """Validate the bounds of the coordinate."""
         for key, value in self:
             bounds = self.model_fields[key].json_schema_extra.get("_info", {}).get("bounds")
             if bounds and bounds != "undefined":
-                if len(bounds) != 2 or not all(isinstance(b, (int, float)) for b in bounds):
-                    raise ValueError(f"{key} bounds must consist of two numbers")
+                if len(bounds) != 2 or not all(isinstance(b, int | float) for b in bounds):
+                    msg = f"{key} bounds must consist of two numbers"
+                    raise ValueError(msg)
 
-                if hasattr(value, "shape") or isinstance(value, (list, tuple)):
+                if hasattr(value, "shape") or isinstance(value, list | tuple):
                     for i, v in enumerate(value):
                         if not bounds[0] <= v <= bounds[1]:
-                            raise ValueError(f"{key} item {i} ({v}) is out of bounds {bounds}")
+                            msg = f"{key} item {i} ({v}) is out of bounds {bounds}"
+                            raise ValueError(msg)
                 elif not bounds[0] <= value <= bounds[1]:
-                    raise ValueError(f"{key} value {value} is not within bounds {bounds}")
+                    msg = f"{key} value {value} is not within bounds {bounds}"
+                    raise ValueError(msg)
+        return self
 
-    def validate_shape(self):
+    @model_validator(mode="after")
+    def validate_shape(self) -> "Coordinate":
         """Validate the shape of the coordinate."""
         for key, value in self:
-            shape = self.model_fields[key].json_schema_extra.get("_info", {}).get("_shape", "undefined")
-            if shape != "undefined":
+            shape = self.model_info().get(key, {}).get("shape")
+            if shape != "undefined" and shape is not None:
                 shape_processed = []
                 value_processed = value
                 while len(shape_processed) < len(shape):
                     shape_processed.append(len(value_processed))
                     if shape_processed[-1] != len(value_processed):
-                        raise ValueError(f"{key} value {value} of length {len(value_processed)} at dimension {len(shape_processed)-1} does not have the correct shape {shape}")
+                        msg = f"{key} value {value} of length {len(value_processed)} at dimension {len(shape_processed)-1} does not have the correct shape {shape}"
+                        raise ValueError(msg)
                     value_processed = value_processed[0]
+        return self
 
-
-
+Coords: TypeAlias = Coordinate
+Point: TypeAlias = Coordinate
 
 T = TypeVar("T", bound="Pose3D")
 
@@ -277,12 +239,20 @@ class Pose3D(Coordinate):
         Pose3D(x=1.0, y=2.0, theta=1.571)
         >>> pose = Pose3D([1, 2, math.pi / 2])
         >>> pose
-        Pose3D(x=1.0, y=2.0, theta=1.5707963267948966)
+        Pose3D(
+            x=1.0,
+            y=2.0,
+            theta=1.5707963267948966
+        )
         >>> pose = Pose3D(x=1, y=2, theta=math.pi / 2)
         >>> pose
         Pose3D(x=1.0, y=2.0, theta=1.5707963267948966)
         >>> pose.to("cm")
-        Pose3D(x=100.0, y=200.0, theta=1.5707963267948966)
+            Pose3D(
+                x=1.0,
+                y=2.0,
+                theta=90.0,
+            )
 
     Usage:
         from embdata.geometry import Pose3D
@@ -325,7 +295,7 @@ class Pose3D(Coordinate):
     def to(self, container_or_unit=None, unit="m", angular_unit="rad", **kwargs) -> Any:
         if container_or_unit == "cm":
             return Pose3D(x=self.x * 100, y=self.y * 100, theta=self.theta)
-        elif container_or_unit == "deg":
+        if container_or_unit == "deg":
             return Pose3D(x=self.x, y=self.y, theta=math.degrees(self.theta))
         """Convert the pose to a different unit or container.
 
@@ -474,7 +444,7 @@ class Pose6D(Coordinate):
     def to(self, container_or_unit=None, sequence="zyx", unit="m", angular_unit="rad", **kwargs) -> Any:
         if container_or_unit == "cm":
             return Pose6D(x=self.x * 100, y=self.y * 100, z=self.z * 100, roll=self.roll, pitch=self.pitch, yaw=self.yaw)
-        elif container_or_unit == "deg":
+        if container_or_unit == "deg":
             return Pose6D(x=self.x, y=self.y, z=self.z, roll=math.degrees(self.roll), pitch=math.degrees(self.pitch), yaw=math.degrees(self.yaw))
         """Convert the pose to a different unit, container, or representation.
 
