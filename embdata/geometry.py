@@ -489,3 +489,24 @@ if __name__ == "__main__":
     import doctest
 
     doctest.testmod(verbose=True)
+
+# Overload example
+from typing import overload, Union
+
+@overload
+def greet(name: str) -> str:
+    ...
+
+@overload
+def greet(name: str, times: int) -> str:
+    ...
+
+def greet(name: str, times: Union[int, None] = None) -> str:
+    if times is None:
+        return f"Hello, {name}!"
+    else:
+        return f"Hello, {name}! " * times
+
+# Usage examples
+print(greet("Alice"))  # Output: Hello, Alice!
+print(greet("Bob", 3))  # Output: Hello, Bob! Hello, Bob! Hello, Bob!
