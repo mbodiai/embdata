@@ -21,7 +21,7 @@ Example:
     ValueError: x value 10 is not within bounds (0, 5)
 """
 
-from typing import Any, Literal, TypeAlias
+from typing import Any, List, Literal, Tuple, Type, TypeAlias, TypeVar, Union
 
 import numpy as np
 from pydantic import ConfigDict, Field, create_model, model_validator
@@ -61,13 +61,13 @@ def CoordinateField(  # noqa
 
     Examples:
         >>> from pydantic import BaseModel
-        >>> class Robot(BaseModel):
+        >>> class RobotControl(BaseModel):
         ...     x: float = CoordinateField(unit="m", bounds=(0, 10))
         ...     angle: float = CoordinateField(unit="rad", bounds=(0, 6.28))
-        >>> robot = Robot(x=5, angle=3.14)
-        >>> robot.dict()
+        >>> control = RobotControl(x=5, angle=3.14)
+        >>> control.dict()
         {'x': 5.0, 'angle': 3.14}
-        >>> Robot(x=15, angle=3.14)
+        >>> RobotControl(x=15, angle=3.14)
         Traceback (most recent call last):
         ...
         ValueError: x value 15.0 is not within bounds (0, 10)
@@ -226,9 +226,9 @@ class Coordinate(Sample):
         return self
 
 
-from typing import TypeVar, Union, Tuple, List, Type
 
-T = TypeVar('T', bound='Pose3D')
+
+T = TypeVar("T", bound="Pose3D")
 
 class Pose3D(Coordinate):
     """Absolute coordinates for a 3D space representing x, y, and theta.
@@ -282,7 +282,7 @@ class Pose3D(Coordinate):
     theta: float = CoordinateField(unit="rad", default=0.0)
 
     def __init__(self: T, *args, **kwargs):
-        if len(args) == 1 and isinstance(args[0], (list, tuple)) and len(args[0]) == 3:
+        if len(args) == 1 and isinstance(args[0], list | tuple) and len(args[0]) == 3:
             super().__init__(x=args[0][0], y=args[0][1], theta=args[0][2])
         elif len(args) == 3:
             super().__init__(x=args[0], y=args[1], theta=args[2])
@@ -290,7 +290,7 @@ class Pose3D(Coordinate):
             super().__init__(**kwargs)
 
     @classmethod
-    def from_position_orientation(cls: Type[T], position: Union[Tuple[float, float], List[float]], orientation: float) -> T:
+    def from_position_orientation(cls: Type[T], position: Tuple[float, float] | List[float], orientation: float) -> T:
         return cls(x=position[0], y=position[1], theta=orientation)
 
     def to(self, container_or_unit=None, unit="m", angular_unit="rad", **kwargs) -> Any:
@@ -351,9 +351,9 @@ class Pose3D(Coordinate):
 PlanarPose: TypeAlias = Pose3D
 
 
-from typing import TypeVar, Union, Tuple, List, Type
 
-T = TypeVar('T', bound='Pose6D')
+
+T = TypeVar("T", bound="Pose6D")
 
 class Pose6D(Coordinate):
     """Absolute coordinates for a 6D space representing x, y, z, roll, pitch, and yaw.
@@ -416,7 +416,7 @@ class Pose6D(Coordinate):
     yaw: float = CoordinateField(unit="rad", default=0.0)
 
     def __init__(self: T, *args, **kwargs):
-        if len(args) == 1 and isinstance(args[0], (list, tuple)) and len(args[0]) == 6:
+        if len(args) == 1 and isinstance(args[0], list | tuple) and len(args[0]) == 6:
             super().__init__(x=args[0][0], y=args[0][1], z=args[0][2], roll=args[0][3], pitch=args[0][4], yaw=args[0][5])
         elif len(args) == 6:
             super().__init__(x=args[0], y=args[1], z=args[2], roll=args[3], pitch=args[4], yaw=args[5])
@@ -427,7 +427,7 @@ class Pose6D(Coordinate):
             super().__init__(**kwargs)
 
     @classmethod
-    def from_position_orientation(cls: Type[T], position: Union[Tuple[float, float, float], List[float]], orientation: Union[Tuple[float, float, float, float], List[float]]) -> T:
+    def from_position_orientation(cls: Type[T], position: Tuple[float, float, float] | List[float], orientation: Tuple[float, float, float, float] | List[float]) -> T:  # noqa: E501
         if len(position) != 3 or len(orientation) != 4:
             msg = "Invalid position or orientation format"
             raise ValueError(msg)
@@ -522,32 +522,6 @@ class Pose6D(Coordinate):
         rotation = Rotation.from_euler(sequence, [self.roll, self.pitch, self.yaw])
         return rotation.as_quat()
 
-    def to(self, container_or_unit=None, sequence="zyx", unit="m", angular_unit="rad", **kwargs) -> Any:
-        if container_or_unit in ("quaternion", "quat", "q"):
-            return self.quaternion(sequence=sequence)
-        if container_or_unit in ("rotation_matrix", "rotation", "R"):
-            return self.rotation_matrix(sequence=sequence)
-        if container_or_unit == "euler":
-            return np.array([self.roll, self.pitch, self.yaw])
-
-        converted_fields = {}
-        for key, value in self.model_dump().items():
-            if key in ["x", "y", "z"]:
-                converted_field = self.convert_linear_unit(value, self.field_info(key)["unit"], unit)
-                converted_fields[key] = (converted_field, CoordinateField(converted_field, unit=unit, **kwargs))
-            elif key in ["roll", "pitch", "yaw"]:
-                converted_field = self.convert_angular_unit(value, self.field_info(key)["unit"], angular_unit)
-                converted_fields[key] = (converted_field, CoordinateField(converted_field, unit=angular_unit, **kwargs))
-            else:
-                converted_fields[key] = (value, self.field_info(key))
-
-        # Create new dynamic model with the same fields as the current model
-        return create_model(
-            self.__class__.__name__,
-            __base__=Coordinate,
-            **{k: (float, v[1]) for k, v in converted_fields.items()},
-        )(**{k: v[0] for k, v in converted_fields.items()})
-
     def rotation_matrix(self, sequence="zyx") -> np.ndarray:
         """Convert roll, pitch, yaw to a rotation matrix based on the given sequence.
 
@@ -574,75 +548,4 @@ Pose: TypeAlias = Pose6D
 
 if __name__ == "__main__":
     import doctest
-
     doctest.testmod(verbose=True)
-
-# Overload example
-from typing import overload, Union
-
-@overload
-def greet(name: str) -> str:
-    ...
-
-@overload
-def greet(name: str, times: int) -> str:
-    ...
-
-def greet(name: str, times: Union[int, None] = None) -> str:
-    if times is None:
-        return f"Hello, {name}!"
-    else:
-        return f"Hello, {name}! " * times
-
-# Usage examples
-print(greet("Alice"))  # Output: Hello, Alice!
-print(greet("Bob", 3))  # Output: Hello, Bob! Hello, Bob! Hello, Bob!
-
-# When to use overload vs. dispatch
-
-"""
-Overload and dispatch are both used for function polymorphism, but they serve different purposes:
-
-1. Overload (@overload decorator):
-   - Use when you have multiple implementations of a function with different parameter types or return types.
-   - Primarily used for type hinting and better IDE support.
-   - Does not affect runtime behavior; you still need to implement the actual function logic.
-   - Useful when the function behavior is similar for different types, but you want to provide more specific type information.
-
-   Example use case:
-   - When you have a function that can accept different types of arguments (e.g., str and int) and you want to provide 
-     specific type hints for each case.
-
-2. Dispatch (e.g., @singledispatch decorator):
-   - Use when you want to implement different behaviors based on the type of the first argument.
-   - Affects runtime behavior; each implementation is separate and called based on the argument type.
-   - Useful when you need to handle different types with substantially different logic.
-   - Allows for easy extension by registering new implementations for additional types.
-
-   Example use case:
-   - When you have a function that needs to perform different operations based on the type of its first argument 
-     (e.g., serializing different types of objects).
-
-In summary:
-- Use overload for better type hinting and IDE support when the core logic is similar.
-- Use dispatch when you need different implementations based on argument types at runtime.
-"""
-
-# Example of singledispatch
-from functools import singledispatch
-
-@singledispatch
-def serialize(obj):
-    raise NotImplementedError("Cannot serialize object of type {}".format(type(obj)))
-
-@serialize.register(str)
-def _(text):
-    return text.encode('utf-8')
-
-@serialize.register(int)
-def _(number):
-    return str(number).encode('utf-8')
-
-# Usage
-print(serialize("Hello"))  # Output: b'Hello'
-print(serialize(42))       # Output: b'42'
