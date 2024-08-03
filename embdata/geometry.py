@@ -254,6 +254,27 @@ class Pose3D(Coordinate):
         Pose3D(x=1.0, y=2.0, theta=1.5707963267948966)
         >>> pose.to("cm")
         Pose3D(x=100.0, y=200.0, theta=1.5707963267948966)
+
+    Usage:
+        from embdata.geometry import Pose3D
+        import math
+
+        # Create a Pose3D object
+        pose = Pose3D(1, 2, math.pi / 2)
+
+        # Or using keyword arguments
+        pose = Pose3D(x=1, y=2, theta=math.pi / 2)
+
+        # Convert to different units
+        pose_cm = pose.to("cm")
+        pose_deg = pose.to("deg")
+
+        # Access attributes
+        print(pose.x, pose.y, pose.theta)
+
+        # Perform relative positioning
+        other_pose = Pose3D(2, 3, math.pi / 4)
+        relative_pose = pose.relative_to(other_pose)
     """
 
     x: float = CoordinateField(unit="m", default=0.0)
@@ -357,6 +378,34 @@ class Pose6D(Coordinate):
         array([[ 0., -1.,  0.],
                [ 1.,  0.,  0.],
                [ 0.,  0.,  1.]])
+
+    Usage:
+        from embdata.geometry import Pose6D
+        import numpy as np
+
+        # Create a Pose6D object
+        pose = Pose6D(1, 2, 3, 0, 0, np.pi / 2)
+
+        # Or using keyword arguments
+        pose = Pose6D(x=1, y=2, z=3, roll=0, pitch=0, yaw=np.pi / 2)
+
+        # Convert to different units or representations
+        pose_cm = pose.to("cm")
+        pose_deg = pose.to("deg")
+        quaternion = pose.to("quaternion")
+        rotation_matrix = pose.to("rotation_matrix")
+
+        # Access attributes
+        print(pose.x, pose.y, pose.z, pose.roll, pose.pitch, pose.yaw)
+
+        # Perform relative positioning
+        other_pose = Pose6D(2, 3, 4, np.pi/4, 0, np.pi/2)
+        relative_pose = pose.relative_to(other_pose)
+
+        # Create from position and orientation
+        position = [1, 2, 3]
+        orientation = [0, 0, 0, 1]  # quaternion
+        pose = Pose6D.from_position_orientation(position, orientation)
     """
 
     x: float = CoordinateField(unit="m", default=0.0)
