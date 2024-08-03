@@ -78,7 +78,7 @@ def CoordinateField(  # noqa
 
 class Coordinate(Sample):
     """A list of numbers representing a coordinate in the world frame for an arbitrary space."""
-    model_fields: dict[str, Any] = {}
+    coordinate_fields: dict[str, Any] = {}
     @staticmethod
     def convert_linear_unit(value: float, from_unit: str, to_unit: str) -> float:
         """Convert a value from one linear unit to another.
