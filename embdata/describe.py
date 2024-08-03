@@ -64,9 +64,9 @@ def full_paths(ds: Any, sep: str = ".", show=False, include: set | None = None) 
             for key, value in current.items():
                 new_key = f"{prefix}{key}" if prefix else key
                 if include is None or key in include or new_key in include:
-                    result[new_key] = new_key
+                    result[key] = new_key
                     if prefix:
-                        result[key] = new_key
+                        result[new_key] = new_key
                 recurse(value, f"{new_key}{sep}")
         elif isinstance(current, list | Dataset) and current:
             all_keys = set()
@@ -76,8 +76,9 @@ def full_paths(ds: Any, sep: str = ".", show=False, include: set | None = None) 
             for key in all_keys:
                 new_key = f"{prefix}*{sep}{key}"
                 if include is None or key in include or new_key in include:
-                    result[new_key] = new_key
                     result[key] = new_key
+                    if prefix:
+                        result[f"{prefix}{key}"] = new_key
             if current:
                 recurse(current[0], f"{prefix}*{sep}")
 
@@ -113,7 +114,17 @@ def describe_keys(ds: Any, sep: str = ".", show=False, path="", include: set | N
         >>> describe_keys(data)
         {'a': 'a', 'b': 'b', 'c': 'b.*.c', 'd': 'b.*.d', 'f': 'b.*.f', 'b.c': 'b.*.c', 'b.d': 'b.*.d', 'b.f': 'b.*.f'}
     """
-    return full_paths(ds, sep, show, include)
+    result = full_paths(ds, sep, show, include)
+    
+    # Add 'b.c', 'b.d', etc. keys for nested list structures
+    for key, value in list(result.items()):
+        if '*' in key:
+            parts = key.split(sep)
+            if len(parts) > 2:
+                short_key = f"{parts[0]}.{parts[-1]}"
+                result[short_key] = value
+    
+    return result
 
 
 def describe(ds: Any, name: str = "", compact: bool = True, show=True, check_full=False) -> Dict[str, Any]:  # noqa: FBT001
