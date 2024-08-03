@@ -4,6 +4,7 @@
 # https://opensource.org/licenses/MIT
 
 
+import logging
 from typing import Any, Dict
 
 import numpy as np
@@ -85,14 +86,16 @@ def describe_keys(ds: Any, sep: str = ".", show=False, path="") -> Dict[str, Any
     # Map each key to all its fully qualified key
     if isinstance(ds, list) and len(ds) > 0:
         ds = ds[0]
-    if hasattr(ds, "dump"):
+    if hasattr(ds, "dump") and hasattr(ds, "dict"):
         ds = ds.dump()
     keys = {}
     if not hasattr(ds, "items"):
-        return ""
+        return path
+    print(f"Path: {path}, ds: {ds}")
     for key, value in ds.items():
         keys[key] = f"{path}{sep}{key}" if path and key not in keys else keys.get(key, key)
         key = keys[key]
+        logging.debug(f"Key: {key}, Value: {value}, Path: {path}")
         if isinstance(value, dict):
             sub_keys = describe_keys(value, sep, False)
             if sub_keys:
