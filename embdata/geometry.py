@@ -91,7 +91,7 @@ def CoordinateField(  # noqa
 class Coordinate(Sample):
     """A list of numbers representing a coordinate in the world frame for an arbitrary space."""
 
-    model_config = ConfigDict(extra="forbid", arbitrary_types_allowed=True, populate_by_name=True)
+    model_config = ConfigDict(arbitrary_types_allowed=True, populate_by_name=True)
 
     @staticmethod
     def convert_linear_unit(value: float, from_unit: str, to_unit: str) -> float:
