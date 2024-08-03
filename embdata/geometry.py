@@ -27,7 +27,7 @@ from typing import Any, List, Literal, Tuple, Type, TypeAlias, TypeVar, Union
 import math
 
 import numpy as np
-from pydantic import ConfigDict, Field, create_model, model_validator
+from pydantic import ConfigDict, Field, create_model
 from scipy.spatial.transform import Rotation
 
 from embdata.sample import Sample
@@ -219,40 +219,38 @@ class Coordinate(Sample):
         """Return a numpy array representation of the pose."""
         return np.array([item for _, item in self])
 
-    @model_validator(mode="after")
-    def validate_bounds(self) -> Any:
+    def __init__(self, **data):
+        super().__init__(**data)
+        self.validate_bounds()
+        self.validate_shape()
+
+    def validate_bounds(self):
         """Validate the bounds of the coordinate."""
         for key, value in self:
-            bounds = self.field_info(key).get("bounds")
+            bounds = self.model_fields[key].json_schema_extra.get("_info", {}).get("bounds")
             if bounds and bounds != "undefined":
-                if len(bounds) != 2 or not all(isinstance(b, int | float) for b in bounds):
-                    msg = f"{key} bounds must consist of two numbers"
-                    raise ValueError(msg)
+                if len(bounds) != 2 or not all(isinstance(b, (int, float)) for b in bounds):
+                    raise ValueError(f"{key} bounds must consist of two numbers")
 
-                if hasattr(value, "shape") or isinstance(value, list | tuple):
+                if hasattr(value, "shape") or isinstance(value, (list, tuple)):
                     for i, v in enumerate(value):
                         if not bounds[0] <= v <= bounds[1]:
-                            msg = f"{key} item {i} ({v}) is out of bounds {bounds}"
-                            raise ValueError(msg)
+                            raise ValueError(f"{key} item {i} ({v}) is out of bounds {bounds}")
                 elif not bounds[0] <= value <= bounds[1]:
-                    msg = f"{key} value {value} is not within bounds {bounds}"
-                    raise ValueError(msg)
-        return self
+                    raise ValueError(f"{key} value {value} is not within bounds {bounds}")
 
-    @model_validator(mode="after")
-    def validate_shape(self) -> "Coordinate":
+    def validate_shape(self):
+        """Validate the shape of the coordinate."""
         for key, value in self:
-            shape = self.field_info(key).get("_shape", "undefined")
+            shape = self.model_fields[key].json_schema_extra.get("_info", {}).get("_shape", "undefined")
             if shape != "undefined":
                 shape_processed = []
                 value_processed = value
                 while len(shape_processed) < len(shape):
                     shape_processed.append(len(value_processed))
                     if shape_processed[-1] != len(value_processed):
-                        msg = f"{key} value {value} of length {len(value_processed)} at dimension {len(shape_processed)-1}does not have the correct shape {shape}"
-                        raise ValueError(msg)
+                        raise ValueError(f"{key} value {value} of length {len(value_processed)} at dimension {len(shape_processed)-1} does not have the correct shape {shape}")
                     value_processed = value_processed[0]
-        return self
 
 
 
