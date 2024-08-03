@@ -2,11 +2,15 @@
 #
 # This software is released under the MIT License.
 # https://opensource.org/licenses/MIT
+import numpy as np
 import pytest
 from pydantic import BaseModel, Field
 from typing import List, Optional, Dict, Any
 
+import torch
 
+
+from embdata.sample import Sample
 from embdata.describe import describe
 
 
@@ -231,6 +235,19 @@ def test_describe_compact(data):
 from embdata.describe import describe_keys
 from embdata.describe import full_paths
 
+@pytest.fixture
+def sample_instance():
+    return Sample(
+        int_value=1,
+        float_value=2.0,
+        str_value="test",
+        list_value=[1, 2, 3],
+        dict_value={"a": 11, "b": "two"},
+        nested=Sample(value=5),
+        np_array=np.array([1, 2, 3]),
+        torch_tensor=torch.tensor([4, 5, 6]),
+    )
+
 
 def test_describe_keys_single_level():
     data = {"a": 1, "b": 2, "c": 3}
@@ -254,6 +271,14 @@ def test_describe_keys_include():
     data = {"a": 1, "b": {"c": 2, "d": 3}}
     keys = full_paths(data, include=["a", "c"])
     assert keys == {"a": "a", "c": "b.c"}
+
+def test_full_paths(sample_instance):
+    print(sample_instance)
+    keys = full_paths(sample_instance.dict())
+    print(keys)
+    assert False
+
+
 
 
 if __name__ == "__main__":
