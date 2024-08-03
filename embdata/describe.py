@@ -55,7 +55,33 @@ def as_table(ds: Any, sep: str = ".", show=True) -> Dict[str, Any]:
 
 def full_paths(ds: Any, sep: str = ".", show=False, include: set | None = None) -> Dict[str, Any]:
     """Get the full paths of a dataset or dictionary."""
-    return describe_keys(ds, sep, show, include=include)
+    result = {}
+    if hasattr(ds, "dump") and hasattr(ds, "dict"):
+        ds = ds.dump()
+    
+    def recurse(current, prefix=''):
+        if isinstance(current, dict):
+            for key, value in current.items():
+                new_key = f"{prefix}{key}" if prefix else key
+                if include is None or key in include or new_key in include:
+                    result[new_key] = new_key
+                recurse(value, f"{new_key}{sep}")
+        elif isinstance(current, list | Dataset) and current:
+            all_keys = set()
+            for item in current:
+                if isinstance(item, dict):
+                    all_keys.update(item.keys())
+            for key in all_keys:
+                new_key = f"{prefix}*{sep}{key}"
+                if include is None or key in include or new_key in include:
+                    result[new_key] = new_key
+            if current:
+                recurse(current[0], f"{prefix}*{sep}")
+
+    recurse(ds)
+    if show:
+        print(result)
+    return result
 
 
 def describe_keys(ds: Any, sep: str = ".", show=False, path="", include: set | None = None) -> Dict[str, Any]:  # noqa
@@ -92,7 +118,7 @@ def describe_keys(ds: Any, sep: str = ".", show=False, path="", include: set | N
                 new_key = f"{prefix}{key}" if prefix else key
                 if include is None or key in include or new_key in include:
                     result[key] = new_key
-                    if prefix:
+                    if prefix and (include is None or new_key in include):
                         result[new_key] = new_key
                 recurse(value, f"{new_key}{sep}")
         elif isinstance(current, list | Dataset) and current:
@@ -104,7 +130,7 @@ def describe_keys(ds: Any, sep: str = ".", show=False, path="", include: set | N
                 new_key = f"{prefix}*{sep}{key}"
                 if include is None or key in include or new_key in include:
                     result[key] = new_key
-                    if prefix:
+                    if prefix and (include is None or new_key in include):
                         result[f"{prefix}{key}"] = new_key
 
     if isinstance(ds, list | Dataset) and ds:
