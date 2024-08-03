@@ -51,6 +51,9 @@ def CoordinateField(  # noqa
                 raise ValueError(f"Value {v} is not within bounds {bounds}")
         return v
 
+    ge = le = None
+    if bounds != "undefined" and bounds is not None:
+        ge, le = bounds
     return Field(
         default=default,
         json_schema_extra={
@@ -63,8 +66,8 @@ def CoordinateField(  # noqa
         },
         description=description,
         default_factory=default_factory,
-        ge=bounds[0] if bounds != "undefined" else None,
-        le=bounds[1] if bounds != "undefined" else None,
+        ge=ge,
+        le=le,
     )
     """Create a Pydantic Field with extra metadata for coordinates.
 
