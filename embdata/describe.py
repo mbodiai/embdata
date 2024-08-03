@@ -53,12 +53,12 @@ def as_table(ds: Any, sep: str = ".", show=True) -> Dict[str, Any]:
     return ds
 
 
-def full_paths(ds: Any, sep: str = ".", show=False) -> Dict[str, Any]:
+def full_paths(ds: Any, sep: str = ".", show=False, include: set | None = None) -> Dict[str, Any]:
     """Get the full paths of a dataset or dictionary."""
-    return describe_keys(ds, sep, show)
+    return describe_keys(ds, sep, show, include=include)
 
 
-def describe_keys(ds: Any, sep: str = ".", show=False, path="") -> Dict[str, Any]:  # noqa
+def describe_keys(ds: Any, sep: str = ".", show=False, path="", include: set | None = None) -> Dict[str, Any]:  # noqa
     """Describe the keys of a nested dictionary or dataset.
 
     This function takes a nested dictionary or dataset and returns a flattened representation
@@ -69,6 +69,7 @@ def describe_keys(ds: Any, sep: str = ".", show=False, path="") -> Dict[str, Any
         sep (str, optional): The separator used for nested keys. Defaults to ".".
         show (bool, optional): Whether to print the resulting keys. Defaults to False.
         path (str, optional): The current path in the nested structure. Used for recursion. Defaults to "".
+        include (set | None, optional): Set of keys to include in the result. If None, include all keys. Defaults to None.
 
     Returns:
         Dict[str, Any]: A dictionary mapping of keys to their fully qualified names.
@@ -89,8 +90,9 @@ def describe_keys(ds: Any, sep: str = ".", show=False, path="") -> Dict[str, Any
         if isinstance(current, dict):
             for key, value in current.items():
                 new_key = f"{prefix}{key}" if prefix else key
-                result[key] = new_key
-                result[new_key] = new_key
+                if include is None or key in include or new_key in include:
+                    result[key] = new_key
+                    result[new_key] = new_key
                 recurse(value, f"{new_key}{sep}")
         elif isinstance(current, list | Dataset) and current:
             recurse(current[0], f"{prefix}*{sep}")

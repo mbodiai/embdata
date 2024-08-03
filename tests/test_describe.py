@@ -283,3 +283,48 @@ def test_full_paths(sample_instance):
 
 if __name__ == "__main__":
     pytest.main([__file__, "-vv"])
+import pytest
+from embdata.describe import full_paths, describe_keys
+
+
+def test_full_paths():
+    data = {"a": 1, "b": {"c": 2, "d": 3}}
+    result = full_paths(data)
+    assert result == {'a': 'a', 'b': 'b', 'c': 'b.c', 'd': 'b.d', 'b.c': 'b.c', 'b.d': 'b.d'}
+
+
+def test_full_paths_with_include():
+    data = {"a": 1, "b": {"c": 2, "d": 3}}
+    result = full_paths(data, include={"a", "b.c"})
+    assert result == {'a': 'a', 'c': 'b.c', 'b.c': 'b.c'}
+
+
+def test_describe_keys():
+    data = {"a": 1, "b": [{"c": 2, "d": 3}, {"c": 4, "f": 5}]}
+    result = describe_keys(data)
+    assert result == {
+        'a': 'a', 'b': 'b', 'c': 'b.*.c', 'd': 'b.*.d', 'f': 'b.*.f',
+        'b.c': 'b.*.c', 'b.d': 'b.*.d', 'b.f': 'b.*.f'
+    }
+
+
+def test_describe_keys_with_include():
+    data = {"a": 1, "b": [{"c": 2, "d": 3}, {"c": 4, "f": 5}]}
+    result = describe_keys(data, include={"a", "b.*.c"})
+    assert result == {'a': 'a', 'c': 'b.*.c', 'b.c': 'b.*.c'}
+
+
+def test_describe_keys_with_custom_separator():
+    data = {"a": 1, "b": {"c": 2, "d": 3}}
+    result = describe_keys(data, sep="-")
+    assert result == {'a': 'a', 'b': 'b', 'c': 'b-c', 'd': 'b-d', 'b-c': 'b-c', 'b-d': 'b-d'}
+
+
+@pytest.mark.parametrize("data, expected", [
+    ({"a": 1, "b": 2}, {'a': 'a', 'b': 'b'}),
+    ({"a": {"b": {"c": 1}}}, {'a': 'a', 'b': 'a.b', 'c': 'a.b.c', 'a.b': 'a.b', 'a.b.c': 'a.b.c'}),
+    ({"a": [1, 2, 3]}, {'a': 'a'}),
+    ({"a": [{"b": 1}, {"c": 2}]}, {'a': 'a', 'b': 'a.*.b', 'c': 'a.*.c', 'a.b': 'a.*.b', 'a.c': 'a.*.c'}),
+])
+def test_describe_keys_various_inputs(data, expected):
+    assert describe_keys(data) == expected
