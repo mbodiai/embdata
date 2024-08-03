@@ -72,7 +72,9 @@ def CoordinateField(  # noqa
         >>> RobotControl(x=15, angle=3.14)
         Traceback (most recent call last):
         ...
-        ValueError: x value 15.0 is not within bounds (0, 10)
+        pydantic_core._pydantic_core.ValidationError: 1 validation error for RobotControl
+          Value error, x value 15.0 is not within bounds (0, 10) [type=value_error, input_value={'x': 15, 'angle': 3.14}, input_type=dict]
+            For further information visit https://errors.pydantic.dev/2.8/v/value_error
     """
     json_schema_extra = {
         "_info": {
