@@ -226,7 +226,7 @@ class Coordinate(Sample):
         return self
 
 
-from typing import TypeVar, Union, Tuple
+from typing import TypeVar, Union, Tuple, List, Type
 
 T = TypeVar('T', bound='Pose3D')
 
@@ -330,7 +330,7 @@ class Pose3D(Coordinate):
 PlanarPose: TypeAlias = Pose3D
 
 
-from typing import TypeVar, Union, Tuple, List
+from typing import TypeVar, Union, Tuple, List, Type
 
 T = TypeVar('T', bound='Pose6D')
 
