@@ -187,20 +187,22 @@ class Coordinate(Sample):
     def validate_bounds(self) -> "Coordinate":
         """Validate the bounds of the coordinate."""
         for key, value in self:
-            bounds = self.model_fields[key].json_schema_extra.get("_info", {}).get("bounds")
-            if bounds and bounds != "undefined":
-                if len(bounds) != 2 or not all(isinstance(b, int | float) for b in bounds):
-                    msg = f"{key} bounds must consist of two numbers"
-                    raise ValueError(msg)
+            field = self.model_fields.get(key)
+            if field and isinstance(field, CoordinateField):
+                bounds = field.bounds
+                if bounds and bounds != "undefined":
+                    if len(bounds) != 2 or not all(isinstance(b, int | float) for b in bounds):
+                        msg = f"{key} bounds must consist of two numbers"
+                        raise ValueError(msg)
 
-                if hasattr(value, "shape") or isinstance(value, list | tuple):
-                    for i, v in enumerate(value):
-                        if not bounds[0] <= v <= bounds[1]:
-                            msg = f"{key} item {i} ({v}) is out of bounds {bounds}"
-                            raise ValueError(msg)
-                elif not bounds[0] <= value <= bounds[1]:
-                    msg = f"{key} value {value} is not within bounds {bounds}"
-                    raise ValueError(msg)
+                    if hasattr(value, "shape") or isinstance(value, list | tuple):
+                        for i, v in enumerate(value):
+                            if not bounds[0] <= v <= bounds[1]:
+                                msg = f"{key} item {i} ({v}) is out of bounds {bounds}"
+                                raise ValueError(msg)
+                    elif not bounds[0] <= value <= bounds[1]:
+                        msg = f"{key} value {value} is not within bounds {bounds}"
+                        raise ValueError(msg)
         return self
 
     @model_validator(mode="after")

@@ -33,24 +33,26 @@ point_2d = Coordinate(x=custom_coord.longitude, y=custom_coord.latitude)
 
 ## Checking Bounds
 
-The `Coordinate` class supports bound checking for its attributes:
+The `Coordinate` class supports bound checking for its attributes using `CoordinateField`:
 
 ```python
-from embdata.geometry import CoordinateField
+from embdata.geometry import Coordinate, CoordinateField
 
 class BoundedCoordinate(Coordinate):
-    x = CoordinateField(bounds=(-10, 10))
-    y = CoordinateField(bounds=(-10, 10))
+    x: float = CoordinateField(bounds=(-10, 10))
+    y: float = CoordinateField(bounds=(-10, 10))
 
 # This will work
 valid_coord = BoundedCoordinate(x=5, y=5)
 
-# This will raise a ValidationError
+# This will raise a ValueError
 try:
     invalid_coord = BoundedCoordinate(x=15, y=5)
-except ValidationError as e:
+except ValueError as e:
     print(f"Validation error: {e}")
 ```
+
+The `validate_bounds` method in the `Coordinate` class checks the bounds for each field defined as a `CoordinateField`. If a value is outside the specified bounds, it raises a `ValueError` with a descriptive message.
 
 ## Using Different Coordinate Types
 
