@@ -75,11 +75,9 @@ def CoordinateField(  # noqa
 
 
 
-from typing import Any
 
 class Coordinate(Sample):
     """A list of numbers representing a coordinate in the world frame for an arbitrary space."""
-    
     model_fields: dict[str, Any] = {}
     @staticmethod
     def convert_linear_unit(value: float, from_unit: str, to_unit: str) -> float:
