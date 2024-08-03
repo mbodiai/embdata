@@ -53,10 +53,9 @@ def as_table(ds: Any, sep: str = ".", show=True) -> Dict[str, Any]:
     return ds
 
 
-def full_paths(ds: Any, include: list[str] | str | None = None, sep: str = ".", show=False) -> Dict[str, Any]:
-    """Get the full paths of a dataset or dictionary. with the specified keys."""
-    include = [include] if isinstance(include, str) else include
-    return {k: v for k, v in describe_keys(ds, sep, show).items() if include is None or k in include}
+def full_paths(ds: Any, sep: str = ".", show=False) -> Dict[str, Any]:
+    """Get the full paths of a dataset or dictionary."""
+    return describe_keys(ds, sep, show)
 
 
 def describe_keys(ds: Any, sep: str = ".", show=False, path="") -> Dict[str, Any]:  # noqa
@@ -77,12 +76,12 @@ def describe_keys(ds: Any, sep: str = ".", show=False, path="") -> Dict[str, Any
     Example:
         >>> data = {"a": 1, "b": {"c": 2, "d": 3}}
         >>> describe_keys(data)
-        {'a': 'a', 'c': 'b.c', 'd': 'b.d'}
+        {'a': 'a', 'b': 'b', 'c': 'b.c', 'd': 'b.d', 'b.c': 'b.c', 'b.d': 'b.d'}
 
     Example:
         >>> data = {"a": 1, "b": [{"c": 2, "d": 3}, {"c": 4, "f": 5}]}
         >>> describe_keys(data)
-        {'a': 'a', 'c': 'b.*.c', 'd': 'b.*.d', 'f': 'b.*.f'}
+        {'a': 'a', 'b': 'b', 'c': 'b.*.c', 'd': 'b.*.d', 'f': 'b.*.f', 'b.c': 'b.*.c', 'b.d': 'b.*.d', 'b.f': 'b.*.f'}
     """
     result = {}
 
@@ -91,6 +90,7 @@ def describe_keys(ds: Any, sep: str = ".", show=False, path="") -> Dict[str, Any
             for key, value in current.items():
                 new_key = f"{prefix}{key}" if prefix else key
                 result[key] = new_key
+                result[new_key] = new_key
                 recurse(value, f"{new_key}{sep}")
         elif isinstance(current, list | Dataset) and current:
             recurse(current[0], f"{prefix}*{sep}")
