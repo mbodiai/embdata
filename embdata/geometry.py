@@ -490,3 +490,7 @@ if __name__ == "__main__":
     import doctest
 
     doctest.testmod(verbose=True)
+
+    point = Coordinate(x=1, y=2)
+
+    print(point)
