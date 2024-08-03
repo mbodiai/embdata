@@ -24,6 +24,7 @@ Example:
 """
 
 from typing import Any, List, Literal, Tuple, Type, TypeAlias, TypeVar, Union
+import math
 
 import numpy as np
 from pydantic import ConfigDict, Field, create_model, model_validator
