@@ -10,7 +10,7 @@ Example:
     >>> import math
     >>> pose_3d = Pose3D(x=1, y=2, theta=math.pi / 2)
     >>> pose_3d.to("cm")
-    Pose3D(x=100.0, y=200.0, theta=1.571)
+    Pose3D(x=100.0, y=200.0, theta=1.5707963267948966)
     >>> pose_3d.to("deg")
     Pose3D(x=1.0, y=2.0, theta=90.0)
     >>> class BoundedPose6D(Pose6D):
