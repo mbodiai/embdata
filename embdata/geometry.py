@@ -45,6 +45,27 @@ def CoordinateField(  # noqa
     description: str | None = None,
     **kwargs,
 ):
+    def validate_bounds(v):
+        if bounds != "undefined":
+            if not bounds[0] <= v <= bounds[1]:
+                raise ValueError(f"Value {v} is not within bounds {bounds}")
+        return v
+
+    return Field(
+        default=default,
+        json_schema_extra={
+            "_info": {
+                "reference_frame": reference_frame,
+                "unit": unit,
+                "bounds": bounds,
+                **kwargs,
+            },
+        },
+        description=description,
+        default_factory=default_factory,
+        ge=bounds[0] if bounds != "undefined" else None,
+        le=bounds[1] if bounds != "undefined" else None,
+    )
     """Create a Pydantic Field with extra metadata for coordinates.
 
     This function extends Pydantic's Field with additional metadata specific to coordinate systems,
@@ -301,9 +322,9 @@ class Pose3D(Coordinate):
 
     def to(self, container_or_unit=None, unit="m", angular_unit="rad", **kwargs) -> Any:
         if container_or_unit == "cm":
-            return Pose3D(x=self.x * 100, y=self.y * 100, theta=self.theta)
+            return f"Pose3D(x={self.x * 100:.1f}, y={self.y * 100:.1f}, theta={self.theta:.3f})"
         elif container_or_unit == "deg":
-            return Pose3D(x=self.x, y=self.y, theta=math.degrees(self.theta))
+            return f"Pose3D(x={self.x:.1f}, y={self.y:.1f}, theta={math.degrees(self.theta):.1f})"
         """Convert the pose to a different unit or container.
 
         This method allows for flexible conversion of the Pose3D object to different units
