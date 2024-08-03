@@ -57,28 +57,28 @@ def CoordinateField(  # noqa
     ge = le = None
     if bounds != "undefined" and bounds is not None:
         ge, le = bounds
-    return Field(
+    field = Field(
         default=default,
-        json_schema_extra={
-            "_info": {
-                "reference_frame": reference_frame,
-                "unit": unit,
-                "bounds": bounds,
-                **kwargs,
-            },
-        },
         description=description,
         default_factory=default_factory,
         ge=ge,
         le=le,
     )
+    field.json_schema_extra = {
+        "_info": {
+            "reference_frame": reference_frame,
+            "unit": unit,
+            "bounds": bounds,
+            **kwargs,
+        },
+    }
+    return field
 
 
 
 
 class Coordinate(Sample):
     """A list of numbers representing a coordinate in the world frame for an arbitrary space."""
-    coordinate_fields: dict[str, Any] = {}
     @staticmethod
     def convert_linear_unit(value: float, from_unit: str, to_unit: str) -> float:
         """Convert a value from one linear unit to another.
