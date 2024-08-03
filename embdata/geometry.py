@@ -323,9 +323,9 @@ class Pose3D(Coordinate):
 
     def to(self, container_or_unit=None, unit="m", angular_unit="rad", **kwargs) -> Any:
         if container_or_unit == "cm":
-            return f"Pose3D(x={self.x * 100:.1f}, y={self.y * 100:.1f}, theta={self.theta:.3f})"
+            return Pose3D(x=self.x * 100, y=self.y * 100, theta=self.theta)
         elif container_or_unit == "deg":
-            return f"Pose3D(x={self.x:.1f}, y={self.y:.1f}, theta={math.degrees(self.theta):.1f})"
+            return Pose3D(x=self.x, y=self.y, theta=math.degrees(self.theta))
         """Convert the pose to a different unit or container.
 
         This method allows for flexible conversion of the Pose3D object to different units
