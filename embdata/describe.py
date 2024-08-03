@@ -63,8 +63,9 @@ def full_paths(ds: Any, sep: str = ".", show=False, include: set | None = None) 
         if isinstance(current, dict):
             for key, value in current.items():
                 new_key = f"{prefix}{key}" if prefix else key
-                if include is None or key in include:
+                if include is None or key in include or new_key in include:
                     result[key] = new_key
+                    result[new_key] = new_key
                 recurse(value, f"{new_key}{sep}")
         elif isinstance(current, list | Dataset) and current:
             if current:
@@ -72,9 +73,9 @@ def full_paths(ds: Any, sep: str = ".", show=False, include: set | None = None) 
 
     recurse(ds)
     
-    # Filter the result to only include the specified keys
+    # Filter the result to only include the specified keys and their full paths
     if include is not None:
-        result = {k: v for k, v in result.items() if k in include}
+        result = {k: v for k, v in result.items() if k in include or v in include}
 
     recurse(ds)
     if show:
@@ -108,21 +109,7 @@ def describe_keys(ds: Any, sep: str = ".", show=False, path="", include: set | N
         >>> describe_keys(data)
         {'a': 'a', 'b': 'b', 'c': 'b.*.c', 'd': 'b.*.d', 'f': 'b.*.f', 'b.c': 'b.*.c', 'b.d': 'b.*.d', 'b.f': 'b.*.f'}
     """
-    result = full_paths(ds, sep, show, include)
-    
-    # Remove full path keys with '*' if a shorter version exists
-    keys_to_remove = []
-    for key in result:
-        if '*' in key:
-            parts = key.split(sep)
-            short_key = f"{parts[0]}.{parts[-1]}"
-            if short_key in result:
-                keys_to_remove.append(key)
-    
-    for key in keys_to_remove:
-        del result[key]
-    
-    return result
+    return full_paths(ds, sep, show, include)
 
 
 def describe(ds: Any, name: str = "", compact: bool = True, show=True, check_full=False) -> Dict[str, Any]:  # noqa: FBT001
