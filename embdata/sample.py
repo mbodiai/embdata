@@ -86,6 +86,7 @@ OneDimensional = Annotated[Literal["dict", "np", "pt", "list", "sample"], "Numpy
 logger = logging.getLogger(__name__)
 if logger.level == logging.DEBUG or "MBENCH" in os.environ:
     import mbench
+
     mbench.profileme()
 
 
@@ -241,7 +242,7 @@ class Sample(BaseModel):
         else:
             super().__setattr__(key, value)
 
-    def __setitem__(self, key: str | int, value: Any) -> None: # noqa: C901
+    def __setitem__(self, key: str | int, value: Any) -> None:  # noqa: C901
         """Set the value of the attribute with the specified key.
 
         If the key is an integer and the Sample object wraps a list, the value is set at the specified index.
@@ -339,7 +340,7 @@ class Sample(BaseModel):
                 elif "/" in k:
                     unnested.add(k.split("/")[0])
             return self._str(self, prefix="", ignore=set(unnested))
-        except Exception: # noqa
+        except Exception:  # noqa
             return f"{self.__class__.__name__}({self.dump()})"
 
     def __repr__(self) -> str:
@@ -552,38 +553,45 @@ class Sample(BaseModel):
             >>> sample.flatten(ignore={"b"})
             [1, 5]
         """
+        logging.debug("include: %s", include)
         has_include = include is not None and len(include) > 0
         include = [] if include is None else [include] if isinstance(include, str) else include
-        exclude = {} if exclude is None else {exclude} if isinstance(exclude, str) else exclude
-
+        exclude = {} if exclude is None     else {exclude} if isinstance(exclude, str) else exclude
+        described_keys = describe_keys(self, show=False)
         full_includes = full_paths(self, include, show=False).values()
+        logging.debug("Full includes1: %s", full_includes)
         if not full_includes:
-            full_includes = [v for v in describe_keys(self, show=False).values() if v in include]
+            full_includes = set(described_keys.values())
+        described_keys = describe_keys(self, show=False)
+        logging.debug("include: %s", include)
+        logging.debug("Full includes2: %s", full_includes)
+        # logging.debug("self: %s", self)
+
         # Get the full paths of the selected keys. e.g. c-> a.b.*.c
-        if not has_include and not exclude:
-            full_excludes = []
-        elif has_include:
-            full_excludes = set(describe_keys(self).values()) - (
-                set(full_includes) | set(describe_keys(self, include).keys())
-            )
+        full_excludes = set()
+        if has_include:
+            for v in described_keys.values():
+                if not any(v.startswith(full_include) for full_include in full_includes)\
+                    and not any (inc.startswith(v) for inc in full_includes):
+                    full_excludes.add(v)
+
         else:
             full_excludes = set(describe_keys(self).values())
+
         if to in ["numpy", "np", "torch", "pt"] and non_numerical != "forbid":
             non_numerical = "ignore"
         logging.debug("Full includes: %s", full_includes)
         logging.debug("Full excludes: %s", full_excludes)
+
         flattened_keys, flattened = iter_utils.flatten_recursive(
-            self, exclude=full_excludes, non_numerical=non_numerical, sep=sep,
+            self,
+            exclude=exclude,
+            non_numerical=non_numerical,
+            sep=sep,
         )
         logging.debug("Flattened keys: %s", flattened_keys)
         logging.debug("Flattened: %s", flattened)
-        if not has_include:
-            flattened_keys, flattened = iter_utils.flatten_recursive(
-                self,
-                exclude=exclude,
-                non_numerical=non_numerical,
-                sep=sep,
-            )
+        if not has_include and not to.endswith("s"):
             zipped = zip(flattened_keys, flattened, strict=False)
             if to == "sample":
                 return Sample(**dict(zipped))
@@ -658,7 +666,7 @@ class Sample(BaseModel):
             return torch.tensor(flattened, dtype=float)
         return flattened
 
-    def schema(self, include: Literal["all", "descriptions", "info", "simple", "tensor"] = "info") -> Dict:
+    def schema(self, include: Literal["all", "descriptions", "info", "simple", "tensor"] = "simple") -> Dict:
         """Returns a simplified json schema.
 
         Args:
@@ -681,58 +689,8 @@ class Sample(BaseModel):
         schema = self._extra.model_json_schema() if hasattr(self, "_extra") else self.model_json_schema()
         if include == "all":
             return schema
-
         schema = schema_utils.resolve_refs(schema)
-
-        def simplify(schema, obj, title=""):
-            title = title or schema.get("title", "")
-            if isinstance(obj, dict):
-                obj = Sample(**obj)
-                _include = "simple"
-            elif hasattr(obj, "_extra"):
-                title = obj.__class__.__name__
-                _include = include
-            if "description" in schema and include != "descriptions":
-                del schema["description"]
-            if "additionalProperties" in schema:
-                del schema["additionalProperties"]
-            if "items" in schema:
-                schema["items"] = simplify(schema["items"], obj[0])
-                schema["maxItems"] = len(obj)
-                if schema["items"].get("title"):  # Use the object title instead.
-                    del schema["items"]["title"]
-            if "type" in schema and "ndarray" in schema["type"]:
-                # Handle numpy arrays
-                schema["type"] = "array"
-                schema["items"] = {"type": "number"}
-
-                schema["shape"] = schema["properties"]["shape"]["default"]
-                if schema["shape"] == "Any" and obj is not None:
-                    schema["shape"] = obj.shape
-                del schema["properties"]
-                del schema["required"]
-            if "type" in schema and schema["type"] == "object":
-                if "properties" not in schema:
-                    schema = obj.schema(include=_include)
-                for k, value in schema["properties"].items():
-                    if include == "simple" and k.startswith("_"):
-                        continue
-                    if k in obj:
-                        schema["properties"][k] = simplify(
-                            value,
-                            obj[k],
-                            title=schema["properties"][k].get("title", k.capitalize()),
-                        )
-                if not schema["properties"]:
-                    schema = obj.schema(include=_include)
-            if "allOf" in schema or "anyOf" in schema:
-                msg = f"Schema contains allOf or anyOf which is unsupported: {schema}"
-                raise ValueError(msg)
-            if title:
-                schema["title"] = title
-            return schema
-
-        return simplify(schema, self)
+        return schema_utils.simplify(schema, self, "", include, self.__class__)
 
     def infer_features_dict(self) -> Dict[str, Any]:
         """Infers features from the data recusively."""
@@ -1115,7 +1073,6 @@ class Sample(BaseModel):
     def features(self) -> Features:
         """Convert the Sample instance to a HuggingFace Features object."""
         return Features(self.infer_features_dict())
-
 
     def dataset(self) -> Dataset:
         """Convert the Sample instance to a HuggingFace Dataset object."""

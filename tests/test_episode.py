@@ -176,8 +176,11 @@ def test_episode_from_zipped_ds(time_step):
     episode = Episode(zip(obs, act, sup))
     assert len(episode.steps) == len(obs)
 
-
-
+def test_trajectory(time_step):
+    episode = Episode(steps=[time_step, time_step, time_step])
+    trajectory = episode.trajectory("actions", freq_hz=1)
+    assert len(trajectory) == 3
+    assert trajectory.episode == episode
 
 if __name__ == "__main__":
     pytest.main(["-vv", __file__])

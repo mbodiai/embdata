@@ -13,14 +13,16 @@ from datasets import Dataset, DatasetDict, Features, IterableDataset, Sequence, 
 from datasets import Image as HFImage
 from pydantic import ConfigDict, Field, PrivateAttr, model_validator
 from rerun.archetypes import Image as RRImage
+from rich.pretty import pprint
 
+from embdata.describe import describe
 from embdata.features import to_features_dict
 from embdata.motion import Motion
 from embdata.motion.control import AnyMotionControl, RelativePoseHandControl
 from embdata.sample import Sample
 from embdata.sense.image import Image
-from embdata.trajectory import Trajectory
-from embdata.utils.iter_utils import get_iter_class
+from embdata.trajectory import Stats, Trajectory
+from embdata.utils.iter_utils import get_iter_class, map_nested_with_keys
 
 try:
     from lerobot.common.datasets.lerobot_dataset import LeRobotDataset
@@ -31,11 +33,14 @@ except ImportError:
 logger = logging.getLogger(__name__)
 if logger.level == logging.DEBUG or "MBENCH" in os.environ:
     from mbench.profile import profileme
+
     profileme()
 
-def convert_images(d, image_keys=None):
-    # TODO(sebastian): Figure out if this is needed.
-    return d
+
+def convert_images(d, image_keys=None) -> dict:
+    fn = lambda k, v: Image(v) if k and image_keys and k[-1] in image_keys else v
+    return map_nested_with_keys(fn, d)
+
 
 class TimeStep(Sample):
     """Time step for a task."""
@@ -72,10 +77,10 @@ class TimeStep(Sample):
         step_idx = values.pop("step_idx", 0)
         episode_idx = values.pop("episode_idx", 0)
 
-        Obs = cls._observation_class.get_default() # noqa: N806
+        Obs = cls._observation_class.get_default()  # noqa: N806
         Act = cls._action_class.get_default()  # noqa: N806
         Sta = cls._state_class.get_default()  # noqa: N806
-        Sup = cls._supervision_class.get_default() # noqa: N806
+        Sup = cls._supervision_class.get_default()  # noqa: N806
         obs = Obs(**convert_images(obs, image_keys)) if obs is not None else None
         act = Act(**convert_images(act, image_keys)) if act is not None else None
         sta = Sta(**convert_images(sta, image_keys)) if sta is not None else None
@@ -157,7 +162,6 @@ class Episode(Sample):
     steps: list[TimeStep] = Field(default_factory=list)
     metadata: Sample | Any | None = None
     freq_hz: int | float | None = None
-    stats: dict | None = None
     _action_class: type[Sample] = PrivateAttr(default=Sample)
     _state_class: type[Sample] = PrivateAttr(default=Sample)
     _observation_class: type[Sample] = PrivateAttr(default=Sample)
@@ -197,7 +201,7 @@ class Episode(Sample):
             Step = self._step_class
         else:
             try:
-                Step = self.__class__._step_class.get_default() # noqa
+                Step = self.__class__._step_class.get_default()  # noqa
             except AttributeError:
                 Step = TimeStep
 
@@ -289,7 +293,7 @@ class Episode(Sample):
             image_keys (str | list[str], optional): The keys to use for images. Defaults to "image".
             freq_hz (int, optional): The frequency in Hz. Defaults to None.
         """
-        Step: type[TimeStep] = cls._step_class.get_default() # noqa: N806
+        Step: type[TimeStep] = cls._step_class.get_default()  # noqa: N806
         observations = observations or []
         actions = actions or []
         states = states or []
@@ -362,14 +366,14 @@ class Episode(Sample):
             msg = "Episode has no steps"
             raise ValueError(msg)
 
-        image_feat = HFImage() if self.steps[0].flatten(include=self.image_keys) else Value("string") 
+        image_feat = HFImage() if self.steps[0].flatten(include=self.image_keys) else Value("string")
         feat = {
-                "image": image_feat,
-                "episode_idx": Value("int64"),
-                "step_idx": Value("int64"),
-                "timestamp": Value("float32"),
-                **self.steps[0].infer_features_dict(),
-            }
+            "image": image_feat,
+            "episode_idx": Value("int64"),
+            "step_idx": Value("int64"),
+            "timestamp": Value("float32"),
+            **self.steps[0].infer_features_dict(),
+        }
         model_info = self.steps[0].model_info()
         if model_info:
             feat["info"] = to_features_dict(self.steps[0].model_info())
@@ -386,29 +390,39 @@ class Episode(Sample):
             step_idx = step.pop("step_idx", None)
             episode_idx = step.pop("episode_idx", None)
             timestamp = step.pop("timestamp", None)
-            step =  { # noqa
-                    "image": image,
-                    "episode_idx": episode_idx,
-                    "step_idx": step_idx,
-                    "timestamp": timestamp,
-                    **step,
-                }
+            step = {  # noqa
+                "image": image,
+                "episode_idx": episode_idx,
+                "step_idx": step_idx,
+                "timestamp": timestamp,
+                **step,
+            }
             if model_info:
                 step["info"] = model_info
             data.append(step)
 
         return Dataset.from_list(data, features=feat)
 
-    def stats(self) -> dict:
-        return self.trajectory().stats
+    def stats(self, mode: Literal["full", "first10"] = "first10") -> Stats:
+        """Get the statistics of the episode."""
+        if not hasattr(self, "stats_"):
+            self._stats = {}
+            # self.stats_ = Trajectory([step.flatten("list", include=["observation", "action", "state", "supervision"]) for step in self.steps[:10]]).stats()
+        return self.stats_
 
     def __repr__(self) -> str:
-        if not hasattr(self, "stats"):
-            stats = self.trajectory().stats
-            stats = str(self.stats).replace("\n ", "\n  ")
+        try:
+            stats = str(self.stats()).replace("\n ", "\n  ")
+        except Exception as e:
+            stats = str(self)
         return f"Episode(\n  {stats}\n)"
 
-    def trajectory(self, of: str | list[str] = "steps", freq_hz: int | None = None) -> Trajectory:
+    def __slice__(self, start: int, stop: int, step: int) -> "Episode":
+        return Episode(steps=self.steps[start:stop:step])
+
+    def trajectory(
+        self, of: str | list[str] = "steps", freq_hz: int | None = None, mode: Literal["full", "first10"] = "first10"
+    ) -> Trajectory:
         """Numpy array with rows (axis 0) consisting of the `of` argument. Can be steps or plural form of fields.
 
         Each step will be reduced to a flattened 1D numpy array. A conveniant
@@ -431,6 +445,7 @@ class Episode(Sample):
         Args:
             of (str, optional): steps or the step field get the trajectory of. Defaults to "steps".
             freq_hz (int, optional): The frequency in Hz. Defaults to the episode's frequency.
+            mode (str, optional): The mode to use for statistics. Defaults to "first10".
 
         Example:
             Understand the relationship between frequency and grasping.
@@ -438,6 +453,7 @@ class Episode(Sample):
 
         """
         of = of if isinstance(of, list) else [of]
+        logging.debug("Flattening episode steps for %s", of)
         of = [f[:-1] if f.endswith("s") and f in ("observations, actions, states, supervisions") else f for f in of]
         if self.steps is None or len(self.steps) == 0:
             msg = "Episode has no steps"
@@ -445,28 +461,46 @@ class Episode(Sample):
 
         freq_hz = freq_hz or self.freq_hz or 1
         if of == "step":
-            data = self.flatten(to="samples")
+            if mode == "full":
+                data = self.flatten(to="lists", include=["observation", "action", "state", "supervision"])
+            elif mode == "first10":
+                data = self.flatten(to="lists", include=["observation", "action", "state", "supervision"])[:10]
             if not data:
                 msg = "Episode has no steps"
                 raise ValueError(msg)
-            keys = [key.removeprefix("steps.*.") for key in data[0]]
-            return Trajectory(self.steps, freq_hz=freq_hz, episode=self, keys=keys)
 
+            return Trajectory(
+                data,
+                freq_hz=freq_hz,
+                episode=self,
+                keys=["observation", "action", "state", "supervision"],
+                _sample_class=self.steps[0].__class__,
+            )
+        logging.debug("Describe data: %s", list(self.steps[0].flatten("dict")))
         if not any(k in field for field in self.steps[0].flatten("dict") for k in of):
             msg = f"Field '{of}' not found in episode steps"
             raise ValueError(msg)
-
-        data = [step[to] for step in self.steps for to in of]
+        logging.debug("Flattening episode steps for %s", of)
+        if mode == "full":
+                data = self.flatten(to="lists", include=of)
+        elif mode == "first10":
+            data = self.flatten(to="lists", include=of)[:10]
+        else:
+            msg = f"Mode {mode} not supported"
+            raise ValueError(msg)
         if not data:
             msg = f"Field '{of}' not found with any numerical values in episode steps"
             raise ValueError(msg)
-        keys = [type(key) for key in data[0]]
+        logging.debug("Describe data: %s", describe(data))
+        keys = [key.removeprefix("steps.*.") for key, _ in data[0]]
+        logging.debug("keys: %s", keys)
         return Trajectory(
             steps=data,
             freq_hz=freq_hz,
             keys=keys,
             _episode=self,
             _sample_keys=of,
+            _sample_class=self.steps[0].__class__ if len(keys) > 1 else keys[0],
         )
 
     def window(
@@ -788,12 +822,12 @@ class Episode(Sample):
     def rerun(self, mode=Literal["local", "remote"], port=5003, ws_port=5004) -> "Episode":
         """Start a rerun server."""
         rr.init("rerun-mbodied-data", spawn=mode == "local")
-        blueprint = rr.blueprint.Blueprint(
-            rr.blueprint.Spatial3DView(background=RRImage(Image(size=(224, 224)).pil)),
-            auto_layout=True,
-            auto_space_views=True,
-        )
-        rr.serve(open_browser=False, web_port=port, ws_port=ws_port, default_blueprint=blueprint)
+        # blueprint = rr.blueprint.Blueprint(
+            # rr.blueprint.Spatial3DView(background=RRImage(Image(size=(224, 224)).pil)),
+            # auto_layout=True,
+            # auto_space_views=True,
+        # )
+        rr.serve(open_browser=False, web_port=port, ws_port=ws_port)
         for i, step in enumerate(self.steps):
             if not hasattr(step, "timestamp") or step.timestamp is None:
                 step.timestamp = i / 5

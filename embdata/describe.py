@@ -65,7 +65,8 @@ def full_paths(ds: Any, sep: str = ".", show=False, include: set | None = None) 
                 new_key = f"{prefix}{key}" if prefix else key
                 if include is None or key in include or new_key in include:
                     result[key] = new_key
-                    result[new_key] = new_key
+                    if prefix:
+                        result[new_key] = new_key
                 recurse(value, f"{new_key}{sep}")
         elif isinstance(current, list | Dataset) and current:
             if current:

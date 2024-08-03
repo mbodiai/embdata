@@ -1,7 +1,7 @@
 import logging
 import re
 from itertools import zip_longest
-from typing import Callable
+from typing import Any, Callable, Tuple
 
 import numpy as np
 import torch
@@ -49,7 +49,7 @@ def map_nested(fn: Callable, sample: dict) -> dict:
     return {k: map_nested(fn, v) if isinstance(v, dict) else fn(v) for k, v in sample.items()}
 
 
-def map_nested_with_keys(fn: Callable, sample: dict, keys: tuple = ()) -> dict:
+def map_nested_with_keys(fn: Callable[[Tuple[str], Any], Any], sample: dict, keys: tuple = ()) -> dict:
     """Maps a function over a nested dictionary."""
     return {
         k: map_nested_with_keys(fn, v, (*keys, k)) if isinstance(v, dict) else fn((*keys, k), v) for k, v in sample.items()

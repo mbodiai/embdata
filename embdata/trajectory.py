@@ -189,7 +189,7 @@ class Trajectory:
 
     _fig: Any | None = None
     _stats: Stats | None = None
-    _sample_class: type[Sample] = None
+    _sample_class: List[type[Sample]] | None = None
     _array: NumpyArray | None = None
     _map_history: list[Callable] = Field(default_factory=list)
     _map_history_kwargs: list[dict] = Field(default_factory=list)

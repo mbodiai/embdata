@@ -88,6 +88,7 @@ line-length = 120
 indent-width = 4
 target-version = "py311"
 
+
 [tool.ruff.lint]
 extend-unsafe-fixes = ["ALL"]
 extend-select = ["ALL"]
@@ -203,3 +204,10 @@ tests-root = "tests"
 test-framework = "pytest"
 ignore-paths = []
 formatter-cmds = ["hatch run ruff check --exit-zero --fix $file", "hatch run ruff format $file"]
+
+[tool.pytest.ini_options]
+addopts = "-m 'not slow' -m 'not network'"
+markers = [
+"slow: marks tests as slow (deselect with '-m \"not slow\"')",
+"network: marks tests as network (deselect with '-m \"not network\"')",
+]
