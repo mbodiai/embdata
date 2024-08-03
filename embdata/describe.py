@@ -69,6 +69,7 @@ def describe_keys(ds: Any, sep: str = ".", show=False, path="") -> Dict[str, Any
         ds (Any): The dataset or dictionary to describe.
         sep (str, optional): The separator used for nested keys. Defaults to ".".
         show (bool, optional): Whether to print the resulting keys. Defaults to False.
+        path (str, optional): The current path in the nested structure. Used for recursion. Defaults to "".
 
     Returns:
         Dict[str, Any]: A dictionary mapping of keys to their fully qualified names.
@@ -79,39 +80,32 @@ def describe_keys(ds: Any, sep: str = ".", show=False, path="") -> Dict[str, Any
         {'a': 'a', 'c': 'b.c', 'd': 'b.d'}
 
     Example:
-        >>> data = {"a": 1, "b": [{"c": 2, "d": 3}, {"c": 4, "f": e}]}
+        >>> data = {"a": 1, "b": [{"c": 2, "d": 3}, {"c": 4, "f": 5}]}
         >>> describe_keys(data)
         {'a': 'a', 'c': 'b.*.c', 'd': 'b.*.d', 'f': 'b.*.f'}
     """
-    # Map each key to all its fully qualified key
-    if isinstance(ds, list) and len(ds) > 0:
+    result = {}
+
+    def recurse(current, prefix=''):
+        if isinstance(current, dict):
+            for key, value in current.items():
+                new_key = f"{prefix}{key}" if prefix else key
+                result[key] = new_key
+                recurse(value, f"{new_key}{sep}")
+        elif isinstance(current, (list, Dataset)):
+            if current:
+                recurse(current[0], f"{prefix}*{sep}")
+
+    if isinstance(ds, (list, Dataset)) and ds:
         ds = ds[0]
     if hasattr(ds, "dump") and hasattr(ds, "dict"):
         ds = ds.dump()
-    keys = {}
-    if not hasattr(ds, "items"):
-        return path
-    print(f"Path: {path}, ds: {ds}")
-    for key, value in ds.items():
-        keys[key] = f"{path}{sep}{key}" if path and key not in keys else keys.get(key, key)
-        key = keys[key]
-        logging.debug(f"Key: {key}, Value: {value}, Path: {path}")
-        if isinstance(value, dict):
-            sub_keys = describe_keys(value, sep, False)
-            if sub_keys:
-                for sub_key, sub_value in sub_keys.items():
-                    keys[sub_key] = f"{key}{sep}{sub_value}"
-                    keys[f"{key}{sep}{sub_key}"] = f"{key}{sep}{sub_value}"
-        elif isinstance(value, list | Dataset):
-            if len(value) > 0:
-                sub_keys = describe_keys(value[0], sep, False)
-                if sub_keys:
-                    for sub_key, sub_value in sub_keys.items():
-                        keys[sub_key] = f"{key}{sep}*{sep}{sub_value}"
-                        keys[f"{key}{sep}{sub_key}"] = f"{key}{sep}*{sep}{sub_value}"
+    
+    recurse(ds, path)
+    
     if show:
-        print(keys)
-    return keys
+        print(result)
+    return result
 
 
 def describe(ds: Any, name: str = "", compact: bool = True, show=True, check_full=False) -> Dict[str, Any]:  # noqa: FBT001
