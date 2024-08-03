@@ -510,3 +510,52 @@ def greet(name: str, times: Union[int, None] = None) -> str:
 # Usage examples
 print(greet("Alice"))  # Output: Hello, Alice!
 print(greet("Bob", 3))  # Output: Hello, Bob! Hello, Bob! Hello, Bob!
+
+# When to use overload vs. dispatch
+
+"""
+Overload and dispatch are both used for function polymorphism, but they serve different purposes:
+
+1. Overload (@overload decorator):
+   - Use when you have multiple implementations of a function with different parameter types or return types.
+   - Primarily used for type hinting and better IDE support.
+   - Does not affect runtime behavior; you still need to implement the actual function logic.
+   - Useful when the function behavior is similar for different types, but you want to provide more specific type information.
+
+   Example use case:
+   - When you have a function that can accept different types of arguments (e.g., str and int) and you want to provide 
+     specific type hints for each case.
+
+2. Dispatch (e.g., @singledispatch decorator):
+   - Use when you want to implement different behaviors based on the type of the first argument.
+   - Affects runtime behavior; each implementation is separate and called based on the argument type.
+   - Useful when you need to handle different types with substantially different logic.
+   - Allows for easy extension by registering new implementations for additional types.
+
+   Example use case:
+   - When you have a function that needs to perform different operations based on the type of its first argument 
+     (e.g., serializing different types of objects).
+
+In summary:
+- Use overload for better type hinting and IDE support when the core logic is similar.
+- Use dispatch when you need different implementations based on argument types at runtime.
+"""
+
+# Example of singledispatch
+from functools import singledispatch
+
+@singledispatch
+def serialize(obj):
+    raise NotImplementedError("Cannot serialize object of type {}".format(type(obj)))
+
+@serialize.register(str)
+def _(text):
+    return text.encode('utf-8')
+
+@serialize.register(int)
+def _(number):
+    return str(number).encode('utf-8')
+
+# Usage
+print(serialize("Hello"))  # Output: b'Hello'
+print(serialize(42))       # Output: b'42'
