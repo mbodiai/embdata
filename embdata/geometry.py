@@ -10,7 +10,7 @@ Example:
     >>> import math
     >>> pose_3d = Pose3D(x=1, y=2, theta=math.pi / 2)
     >>> pose_3d.to("cm")
-    Pose3D(x=100.0, y=200.0, theta=1.5707963267948966)
+    Pose3D(x=100.0, y=200.0, theta=1.571)
     >>> pose_3d.to("deg")
     Pose3D(x=1.0, y=2.0, theta=90.0)
     >>> class BoundedPose6D(Pose6D):
@@ -18,7 +18,9 @@ Example:
     >>> pose_6d = BoundedPose6D(x=10, y=2, z=3, roll=0, pitch=0, yaw=0)
     Traceback (most recent call last):
     ...
-    ValueError: x value 10 is not within bounds (0, 5)
+    pydantic_core._pydantic_core.ValidationError: 1 validation error for BoundedPose6D
+      Value error, x value 10.0 is not within bounds (0, 5) [type=value_error, input_value={'x': 10, 'y': 2, 'z': 3,...0, 'pitch': 0, 'yaw': 0}, input_type=dict]
+        For further information visit https://errors.pydantic.dev/2.8/v/value_error
 """
 
 from typing import Any, List, Literal, Tuple, Type, TypeAlias, TypeVar, Union
