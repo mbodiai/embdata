@@ -63,24 +63,18 @@ def full_paths(ds: Any, sep: str = ".", show=False, include: set | None = None) 
         if isinstance(current, dict):
             for key, value in current.items():
                 new_key = f"{prefix}{key}" if prefix else key
-                if include is None or key in include or new_key in include:
+                if include is None or key in include:
                     result[key] = new_key
-                    if prefix:
-                        result[new_key] = new_key
                 recurse(value, f"{new_key}{sep}")
         elif isinstance(current, list | Dataset) and current:
-            all_keys = set()
-            for item in current:
-                if isinstance(item, dict):
-                    all_keys.update(item.keys())
-            for key in all_keys:
-                new_key = f"{prefix}*{sep}{key}"
-                if include is None or key in include or new_key in include:
-                    result[key] = new_key
-                    if prefix:
-                        result[f"{prefix}{key}"] = new_key
             if current:
                 recurse(current[0], f"{prefix}*{sep}")
+
+    recurse(ds)
+    
+    # Filter the result to only include the specified keys
+    if include is not None:
+        result = {k: v for k, v in result.items() if k in include}
 
     recurse(ds)
     if show:
