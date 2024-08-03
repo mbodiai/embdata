@@ -245,7 +245,7 @@ class Pose3D(Coordinate):
         >>> import math
         >>> pose = Pose3D(1, 2, math.pi / 2)
         >>> pose
-        Pose3D(x=1.0, y=2.0, theta=1.5707963267948966)
+        Pose3D(x=1.0, y=2.0, theta=1.571)
         >>> pose = Pose3D([1, 2, math.pi / 2])
         >>> pose
         Pose3D(x=1.0, y=2.0, theta=1.5707963267948966)
@@ -361,7 +361,7 @@ class Pose6D(Coordinate):
     Examples:
         >>> pose = Pose6D(1, 2, 3, 0, 0, np.pi / 2)
         >>> pose
-        Pose6D(x=1.0, y=2.0, z=3.0, roll=0.0, pitch=0.0, yaw=1.5707963267948966)
+        Pose6D(x=1.0, y=2.0, z=3.0, roll=0.0, pitch=0.0, yaw=1.571)
         >>> pose = Pose6D([1, 2, 3, 0, 0, np.pi / 2])
         >>> pose
         Pose6D(x=1.0, y=2.0, z=3.0, roll=0.0, pitch=0.0, yaw=1.5707963267948966)
