@@ -736,7 +736,8 @@ class Episode(Sample):
         #     translation, rr.Quaternion(xyzw=rotation.as_quat()), from_parent=True
         # )
         
-        rr.init("rerun-mbodied-data", spawn=True)
+        rr.init("rerun-mbodied-data", spawn=False)
+        rr.serve(open_browser=False, web_port=port, ws_port=ws_port)
         # rr.log("world/camera_lowres", rr.Transform3D(transform=camera_from_world))
         # rr.log("world/camera_lowres", rr.Pinhole(image_from_camera=intrinsic, resolution=[w, h]))
         blueprint = rrb.Blueprint(
@@ -747,7 +748,7 @@ class Episode(Sample):
                         background=[0.0, 0.0, 0.0, 0.0],
                         origin=f"scene",
                         visible=True,
-                        contents=['$origin/image', '/arrows'],
+                        # contents=['$origin/image', '/arrows'],
                     ),
 
                     # rrb.Spatial2DView(
@@ -774,15 +775,13 @@ class Episode(Sample):
                             ),
                         ],
                     ),
-                #     rrb.TextDocumentView(
-                #         name=f"ObjectPoses", 
-                #         origin=f"Objects",
-                #         visible=True,
-                #     ),
                 ),
+                row_shares=[2, 1],
             ),
-            # rrb.SelectionPanel(state="collapsed"),
-            # rrb.TimePanel(state="collapsed"),
+            rrb.SelectionPanel(state="collapsed"),
+            rrb.TimePanel(state="collapsed"),
+            rrb.BlueprintPanel(state="collapsed"),
+
         )
 
         # rr.log(f"action/x", rr.SeriesLine(color=[255, 0, 0], name="action/x"), static=True)
@@ -806,9 +805,9 @@ class Episode(Sample):
             rr.set_time_sequence("timeline0", i)
             rr.set_time_seconds("timestamp", step.timestamp)
 
-            rr.log(f"action/x", rr.Scalar(step.action.pose.x))
-            rr.log(f"action/y", rr.Scalar(step.action.pose.y))
-            rr.log(f"action/z", rr.Scalar(step.action.pose.z))
+            # rr.log(f"action/x", rr.Scalar(step.action.pose.x))
+            # rr.log(f"action/y", rr.Scalar(step.action.pose.y))
+            # rr.log(f"action/z", rr.Scalar(step.action.pose.z))
             if i == 0:
                 rr.log(f"action/ef/x", rr.Scalar(0.3))
                 rr.log(f"action/ef/y", rr.Scalar(0.0))
@@ -821,7 +820,7 @@ class Episode(Sample):
             # Convert rotation vector to rotation matrix
             R, _ = cv2.Rodrigues(np.array(params.extrinsic.rotation).reshape(3, 1))
             rr.log(f"scene/image", rr.Image(data=step.observation.image.array if step.observation.image else None))
-            rr.log(f"world/camera_lowres/depth", rr.DepthImage(data=step.state.scene.depth_image if step.state.scene.depth_image else None, meter=1000))
+            # rr.log(f"world/camera_lowres/depth", rr.DepthImage(data=step.state.scene.depth_image if step.state.scene.depth_image else None, meter=1000))
 
             projected_start_points_2d = []
             projected_end_points_2d = []    
@@ -859,7 +858,7 @@ class Episode(Sample):
                 end_points_2d_array = np.array(projected_end_points_2d)
                 vectors = end_points_2d_array - start_points_2d_array
                 
-                rr.log(f"arrows", rr.Arrows2D(vectors=vectors, origins=start_points_2d_array, colors=colors, radii=radii))
+                rr.log(f"scene/arrows", rr.Arrows2D(vectors=vectors, origins=start_points_2d_array, colors=colors, radii=radii))
 
 
             scene_objects = step.state.scene.scene_objects
@@ -872,7 +871,7 @@ class Episode(Sample):
                 rr.log(f"action/{obj['object_name'].replace(' ', '')}/y", rr.Scalar(obj['object_pose']["y"]))
                 rr.log(f"action/{obj['object_name'].replace(' ', '')}/z", rr.Scalar(obj['object_pose']["z"]))
 
-        # rr.send_blueprint(blueprint)
+        rr.send_blueprint(blueprint)
 
     def show(self, mode: Literal["local", "remote"] | None = None, port=5003, ws_port=5004) -> None:
         if mode is None:
