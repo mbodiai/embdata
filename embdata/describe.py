@@ -56,7 +56,8 @@ def as_table(ds: Any, sep: str = ".", show=True) -> Dict[str, Any]:
 def full_paths(ds: Any, include: list[str] | str | None = None, sep: str = ".", show=False) -> Dict[str, Any]:
     """Get the full paths of a dataset or dictionary. with the specified keys."""
     include = [include] if isinstance(include, str) else include
-    return {k: v for k, v in describe_keys(ds, sep, show).items() if include is None or k in include}
+    keys = describe_keys(ds, sep, show)
+    return {k: v for k, v in keys.items() if include is None or k in include or v in include}
 
 
 def describe_keys(ds: Any, sep: str = ".", show=False, path="", include: set | None = None) -> Dict[str, Any]:  # noqa
@@ -69,6 +70,8 @@ def describe_keys(ds: Any, sep: str = ".", show=False, path="", include: set | N
         ds (Any): The dataset or dictionary to describe.
         sep (str, optional): The separator used for nested keys. Defaults to ".".
         show (bool, optional): Whether to print the resulting keys. Defaults to False.
+        path (str, optional): The current path in the nested structure. Defaults to "".
+        include (set, optional): Set of keys to include in the output. Defaults to None.
 
     Returns:
         Dict[str, Any]: A dictionary mapping of keys to their fully qualified names.
@@ -76,37 +79,32 @@ def describe_keys(ds: Any, sep: str = ".", show=False, path="", include: set | N
     Example:
         >>> data = {"a": 1, "b": {"c": 2, "d": 3}}
         >>> describe_keys(data)
-        {'a': 'a', 'c': 'b.c', 'd': 'b.d'}
+        {'a': 'a', 'b': 'b', 'c': 'b.c', 'd': 'b.d', 'b.c': 'b.c', 'b.d': 'b.d'}
 
     Example:
-        >>> data = {"a": 1, "b": [{"c": 2, "d": 3}, {"c": 4, "f": e}]}
+        >>> data = {"a": 1, "b": [{"c": 2, "d": 3}, {"c": 4, "f": 5}]}
         >>> describe_keys(data)
-        {'a': 'a', 'c': 'b.*.c', 'd': 'b.*.d', 'f': 'b.*.f'}
+        {'a': 'a', 'b': 'b', 'c': 'b.*.c', 'd': 'b.*.d', 'f': 'b.*.f', 'b.c': 'b.*.c', 'b.d': 'b.*.d', 'b.f': 'b.*.f'}
     """
-    # Map each key to all its fully qualified key
     if isinstance(ds, list) and len(ds) > 0:
         ds = ds[0]
     if hasattr(ds, "dump"):
         ds = ds.dump()
     keys = {}
     if not hasattr(ds, "items"):
-        return ""
+        return keys
     for key, value in ds.items():
-        keys[key] = f"{path}{sep}{key}" if path and key not in keys else keys.get(key, key)
-        key = keys[key]
+        full_key = f"{path}{sep}{key}" if path else key
+        keys[key] = full_key
+        keys[full_key] = full_key
         if isinstance(value, dict):
-            sub_keys = describe_keys(value, sep, False)
-            if sub_keys:
-                for sub_key, sub_value in sub_keys.items():
-                    keys[sub_key] = f"{key}{sep}{sub_value}"
-                    keys[f"{key}{sep}{sub_key}"] = f"{key}{sep}{sub_value}"
-        elif isinstance(value, list | Dataset):
-            if len(value) > 0:
-                sub_keys = describe_keys(value[0], sep, False)
-                if sub_keys:
-                    for sub_key, sub_value in sub_keys.items():
-                        keys[sub_key] = f"{key}{sep}*{sep}{sub_value}"
-                        keys[f"{key}{sep}{sub_key}"] = f"{key}{sep}*{sep}{sub_value}"
+            sub_keys = describe_keys(value, sep, False, full_key)
+            keys.update(sub_keys)
+        elif isinstance(value, list | Dataset) and len(value) > 0:
+            sub_keys = describe_keys(value[0], sep, False, f"{full_key}{sep}*")
+            keys.update(sub_keys)
+    if include:
+        keys = {k: v for k, v in keys.items() if k in include or v in include}
     if show:
         print(keys)
     return keys

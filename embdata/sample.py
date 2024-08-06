@@ -1048,9 +1048,9 @@ class Sample(BaseModel):
 
     @cached_property
     def _torch(self) -> "torch.Tensor":
-        import_module("torch")
         """Convert the Sample instance to a PyTorch tensor."""
-        return self.flatten("pt")
+        torch = lazy_import("torch")
+        return torch.tensor(self.flatten("list"), dtype=torch.float32)
 
     @cached_property
     def _json(self) -> str:
