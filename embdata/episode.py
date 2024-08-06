@@ -3,16 +3,15 @@ import sys
 import traceback
 from itertools import zip_longest
 from threading import Thread
-from typing import Any, Callable, Dict, Iterable, Iterator, List, Literal
+from typing import Any, Callable, Dict, Iterable, Iterator, List, Literal, Tuple
 from scipy.spatial.transform import Rotation
 import cv2
 import numpy as np
 import rerun as rr
-import rerun_sdk as rr_sdk
 import torch
 from datasets import Dataset, DatasetDict, Features, Sequence, Value
 from datasets import Image as HFImage
-from pydantic import ConfigDict, Field, PrivateAttr
+from pydantic import ConfigDict, Field, PrivateAttr, computed_field
 
 from embdata.features import to_features_dict
 from embdata.geometry import Pose
@@ -22,8 +21,10 @@ from embdata.sample import Sample
 from embdata.sense.camera import CameraParams, Distortion, Extrinsics, Intrinsics
 from embdata.sense.image import Image, SupportsImage
 from embdata.trajectory import Trajectory
+from embdata.ndarray import NumpyArray
 import json
 import rerun.blueprint as rrb
+from embdata.utils.rerun_utils import get_blueprint
  
 try:
     from lerobot.common.datasets.lerobot_dataset import LeRobotDataset
@@ -144,6 +145,32 @@ class TimeStep(Sample):
             **{k: v for k, v in kwargs.items() if k not in ["observation", "action", "state", "supervision"]},
         )
 
+    def window(self, steps: List["TimeStep"], nforward: int = 1, nbackward: int = 1, pad_value: Any = None) -> Iterable[List["TimeStep"]]:
+        """Get a sliding window of the episode.
+
+        Args:
+            steps (List[TimeStep]): List of timesteps.
+            nforward (int, optional): The number of steps to look forward. Defaults to 1.
+            nbackward (int, optional): The number of steps to look backward. Defaults to 1.
+            pad_value (Any, optional): The value to use for padding. Defaults to None.
+
+        Returns:
+            Iterable[List[TimeStep]]: A sliding window of the episode.
+        """
+        length = len(steps)
+        for i in range(length):
+            start = max(0, i - nbackward)
+            end = min(length, i + nforward + 1)
+            window = steps[start:end]
+            
+            if pad_value is not None:
+                while len(window) < nbackward + nforward + 1:
+                    if len(window) < nbackward + 1:
+                        window.insert(0, pad_value)
+                    else:
+                        window.append(pad_value)
+            
+            yield window
 
 logger = logging.getLogger(__name__)
 if logger.level == logging.DEBUG or "MBENCH" in os.environ:
@@ -806,172 +833,150 @@ class Episode(Sample):
             freq_hz=lerobot_dataset.fps,
         )
     
+    def window(self, steps: List[VisionMotorStep], current_n : int = 0, nforward: int = 1, nbackward: int = 1, pad_value: Any = None) -> Iterable[List[VisionMotorStep]]:
+        """Get a sliding window of the episode.
+
+        Args:
+            steps (List[TimeStep]): List of timesteps.
+            nforward (int, optional): The number of steps to look forward. Defaults to 1.
+            nbackward (int, optional): The number of steps to look backward. Defaults to 1.
+            pad_value (Any, optional): The value to use for padding. Defaults to None.
+
+        Returns:
+            Iterable[List[TimeStep]]: A sliding window of the episode.
+        """
+        length = len(steps)
+        start = max(0, current_n - nbackward)
+        end = min(length, current_n + nforward + 1)
+        window = steps[start:end]
+
+        if pad_value is not None:
+            while len(window) < nbackward + nforward + 1:
+                if len(window) < nbackward + 1:
+                    window.insert(0, pad_value)
+                else:
+                    window.append(pad_value)
+        
+        yield window
+
     def rerun(self, mode: Literal["local", "remote"], port=3389, ws_port=8888) -> "Episode":
         """Start a rerun server."""
         params = CameraParams(
             intrinsic=Intrinsics(focal_length_x=911.0, focal_length_y=911.0, optical_center_x=653.0, optical_center_y=371.0),
             extrinsic=Extrinsics(
-                rotation=[-2.1703, 2.186, 0.053587],
-                translation=[0.09483, 0.25683, 1.2942]
+                rotation_vector=[-2.1703, 2.186, 0.053587],
+                translation_vector=[0.09483, 0.25683, 1.2942],
             ),
             distortion=Distortion(k1=0.0, k2=0.0, p1=0.0, p2=0.0, k3=0.0), 
             depth_scale=0.001
         )
-
-        # intrinsic = params.intrinsic.matrix()
-        # w, h = 1280, 720
-        distortion_params = params.distortion.to("np")
-        distortion_params = distortion_params.reshape(5, 1)
-        translation = np.array(params.extrinsic.translation).reshape(3, 1)
-        
-        # angle_axis = [-2.1703, 2.186, 0.053587]
-        # rotation = Rotation.from_rotvec(np.asarray(angle_axis))
-
-        # # Extract translation from the fifth to seventh tokens
-        # translation = np.asarray([0.09483, 0.25683, 1.2942])
-
-        # # Create tuple in format log_transform3d expects
-        # camera_from_world = rr.TranslationRotationScale3D(
-        #     translation, rr.Quaternion(xyzw=rotation.as_quat()), from_parent=True
-        # )
         
         rr.init("rerun-mbodied-data", spawn=True)
-        # rr.log("world/camera_lowres", rr.Transform3D(transform=camera_from_world))
-        # rr.log("world/camera_lowres", rr.Pinhole(image_from_camera=intrinsic, resolution=[w, h]))
-        blueprint = rrb.Blueprint(
-            rrb.Vertical(
-                rrb.Horizontal(
-                    rrb.Spatial2DView( 
-                        name=f"Scene",
-                        background=[0.0, 0.0, 0.0, 0.0],
-                        origin=f"scene",
-                        visible=True,
-                        contents=['$origin/image', '/arrows'],
-                    ),
+        # rr.serve(open_browser=False, web_port=port, ws_port=ws_port)
 
-                    # rrb.Spatial2DView(
-                    #     name=f"Depth",
-                    #     background=[0.0, 0.0, 0.0, 0.0],
-                    #     origin=f"world/camera_lowres/",
-                    #     visible=True,
-                    #     contents=['$origin/depth'], 
-                    # ),
-                     
-                ),
-                rrb.Horizontal(
-                    rrb.TimeSeriesView(
-                        name=f"Actions",
-                        origin=f"action",
-                        visible=True,
-                        axis_y=rrb.ScalarAxis(range=(-0.5, 0.5), zoom_lock=True),
-                        plot_legend=rrb.PlotLegend(visible=True),
-                        time_ranges=[
-                            rrb.VisibleTimeRange(
-                                "timeline0",
-                                start=rrb.TimeRangeBoundary.cursor_relative(seq=-100),
-                                end=rrb.TimeRangeBoundary.cursor_relative(),
-                            ),
-                        ],
-                    ),
-                #     rrb.TextDocumentView(
-                #         name=f"ObjectPoses", 
-                #         origin=f"Objects",
-                #         visible=True,
-                #     ),
-                ),
-            ),
-            # rrb.SelectionPanel(state="collapsed"),
-            # rrb.TimePanel(state="collapsed"),
-        )
+        blueprint = get_blueprint()
 
-        # rr.log(f"action/x", rr.SeriesLine(color=[255, 0, 0], name="action/x"), static=True)
-        # rr.log(f"action/y", rr.SeriesLine(color=[0, 255, 0], name="action/y"), static=True)
-        # rr.log(f"action/z", rr.SeriesLine(color=[0, 0, 255], name="action/z"), static=True)
-        rr.log(f"action/RemoteControl/x", rr.SeriesLine(color=[255, 255, 0], name="action/RemoteControl/x"), static=True)
-        rr.log(f"action/RemoteControl/y", rr.SeriesLine(color=[0, 255, 255], name="action/RemoteControl/y"), static=True)
-        rr.log(f"action/RemoteControl/z", rr.SeriesLine(color=[255, 0, 255], name="action/RemoteControl/z"), static=True)
-        rr.log(f"action/ef/x", rr.SeriesLine(color=[255, 0, 0], name="action/ef/x"), static=True)
-        rr.log(f"action/ef/y", rr.SeriesLine(color=[0, 255, 0], name="action/ef/y"), static=True)
-        rr.log(f"action/ef/z", rr.SeriesLine(color=[0, 0, 255], name="action/ef/z"), static=True)
+        states_to_plot = ["RemoteControl/x",
+                            "RemoteControl/y",
+                            "RemoteControl/z",
+                            "ef/x",
+                            "ef/y",
+                            "ef/z"]
+        
+        plot_colors = [(255, 0, 0), (0, 255, 0), (0, 0, 255), (255, 255, 0), (0, 255, 255), (255, 0, 255)]
+
+        for state, color in zip(states_to_plot, plot_colors):
+            print(f"Logging state {state}")
+            rr.log(f"action/{state}", rr.SeriesLine(color=color, name=state), static=True)
         
         end_effector_offset = 0.175
         next_n = 4
-        colors = (255, 0, 0)
+        arrow_color = [(160, 0, 0)]
         radii = 10
         
         for i, step in enumerate(self.steps):
+            print(f"Processing step {i}")
             if not hasattr(step, "timestamp") or step.timestamp is None:
                 step.timestamp = i / 5
             rr.set_time_sequence("timeline0", i)
             rr.set_time_seconds("timestamp", step.timestamp)
 
-            rr.log(f"action/x", rr.Scalar(step.action.pose.x))
-            rr.log(f"action/y", rr.Scalar(step.action.pose.y))
-            rr.log(f"action/z", rr.Scalar(step.action.pose.z))
-            if i == 0:
-                rr.log(f"action/ef/x", rr.Scalar(0.3))
-                rr.log(f"action/ef/y", rr.Scalar(0.0))
-                rr.log(f"action/ef/z", rr.Scalar(0.325 - end_effector_offset))
-            else:
-                rr.log(f"action/ef/x", rr.Scalar(self.steps[i].absolute_pose.pose.x))
-                rr.log(f"action/ef/y", rr.Scalar(self.steps[i].absolute_pose.pose.y))
-                rr.log(f"action/ef/z", rr.Scalar(self.steps[i].absolute_pose.pose.z - end_effector_offset))
+            rr.log(f"action/ef/x", rr.Scalar(step.absolute_pose.pose.x))
+            rr.log(f"action/ef/y", rr.Scalar(step.absolute_pose.pose.y))
+            rr.log(f"action/ef/z", rr.Scalar(step.absolute_pose.pose.z - end_effector_offset))
             
-            # Convert rotation vector to rotation matrix
-            R, _ = cv2.Rodrigues(np.array(params.extrinsic.rotation).reshape(3, 1))
-            rr.log(f"scene/image", rr.Image(data=step.observation.image.array if step.observation.image else None))
-            rr.log(f"world/camera_lowres/depth", rr.DepthImage(data=step.state.scene.depth_image if step.state.scene.depth_image else None, meter=1000))
+            rr.log("scene/image", rr.Image(data=step.observation.image.array if step.observation.image else None))
+            rr.log("depth/image", rr.Image(data=step.depth_image.array if step.depth_image else None))
 
-            projected_start_points_2d = []
-            projected_end_points_2d = []    
+            detection_results = step.detection_result.objects
 
-       
-            for j in range(next_n):
-                current_index = i + j
-                next_index = current_index + 1
-                if next_index >= len(self.steps):
-                    break
-                
-                if current_index == 0:
-                    start_pose: Pose = Pose(x=0.3, y=0.0, z=0.325, roll=0.0, pitch=0.0, yaw=0.0)
-                else:
-                    start_pose: Pose = self.steps[current_index].absolute_pose.pose
-                
-                end_pose: Pose = self.steps[next_index].absolute_pose.pose
+            for obj in detection_results:
+                name = obj.name
+                bbox_2d = obj.bbox_2d
 
-                # Switch x and z coordinates for the 3D points
-                start_position_3d = np.array([start_pose.z - end_effector_offset, -start_pose.y, start_pose.x]).reshape(3, 1)
-                end_position_3d = np.array([end_pose.z - end_effector_offset, -end_pose.y, end_pose.x]).reshape(3, 1)
+                if bbox_2d:
+                    min_corner = (bbox_2d.x1, bbox_2d.y1)
+                    width = bbox_2d.x2 - bbox_2d.x1
+                    height = bbox_2d.y2 - bbox_2d.y1
 
-                # Transform the 3D point to the camera frame
-                position_3d_camera_frame = np.dot(R, start_position_3d) + translation
-                end_position_3d_camera_frame = np.dot(R, end_position_3d) + translation
+                rr.log(f"scene/detection/{name}", rr.Boxes2D(mins=[min_corner], sizes=[(width, height)], labels=[name]))
 
-                # Project the transformed 3D point to 2D
-                start_point_2d, _ = cv2.projectPoints(position_3d_camera_frame, np.zeros((3,1)), np.zeros((3,1)), params.intrinsic.matrix(), np.array(distortion_params))
-                end_point_2d, _ = cv2.projectPoints(end_position_3d_camera_frame, np.zeros((3,1)), np.zeros((3,1)), params.intrinsic.matrix(), np.array(distortion_params))
-                    
-                projected_start_points_2d.append(start_point_2d[0][0])
-                projected_end_points_2d.append(end_point_2d[0][0])
+            for window in self.window(self.steps, current_n=i, nforward=next_n, nbackward=0):
+                print(f"Processing window with {len(window)} steps")
+                projected_start_points_2d = []
+                projected_end_points_2d = []
+                for j in range(len(window) - 1):
+                    start_point_2d, end_point_2d = self.project_points_to_2d(params, window[j].absolute_pose.pose, window[j+1].absolute_pose.pose)
+                    projected_start_points_2d.append(start_point_2d)
+                    projected_end_points_2d.append(end_point_2d)
 
                 start_points_2d_array = np.array(projected_start_points_2d)
                 end_points_2d_array = np.array(projected_end_points_2d)
                 vectors = end_points_2d_array - start_points_2d_array
-                
-                rr.log(f"arrows", rr.Arrows2D(vectors=vectors, origins=start_points_2d_array, colors=colors, radii=radii))
 
+                rr.log("scene/arrows", rr.Arrows2D(vectors=vectors, origins=start_points_2d_array, colors=arrow_color, radii=radii))
 
             scene_objects = step.state.scene.scene_objects
-            objects_data = []
-            for obj in scene_objects:
 
-                rr.log(f"Objects/{obj['object_name'].replace(' ', '')}", rr.Points3D(positions=[obj['object_pose']["x"], obj['object_pose']["y"], obj['object_pose']["z"]],
-                                                                                     labels=obj['object_name']))
+            for obj in scene_objects:
+                rr.log(f"Objects/{obj['object_name'].replace(' ', '')}", rr.Points3D(positions=[[obj['object_pose']["x"], obj['object_pose']["y"], obj['object_pose']["z"]]], labels=[obj['object_name']]))
                 rr.log(f"action/{obj['object_name'].replace(' ', '')}/x", rr.Scalar(obj['object_pose']["x"]))
                 rr.log(f"action/{obj['object_name'].replace(' ', '')}/y", rr.Scalar(obj['object_pose']["y"]))
                 rr.log(f"action/{obj['object_name'].replace(' ', '')}/z", rr.Scalar(obj['object_pose']["z"]))
 
-        # rr.send_blueprint(blueprint)
+        rr.send_blueprint(blueprint)
+
+    def project_points_to_2d(self, camera_params: CameraParams, start_pose: Pose, end_pose: Pose) -> Tuple[np.ndarray, np.ndarray]:
+
+        intrinsic = camera_params.intrinsic.matrix
+        distortion = np.array([camera_params.distortion.k1, camera_params.distortion.k2, camera_params.distortion.p1, camera_params.distortion.p2, camera_params.distortion.k3]).reshape(5, 1)
+        
+        translation = np.array(camera_params.extrinsic.translation_vector).reshape(3, 1)
+        rotation = cv2.Rodrigues(np.array(camera_params.extrinsic.rotation_vector).reshape(3, 1))[0]
+        end_effector_offset = 0.175
+
+        # Switch x and z coordinates for the 3D points
+        start_position_3d: NumpyArray[3, 1] = np.array([start_pose.z - end_effector_offset, -start_pose.y, start_pose.x]).reshape(3, 1)
+        end_position_3d: NumpyArray[3, 1] = np.array([end_pose.z - end_effector_offset, -end_pose.y, end_pose.x]).reshape(3, 1)
+
+        # Transform the 3D point to the camera frame
+        start_position_3d_camera_frame: NumpyArray[3, 1] = np.dot(rotation, start_position_3d) + translation
+        end_position_3d_camera_frame: NumpyArray[3, 1] = np.dot(rotation, end_position_3d) + translation
+
+        # Project the transformed 3D point to 2D
+        start_point_2d, _ = cv2.projectPoints(objectPoints=start_position_3d_camera_frame, 
+                                                rvec=np.zeros((3,1)), 
+                                                tvec=np.zeros((3,1)), 
+                                                cameraMatrix=intrinsic,
+                                                distCoeffs=distortion)
+
+        end_point_2d, _ = cv2.projectPoints(objectPoints=end_position_3d_camera_frame, 
+                                                rvec=np.zeros((3,1)), 
+                                                tvec=np.zeros((3,1)), 
+                                                cameraMatrix=intrinsic,
+                                                distCoeffs=distortion)
+        
+        return start_point_2d[0][0], end_point_2d[0][0]
 
     def show(self, mode: Literal["local", "remote"] | None = None, port=5003, ws_port=5004) -> None:
         if mode is None:
