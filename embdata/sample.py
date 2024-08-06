@@ -84,6 +84,8 @@ from embdata.features import to_features_dict
 from embdata.utils import iter_utils, schema_utils, space_utils
 from embdata.utils.lazy import lazy_import
 
+torch = lazy_import("torch")
+
 OneDimensional = Annotated[Literal["dict", "np", "pt", "list", "sample"], "Numpy, PyTorch, list, sample, or dict"]
 
 logger = logging.getLogger(__name__)
@@ -801,9 +803,9 @@ class Sample(BaseModel):
         sampled = space.sample()
         if isinstance(sampled, dict):
             return cls(**sampled)
-        if isinstance(sampled, np.ndarray | torch.Tensor | list | tuple):
+        if isinstance(sampled, (np.ndarray, list, tuple)) or (torch and isinstance(sampled, torch.Tensor)):
             sampled = np.asarray(sampled)
-            if len(sampled.shape) > 0 and isinstance(sampled[0], dict | Sample):
+            if len(sampled.shape) > 0 and isinstance(sampled[0], (dict, Sample)):
                 return cls.unpack_from(sampled)
         return cls(sampled)
 
