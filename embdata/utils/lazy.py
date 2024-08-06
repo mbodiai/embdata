@@ -1,23 +1,30 @@
 from collections import deque
-from functools import wraps
+import logging
 from importlib import import_module
-from typing import Any, Callable
+from functools import wraps
+from typing import Any
 
+logging.basicConfig(level=logging.DEBUG)
 
 class LazyObject:
-    def __init__(self, import_path: str):
-        self._import_path = import_path
+    def __init__(self, name):
+        self._name = name
         self._real_object = None
 
-    def __getattr__(self, name: str) -> Any:
+    def _load(self):
         if self._real_object is None:
-            self._real_object = import_module(self._import_path)
+            logging.debug(f"Loading real object for {self._name}")
+            self._real_object = import_module(self._name)
+
+    def __getattr__(self, name):
+        self._load()
         return getattr(self._real_object, name)
 
-    def __str__(self):
-        return self._import_path
+    def __call__(self, *args, **kwargs):
+        self._load()
+        return self._real_object(*args, **kwargs)
 
-def import_lazy(func: Callable) -> Callable:
+def import_lazy(func):
     @wraps(func)
     def wrapper(*args, **kwargs):
         lazy_args = [LazyObject(arg) if isinstance(arg, str) else arg for arg in args]
@@ -25,14 +32,11 @@ def import_lazy(func: Callable) -> Callable:
         return func(*lazy_args, **lazy_kwargs)
     return wrapper
 
-@import_lazy
+# @import_lazy
 @wraps(import_module)
 def lazy_import(name: str, package: str | None = None) -> Any:
-    try:
-        return import_module(name, package)
-    except ImportError:
-        return LazyObject(name)
-
+    logging.debug(f"Trying to import {name}")
+    return import_module(name, package)
 
 class LazyCall:
     """A class that allows queuing and applying function calls with their respective arguments."""
