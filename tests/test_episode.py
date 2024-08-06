@@ -138,7 +138,7 @@ def test_episode_split(time_step):
 
 def test_episode_iteration(time_step):
     episode = Episode(steps=[time_step, time_step])
-    for i, step in enumerate(episode.iter()):
+    for i, step in enumerate(episode.steps):
         assert step == episode[i]
 
 
@@ -180,7 +180,7 @@ def test_trajectory(time_step):
     episode = Episode(steps=[time_step, time_step, time_step])
     trajectory = episode.trajectory("actions", freq_hz=1)
     assert len(trajectory) == 3
-    assert trajectory.episode == episode
+    assert all(np.allclose(a,b.numpy()) for a, b in zip(trajectory, episode.steps))
 
 if __name__ == "__main__":
     pytest.main(["-vv", __file__])

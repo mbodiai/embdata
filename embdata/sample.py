@@ -68,22 +68,26 @@ from functools import cached_property, reduce
 from importlib import import_module
 from itertools import zip_longest
 from pathlib import Path
+from pprint import pformat
 from typing import Annotated, Any, Dict, Generator, List, Literal, Union, get_origin
 
 import numpy as np
-import torch
 from datasets import Dataset, Features
 from gymnasium import spaces
 from pydantic import BaseModel, ConfigDict, Field, create_model
 from pydantic.fields import FieldInfo
+from rich.logging import RichHandler
+from rich.pretty import pretty_repr
 
 from embdata.describe import describe, describe_keys, full_paths
 from embdata.features import to_features_dict
 from embdata.utils import iter_utils, schema_utils, space_utils
+from embdata.utils.lazy import lazy_import
 
 OneDimensional = Annotated[Literal["dict", "np", "pt", "list", "sample"], "Numpy, PyTorch, list, sample, or dict"]
 
 logger = logging.getLogger(__name__)
+logger.addHandler(RichHandler())
 if logger.level == logging.DEBUG or "MBENCH" in os.environ:
     import mbench
 
@@ -158,13 +162,13 @@ class Sample(BaseModel):
                 }
         elif self.__class__ == Sample:
             # Only the Sample class can wrap an arbitrary type.
-            if isinstance(wrapped, list | tuple | np.ndarray | torch.Tensor | Dataset):
+            if hasattr(wrapped, "len") and hasattr(wrapped, "__getitem__") and not isinstance(wrapped, Sample):
                 # There is no schema to unflatten from, just have it as an attribute.
                 data["_items"] = wrapped
                 data["wrapped"] = wrapped
             elif wrapped is not None:
                 data["wrapped"] = wrapped
-        elif isinstance(wrapped, list | tuple | np.ndarray | torch.Tensor | Dataset):
+        elif hasattr(wrapped, "len") and hasattr(wrapped, "__getitem__") and not isinstance(wrapped, Sample):
             # Derived classes have a schema to unflatten from.
             d = self.__class__.unflatten(wrapped).model_dump()
             data.update(d)
@@ -322,13 +326,12 @@ class Sample(BaseModel):
             obj = str(obj)
         if not hasattr(obj, "_str"):
             return str(obj)
-        prefix += " "
-        sep = ",\n" + prefix
-        out = f"{obj.__class__.__name__}(\n{prefix}{sep.join([f'{k}={round(v, 3) if isinstance(v, float) else self._str(v,prefix)}' for k, v in obj if v is not None and k not in ignore])}"
+        sep = ","
+        out = f"{obj.__class__.__name__}({sep.join([f'{k}={np.round(v, 3) if isinstance(v, float) else self._str(v)}' for k, v in obj if v is not None and k not in ignore])}"
         if hasattr(obj, "_items"):
-            out += f",\n{prefix}items=[\n{sep}{sep.join([self._str(v, prefix) for v in obj._items])}]"
+            out += f",{prefix}items=[{sep}{sep.join([self._str(v, prefix) for v in obj._items])}]"
 
-        return out + ",\n)" if out.removeprefix("Sample(").strip() else "Sample()"
+        return pformat(out + ")" if out.removeprefix("Sample(").strip() else "Sample()")
 
     def __str__(self) -> str:
         """Return a string representation of the Sample instance."""
@@ -497,7 +500,7 @@ class Sample(BaseModel):
         exclude: str | set[str] | None = None,
         include: str | List[str] | None = None,
         sep: str = ".",
-    ) -> Dict[str, Any] | np.ndarray | torch.Tensor | List | Any:
+    ) -> Dict[str, Any] | np.ndarray | "torch.Tensor" | List | Any:
         """Flatten the Sample instance into a strictly one-dimensional or two-dimensional structure.
 
         For nested lists use the '*' wildcard to select all elements.
@@ -554,44 +557,43 @@ class Sample(BaseModel):
             [1, 5]
         """
         logging.debug("include: %s", include)
-        has_include = include is not None and len(include) > 0
         include = [] if include is None else [include] if isinstance(include, str) else include
-        exclude = {} if exclude is None     else {exclude} if isinstance(exclude, str) else exclude
-        described_keys = describe_keys(self, show=False)
+        exclude = set() if exclude is None else {exclude} if isinstance(exclude, str) else exclude
+
         full_includes = full_paths(self, include, show=False).values()
-        logging.debug("Full includes1: %s", full_includes)
+        logging.debug("Full includes: %s", full_includes)
+        logging.debug("self: %s", self)
         if not full_includes:
-            full_includes = set(described_keys.values())
-        described_keys = describe_keys(self, show=False)
-        logging.debug("include: %s", include)
-        logging.debug("Full includes2: %s", full_includes)
-        # logging.debug("self: %s", self)
-
+            full_includes = [v for v in describe_keys(self, show=False).values() if v in include]
         # Get the full paths of the selected keys. e.g. c-> a.b.*.c
-        full_excludes = set()
-        if has_include:
-            for v in described_keys.values():
-                if not any(v.startswith(full_include) for full_include in full_includes)\
-                    and not any (inc.startswith(v) for inc in full_includes):
-                    full_excludes.add(v)
-
+        if not include and not exclude:
+            full_excludes = set()
         else:
-            full_excludes = set(describe_keys(self).values())
+            full_excludes = set(full_paths(self, exclude).values()).difference(full_includes)
 
         if to in ["numpy", "np", "torch", "pt"] and non_numerical != "forbid":
             non_numerical = "ignore"
         logging.debug("Full includes: %s", full_includes)
         logging.debug("Full excludes: %s", full_excludes)
+        from rich.pretty import pprint
+        pprint(f"Full includes: {full_includes}")
 
+        pprint(f"Full excludes: {full_excludes}")
+        full_excludes = [key for key in full_excludes if not any(key.startswith(k) for k in full_includes)]
+        pprint(f"Full excludes2: {full_excludes}")
         flattened_keys, flattened = iter_utils.flatten_recursive(
-            self,
-            exclude=exclude,
-            non_numerical=non_numerical,
-            sep=sep,
+            self, exclude=full_excludes, non_numerical=non_numerical, sep=sep,
         )
+
         logging.debug("Flattened keys: %s", flattened_keys)
         logging.debug("Flattened: %s", flattened)
-        if not has_include and not to.endswith("s"):
+        if not include:
+            flattened_keys, flattened = iter_utils.flatten_recursive(
+                self,
+                exclude=exclude,
+                non_numerical=non_numerical,
+                sep=sep,
+            )
             zipped = zip(flattened_keys, flattened, strict=False)
             if to == "sample":
                 return Sample(**dict(zipped))
@@ -600,6 +602,7 @@ class Sample(BaseModel):
             if to in ["np", "numpy"]:
                 return np.array(flattened, dtype=object)
             if to in ["pt", "torch", "pytorch"]:
+                torch = lazy_import("torch")
                 return torch.tensor(flattened, dtype=torch.float32)
 
             return flattened
@@ -663,7 +666,7 @@ class Sample(BaseModel):
         if to == "np":
             return np.array(flattened, dtype=float)
         if to == "pt":
-            return torch.tensor(flattened, dtype=float)
+            return lazy_import("tensor", "torch")(flattened, dtype=lazy_import("float32", "torch"))
         return flattened
 
     def schema(self, include: Literal["all", "descriptions", "info", "simple", "tensor"] = "simple") -> Dict:
@@ -1044,7 +1047,7 @@ class Sample(BaseModel):
         return self.flatten("list")
 
     @cached_property
-    def _torch(self) -> torch.Tensor:
+    def _torch(self) -> "torch.Tensor":
         import_module("torch")
         """Convert the Sample instance to a PyTorch tensor."""
         return self.flatten("pt")
@@ -1054,17 +1057,20 @@ class Sample(BaseModel):
         """Convert the Sample instance to a JSON string."""
         return self.model_dump_json()
 
-    def numpy(self) -> np.ndarray:
+    def numpy(self, dtype: np.dtype | None = None) -> np.ndarray:
         """Return the numpy array representation of the Sample instance."""
-        return self._numpy
+        return np.asarray(self._numpy, dtype=dtype) if dtype is not None else self._numpy
 
     def tolist(self) -> list:
         """Return the list representation of the Sample instance."""
         return self._tolist
 
-    def torch(self) -> torch.Tensor:
+    def torch(self, dtype: Any | None = None, device: int | str | None = NotImplementedError) -> "torch.Tensor":
         """Return the PyTorch tensor representation of the Sample instance."""
-        return self._torch
+        as_tensor = lazy_import("as_tensor", "torch")
+        if device is not None:
+            return as_tensor(self._torch, dtype=dtype, device=device)
+        return as_tensor(self._torch, dtype=dtype, device=device) if dtype is not None else self._torch
 
     def json(self) -> str:
         """Return the JSON string representation of the Sample instance."""
