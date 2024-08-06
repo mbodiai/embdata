@@ -1,11 +1,13 @@
 import importlib
 from functools import partial
+import traceback
 from typing import Any, Callable, List, Literal, Tuple
 
 import numpy as np
 import scipy.stats as sstats
 from pydantic import Field
 from pydantic.dataclasses import dataclass
+from rich.pretty import pretty_repr
 from scipy import fftpack
 from scipy.interpolate import interp1d
 from scipy.signal import spectrogram
@@ -14,7 +16,8 @@ from sklearn import decomposition
 
 from embdata.ndarray import NumpyArray
 from embdata.sample import Sample
-
+from rich.pretty import pprint
+from embdata.time import TimeStep
 
 def import_plotting_backend(backend: Literal["matplotlib", "plotext"] = "plotext") -> Any:
     if backend == "matplotlib":
@@ -23,7 +26,6 @@ def import_plotting_backend(backend: Literal["matplotlib", "plotext"] = "plotext
         return importlib.import_module("plotext")
     msg = f"Unknown plotting backend {backend}"
     raise ValueError(msg)
-
 
 
 @dataclass
@@ -44,10 +46,13 @@ class Stats:
         return getattr(self, key)
 
     def __repr__(self) -> str:
-        sep = "\n  "
-        if isinstance(self.mean, float | int):
-            return f"Stats(\n  {sep.join([f'{key}={round(v, 3)}' for key,v in self.__dict__.items()])}\n)"
-        return f"Stats(\n  {sep.join([f'{key}={[round(x, 3) for x in value]}' for key, value in self.__dict__.items()])}\n)"
+        try:
+            return pretty_repr({
+                k: np.round(v, 2) if isinstance(v, np.ndarray | np.number) else v for k, v in self.__dict__.items() if v is not None
+            })
+        except Exception as e:
+            traceback.print_exc()
+            return f"Stats({dict(self)})"
 
     def __str__(self) -> str:
         return self.__repr__()
@@ -181,19 +186,19 @@ class Trajectory:
         >>> filtered_traj.plot().show()
     """
 
-    steps: NumpyArray | List[Sample | NumpyArray]
+    steps: NumpyArray | List[Sample | NumpyArray | TimeStep] = Field(description="A 2D array or list of samples representing the trajectory")
     freq_hz: float | None = Field(default=None, description="The frequency of the trajectory in Hz")
-    time_idxs: NumpyArray | None = Field(default=None, description="The time index of each step in the trajectory")
-    keys: List[str] | str| Tuple | None = Field(default=None, description="The labels for each dimension of the trajectory")
-    angular_dims: list[int] | list[str] | None = Field(default=None, description="The dimensions that are angular")
-
+    keys: List[str] | str | Tuple | None = Field(default=None, description="The labels for each dimension")
+    angular_dims: List[int] | List[str] | None = Field(default=None, description="The dimensions that are angular")
+    time_idxs: NumpyArray | None | List = Field(default=None, description="The time index of each step in the trajectory. Calculated if not provided.")
+    _episode: Any | None = Field(default=None, description="The episode that the trajectory is part of.")
     _fig: Any | None = None
     _stats: Stats | None = None
-    _sample_class: type[Sample] = None
+    _sample_cls: type[Sample] | None = None
     _array: NumpyArray | None = None
     _map_history: list[Callable] = Field(default_factory=list)
     _map_history_kwargs: list[dict] = Field(default_factory=list)
-    _episode: Any | None = None
+    _sample_keys: list[str] | None = None
 
     def __repr__(self) -> str:
         return f"Trajectory({self.stats()})"
@@ -208,7 +213,7 @@ class Trajectory:
     def array(self) -> np.ndarray:
         if self._array is None:
             if isinstance(self.steps[0], Sample):
-                self._array_ = np.array([step.numpy() for step in self.steps])
+                self._array = np.array([step.numpy() for step in self.steps])
             else:
                 self._array = np.array(self.steps)
         return self._array
@@ -220,10 +225,12 @@ class Trajectory:
           dict: A dictionary containing the computed statistics, including mean, variance, skewness, kurtosis, min, and max.
         """
         if self._stats is None:
-            self._stats = stats(self.array, axis=0, sample_type=self._sample_class)
+            self._stats = stats(self.array, axis=0, sample_type=self._sample_cls)
         return self._stats
 
-    def plot(self, labels: list[str] | None = None, backend: Literal["matplotlib", "plotext"] = "plotext") -> "Trajectory":
+    def plot(
+        self, labels: list[str] | None = None, backend: Literal["matplotlib", "plotext"] = "plotext",
+    ) -> "Trajectory":
         """Plot the trajectory. Saves the figure to the trajectory object. Call show() to display the figure.
 
         Args:
@@ -247,14 +254,17 @@ class Trajectory:
         Returns:
           Trajectory: The modified trajectory.
         """
-        return Trajectory(
+        t = Trajectory(
             [fn(step) for step in self.steps],
             self.freq_hz,
             self.time_idxs,
             self.keys,
             self.angular_dims,
-            _episode=self._episode,
         )
+        t._map_history.extend(self._map_history)  # noqa: SLF001
+        t._map_history_kwargs.extend(self._map_history_kwargs) # noqa: SLF001
+        t._episode = self._episode # noqa: SLF001
+        return t
 
     def __len__(self):
         return len(self.steps)
@@ -266,18 +276,23 @@ class Trajectory:
         return iter(self.steps)
 
     def __post_init__(self, *args, **kwargs):
+        if isinstance(self.steps[0], Sample):
+            self._sample_cls = type(self.steps[0])
+            self._sample_keys = self._sample_cls.keys()
+        elif isinstance(self.steps[0], int | float | np.number):
+            self.steps = [[step] for step in self.steps]
         if self.keys is None:
-            self.keys = [f"Dimension {i}" for i in range(self.array.shape[1])]
+            self.keys = [f"Dimension {i}" for i in range(len(self.steps[0]))]
         if self.time_idxs is None:
             self.time_idxs = np.arange(0, len(self.array)) / self.freq_hz
 
         super().__init__(*args, **kwargs)
 
     def relative(self, step_difference=-1) -> "Trajectory":
-        """Convert trajectory of absolute actions to relative actions.
+        """Subtract each step from the previous step to convert the trajectory to relative actions.
 
         Returns:
-          Trajectory: The converted relative trajectory.
+          Trajectory: The converted relative trajectory with one less step.
         """
         t = Trajectory(
             np.diff(self.array, n=-step_difference, axis=0),
@@ -286,7 +301,7 @@ class Trajectory:
             self.keys,
             self.angular_dims,
         )
-        t._map_history.append(partial(self.absolute, initial_state=self.array[0]))
+        t._map_history.append(partial(self.absolute, initial_state=self.array[0]))  # noqa: SLF001
         t._map_history_kwargs.append({"initial_state": self.array[0]})  # noqa: SLF001
         return t
 
@@ -302,22 +317,39 @@ class Trajectory:
         if initial_state is None:
             initial_state = np.zeros(self.array.shape[1])
         self._map_history.append(partial(self.make_relative))
-        self._map_history_kwargs.append({})
-        t = Trajectory(
+        self._map_history_kwargs.append({
+            "step_difference": 1,
+        })
+        t= Trajectory(
             np.cumsum(np.concatenate([np.array([initial_state]), self.array], axis=0), axis=0),
             self.freq_hz,
             self.time_idxs,
             self.keys,
             self.angular_dims,
-            _episode=self._episode,
         )
-        t._episode = self._episode
+        t._map_history.extend(self._map_history)  # noqa: SLF001
+        t._map_history_kwargs.extend(self._map_history_kwargs) # noqa: SLF001
+        t._episode = self._episode # noqa: SLF001
         return t
 
     def episode(self) -> Any:
+        """Convert the trajectory to an episode."""
         if self._episode is None:
             msg = "This trajectory is not part of an episode"
             raise ValueError(msg)
+        steps = []
+        for step in self._episode.steps:
+            print("Step", step)  # noqa
+            for i, key in enumerate(self._sample_keys):
+                print("Key", key, " type", type(step[key]))  # noqa
+                try:
+                    step[key] = step[key].__class__(self.array[i])
+                except (TypeError, ValueError, AttributeError, KeyError):
+                    step[key] = step[key].__class__.unflatten(self.array[i])
+
+
+            steps.append(step)
+        self._episode.steps = steps
         return self._episode
 
     def resample(self, target_hz: float) -> "Trajectory":
@@ -592,7 +624,7 @@ class Trajectory:
             self.angular_dims,
         )
 
-    def pca(self, whiten=True) -> "Trajectory":
+    def pca(self, whiten=False) -> "Trajectory":
         """Apply PCA normalization to the trajectory.
 
         Returns:
@@ -626,12 +658,12 @@ class Trajectory:
         norm_min = np.min(self.array, axis=0)
         norm_max = np.max(self.array, axis=0)
         array = (self.array - norm_min) / (norm_max - norm_min) * (orig_max - orig_min) + orig_min
-        steps = [self._sample_class(step) for step in array] if self._sample_class is not None else array
+        steps = [self._sample_cls(step) for step in array] if self._sample_cls is not None else array
         return Trajectory(steps, self.freq_hz, self.time_idxs, self.keys, self.angular_dims)
 
     def unstandardize(self, mean: np.ndarray, std: np.ndarray) -> "Trajectory":
         array = (self.array * std) + mean
-        steps = [self._sample_class(step) for step in array] if self._sample_class is not None else array
+        steps = [self._sample_cls(step) for step in array] if self._sample_cls is not None else array
         return Trajectory(steps, self.freq_hz, self.time_idxs, self.keys, self.angular_dims)
 
 

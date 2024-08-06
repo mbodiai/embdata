@@ -153,6 +153,8 @@ def test_pca():
         ]
     )
     pca()
+    print("input_array: ")
+    print(array)
     print("actual_array: ")
     print(pca_trajectory.array)
 
@@ -160,6 +162,10 @@ def test_pca():
     print(expected_array)
     assert np.allclose(pca_trajectory.array, expected_array)
 
-
+def test_oned_input_gets_promoted():
+    array = np.array([1, 2, 3, 4])
+    trajectory = Trajectory(array, freq_hz=1)
+    assert np.allclose(trajectory.array, array.reshape(-1, 1))
+    
 if __name__ == "__main__":
     pytest.main([__file__, "-s"])

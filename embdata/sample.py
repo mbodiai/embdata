@@ -82,11 +82,11 @@ from embdata.features import to_features_dict
 from embdata.utils import iter_utils, schema_utils, space_utils
 
 OneDimensional = Annotated[Literal["dict", "np", "pt", "list", "sample"], "Numpy, PyTorch, list, sample, or dict"]
+logger = logging.getLogger(" ")
 
-logger = logging.getLogger(__name__)
 if logger.level == logging.DEBUG or "MBENCH" in os.environ:
-    import mbench
-    mbench.profileme()
+    from mbench.profile import profile, profileme
+    profileme()
 
 
 class Sample(BaseModel):
@@ -175,7 +175,20 @@ class Sample(BaseModel):
         super().__init__(**data)
         self.__post_init__()
 
-    def __getitem__(self, key: str | int) -> Any:  # noqa: C901
+    def __len__(self) -> int:
+        """Return the number of attributes in the Sample instance."""
+        return len(list(self.keys()))
+
+    def shape(self) -> Dict[str, int]:
+        """Return the number of attributes and lengths of the longest nested attributes."""
+        shape = {"attributes": len(self)}
+        for k, v in self:
+            if isinstance(v, Sample):
+                shape[k] = v.shape()
+            elif isinstance(v, list | tuple | np.ndarray):
+                shape[k] = len(v)
+
+    def __getitem__(self, key: str | int) -> Any:  # noqa
         """Implements nested or flat key access for the Sample object.
 
         If the key is an integer and the Sample object wraps a list, the value is returned at the specified index.
@@ -474,7 +487,10 @@ class Sample(BaseModel):
             >>> Sample.unflatten(flat_dict, sample.schema())
             Sample(x=1, y=2, z={'a': 3, 'b': 4}, extra_field=5)
         """
-        schema = schema or cls().schema()
+        try:
+            schema = schema or cls().schema()
+        except Exception as e:
+            schema = {}
         return cls(**schema_utils.unflatten_from_schema(one_d_array_or_dict, schema, cls))
 
     def flatten(  # noqa
@@ -492,9 +508,9 @@ class Sample(BaseModel):
             "sample",
             "samples",
         ] = "list",
-        non_numerical: Literal["ignore", "forbid", "allow"] = "allow",
-        exclude: str | set[str] | None = None,
         include: str | List[str] | None = None,
+        exclude: str | set[str] | None = None,
+        non_numerical: Literal["ignore", "forbid", "allow"] = "allow",
         sep: str = ".",
     ) -> Dict[str, Any] | np.ndarray | torch.Tensor | List | Any:
         """Flatten the Sample instance into a strictly one-dimensional or two-dimensional structure.
@@ -568,6 +584,11 @@ class Sample(BaseModel):
             )
         else:
             full_excludes = set(describe_keys(self).values())
+
+        for ex in full_excludes.copy():
+            if any(ex.startswith(inc) for inc in full_includes):
+                full_excludes.remove(ex)
+
         if to in ["numpy", "np", "torch", "pt"] and non_numerical != "forbid":
             non_numerical = "ignore"
         logging.debug("Full includes: %s", full_includes)
@@ -614,12 +635,12 @@ class Sample(BaseModel):
                 num_processed == ninclude_processed[include[0]] for num_processed in ninclude_processed.values()
             ) and all(len(processed_items) > 0 for processed_items in current_group.values()):
                 # Ensure that we limit to two dimensions.
-                logging.debug("Entering with current group: %s", current_group)
+                logger.debug("Entering with current group: %s", current_group)
                 current_group = {k: v[0] if len(v) == 1 else v for k, v in current_group.items() if k not in exclude}
                 if to in ["dict", "sample"]:
                     # Short circuit to avoid unnecessary processing.
                     result.append(current_group)
-                    logging.debug("Flattened for dict: %s", result)
+                    logger.debug("Flattened for dict: %s", result)
                 elif to in ["list"]:
                     flat_key, flattened = iter_utils.flatten_recursive(
                         current_group,
@@ -627,30 +648,30 @@ class Sample(BaseModel):
                         sep=sep,
                     )
 
-                    logging.debug("Flattened for list: %s", flattened)
+                    logger.debug("Flattened for list: %s", flattened)
                     result.extend(flattened)
                 else:
-                    logging.debug("Flattened for other: %s", result)
+                    logger.debug("Flattened for other: %s", result)
                     flat_key, flattened = iter_utils.flatten_recursive(
                         current_group,
                         non_numerical=non_numerical,
                         sep=sep,
                     )
-                    logging.debug("Flattened: %s", flattened)
+                    logger.debug("Flattened: %s", flattened)
                     match to:
                         case "dicts":
                             result.append(dict(zip(flat_key, flattened, strict=False)))
                         case "samples":
                             result.append(Sample(**dict(zip(flat_key, flattened, strict=False))))
                         case _:
-                            logging.debug("Current group: %s", current_group)
+                            logger.debug("Current group: %s", current_group)
                             result.append(flattened)
 
             if all(num_processed == ninclude_processed[include[0]] for num_processed in ninclude_processed.values()):
-                logging.debug("Resetting current group %s", current_group)
+                logger.debug("Resetting current group %s", current_group)
                 current_group = {k: [] for k in include}
                 ninclude_processed = {k: 0 for k in include}
-        logging.debug("to: %s, result: %s", to, result)
+        logger.debug("to: %s, result: %s", to, result)
         flattened = list(result.values()) if to in ["dicts", "samples"] and not isinstance(result, list) else result
         if to == "np":
             return np.array(flattened, dtype=float)
@@ -1098,6 +1119,7 @@ class Sample(BaseModel):
 
     def numpy(self) -> np.ndarray:
         """Return the numpy array representation of the Sample instance."""
+        logging.debug(f"Returning numpy array: {self._numpy}")
         return self._numpy
 
     def tolist(self) -> list:

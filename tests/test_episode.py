@@ -11,7 +11,7 @@ from embdata.sample import Sample
 from datasets import load_dataset
 from embdata.sense.image import Image
 from embdata.motion.control import AnyMotionControl, RelativePoseHandControl
-
+from embdata.trajectory import Trajectory
 
 @pytest.fixture
 def time_step():
@@ -138,7 +138,7 @@ def test_episode_split(time_step):
 
 def test_episode_iteration(time_step):
     episode = Episode(steps=[time_step, time_step])
-    for i, step in enumerate(episode.iter()):
+    for i, step in enumerate(episode.steps):
         assert step == episode[i]
 
 
@@ -176,8 +176,35 @@ def test_episode_from_zipped_ds(time_step):
     episode = Episode(zip(obs, act, sup))
     assert len(episode.steps) == len(obs)
 
+def test_episode_flatten(time_step):
+    episode = Episode(steps=[time_step, time_step, time_step])
+    flattened = episode.flatten("lists", "action")
+    assert len(flattened) == 3
+    assert all(isinstance(step, List) for step in flattened)
+    assert np.allclose(flattened, [[1], [1], [1]])
 
+    flattened = episode.flatten("lists", "observation")
+    assert len(flattened) == 3
+    for step in flattened:
+        assert isinstance(step, List)
+        assert step[0] == "observation"
 
+def test_trajectory(time_step):
+    episode = Episode(steps=[time_step, time_step, time_step])
+    trajectory = episode.trajectory("action", freq_hz=1)
+    assert len(trajectory) == 3
+    # print(trajectory.array)
+    # print(episode.steps)
+    steps  = episode.flatten("lists", "action")
+    from rich.pretty import pprint
+    pprint(f"steps: {steps}")
+    assert np.allclose(trajectory.array, episode.flatten("lists", "action"))
 
+def test_episode_again(time_step):
+    episode = Episode(steps=[time_step, time_step, time_step])
+    new_episode = episode.trajectory().episode()
+    for step, new_step in zip(episode.steps, new_episode.steps):
+        assert step == new_step
+    
 if __name__ == "__main__":
     pytest.main(["-vv", __file__])
