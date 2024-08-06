@@ -14,6 +14,9 @@ class LazyObject:
             self._real_object = import_module(self._import_path)
         return getattr(self._real_object, name)
 
+    def __str__(self):
+        return self._import_path
+
 def import_lazy(func: Callable) -> Callable:
     @wraps(func)
     def wrapper(*args, **kwargs):
@@ -26,7 +29,7 @@ def import_lazy(func: Callable) -> Callable:
 @wraps(import_module)
 def lazy_import(name: str, package: str | None = None) -> Any:
     try:
-        import_module(name, package)
+        return import_module(name, package)
     except ImportError:
         return LazyObject(name)
 
