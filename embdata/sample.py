@@ -85,6 +85,8 @@ from embdata.utils import iter_utils, schema_utils, space_utils
 from embdata.utils.lazy import lazy_import
 
 torch = lazy_import("torch")
+if isinstance(torch, str):
+    torch = None
 
 OneDimensional = Annotated[Literal["dict", "np", "pt", "list", "sample"], "Numpy, PyTorch, list, sample, or dict"]
 
