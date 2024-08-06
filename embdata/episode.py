@@ -15,14 +15,14 @@ from pydantic import ConfigDict, Field, PrivateAttr, model_validator
 from rerun.archetypes import Image as RRImage
 from rich.pretty import pprint
 
-from embdata.describe import describe
+from embdata.describe import describe, full_paths
 from embdata.features import to_features_dict
 from embdata.motion import Motion
 from embdata.motion.control import AnyMotionControl, RelativePoseHandControl
 from embdata.sample import Sample
 from embdata.sense.image import Image
 from embdata.trajectory import Stats, Trajectory
-from embdata.utils.iter_utils import get_iter_class, map_nested_with_keys
+from embdata.utils.iter_utils import get_iter_cls, map_nested_with_keys
 
 try:
     from lerobot.common.datasets.lerobot_dataset import LeRobotDataset
@@ -54,10 +54,10 @@ class TimeStep(Sample):
     supervision: Any = None
     timestamp: float | None = None
     image_keys: str | set[str] | None = "image"
-    _observation_class: type[Sample] = PrivateAttr(default=Sample)
-    _action_class: type[Sample] = PrivateAttr(default=Sample)
-    _state_class: type[Sample] = PrivateAttr(default=Sample)
-    _supervision_class: type[Sample] = PrivateAttr(default=Sample)
+    _observation_cls: type[Sample] = PrivateAttr(default=Sample)
+    _action_cls: type[Sample] = PrivateAttr(default=Sample)
+    _state_cls: type[Sample] = PrivateAttr(default=Sample)
+    _supervision_cls: type[Sample] = PrivateAttr(default=Sample)
 
     @classmethod
     def from_dict(  # noqa: PLR0913
@@ -77,10 +77,10 @@ class TimeStep(Sample):
         step_idx = values.pop("step_idx", 0)
         episode_idx = values.pop("episode_idx", 0)
 
-        Obs = cls._observation_class.get_default()  # noqa: N806
-        Act = cls._action_class.get_default()  # noqa: N806
-        Sta = cls._state_class.get_default()  # noqa: N806
-        Sup = cls._supervision_class.get_default()  # noqa: N806
+        Obs = cls._observation_cls.get_default()  # noqa: N806
+        Act = cls._action_cls.get_default()  # noqa: N806
+        Sta = cls._state_cls.get_default()  # noqa: N806
+        Sup = cls._supervision_cls.get_default()  # noqa: N806
         obs = Obs(**convert_images(obs, image_keys)) if obs is not None else None
         act = Act(**convert_images(act, image_keys)) if act is not None else None
         sta = Sta(**convert_images(sta, image_keys)) if sta is not None else None
@@ -118,10 +118,10 @@ class TimeStep(Sample):
         sta = state
         sup = supervision
 
-        Obs = TimeStep._observation_class.get_default() if not isinstance(obs, Sample) else lambda x: x
-        Act = TimeStep._action_class.get_default() if not isinstance(act, Sample) else lambda x: x
-        Sta = TimeStep._state_class.get_default() if not isinstance(sta, Sample) else lambda x: x
-        Sup = TimeStep._supervision_class.get_default() if not isinstance(sup, Sample) else lambda x: x
+        Obs = TimeStep._observation_cls.get_default() if not isinstance(obs, Sample) else lambda x: x
+        Act = TimeStep._action_cls.get_default() if not isinstance(act, Sample) else lambda x: x
+        Sta = TimeStep._state_cls.get_default() if not isinstance(sta, Sample) else lambda x: x
+        Sup = TimeStep._supervision_cls.get_default() if not isinstance(sup, Sample) else lambda x: x
         obs = Obs(convert_images(obs, image_keys)) if obs is not None else None
         act = Act(convert_images(act, image_keys)) if act is not None else None
         sta = Sta(convert_images(sta, image_keys)) if sta is not None else None
@@ -149,7 +149,7 @@ class ImageTask(Sample):
 class VisionMotorStep(TimeStep):
     """Time step for vision-motor tasks."""
 
-    _observation_class: type[ImageTask] = PrivateAttr(default=ImageTask)
+    _observation_cls: type[ImageTask] = PrivateAttr(default=ImageTask)
     observation: ImageTask
     action: Motion
     supervision: Any | None = None
@@ -162,18 +162,18 @@ class Episode(Sample):
     steps: list[TimeStep] = Field(default_factory=list)
     metadata: Sample | Any | None = None
     freq_hz: int | float | None = None
-    _action_class: type[Sample] = PrivateAttr(default=Sample)
-    _state_class: type[Sample] = PrivateAttr(default=Sample)
-    _observation_class: type[Sample] = PrivateAttr(default=Sample)
-    _step_class: type[TimeStep] = PrivateAttr(default=TimeStep)
+    _action_cls: type[Sample] = PrivateAttr(default=Sample)
+    _state_cls: type[Sample] = PrivateAttr(default=Sample)
+    _observation_cls: type[Sample] = PrivateAttr(default=Sample)
+    _step_cls: type[TimeStep] = PrivateAttr(default=TimeStep)
     image_keys: str | list[str] = "image"
     _rr_thread: Thread | None = PrivateAttr(default=None)
 
     @model_validator(mode="after")
     def set_classes(self) -> "Episode":
-        self._observation_class = get_iter_class("observation", self.steps)
-        self._action_class = get_iter_class("action", self.steps)
-        self._state_class = get_iter_class("state", self.steps)
+        self._observation_cls = get_iter_cls("observation", self.steps)
+        self._action_cls = get_iter_cls("action", self.steps)
+        self._state_cls = get_iter_cls("state", self.steps)
         return self
 
     @staticmethod
@@ -196,12 +196,12 @@ class Episode(Sample):
             raise ValueError(msg)
         steps = list(steps) if not isinstance(steps, list) else steps
 
-        if "step_class" in kwargs:
-            self._step_class = kwargs.pop("step_class")
-            Step = self._step_class
+        if "step_cls" in kwargs:
+            self._step_cls = kwargs.pop("step_cls")
+            Step = self._step_cls
         else:
             try:
-                Step = self.__class__._step_class.get_default()  # noqa
+                Step = self.__class__._step_cls.get_default()  # noqa
             except AttributeError:
                 Step = TimeStep
 
@@ -241,7 +241,7 @@ class Episode(Sample):
         freq_hz: int | None = None,
         **kwargs,
     ) -> "Episode":
-        Step = cls._step_class.get_default()
+        Step = cls._step_cls.get_default()
         observation_key = observation_key or "observation"
         action_key = action_key or "action"
         state_key = state_key or "state"
@@ -293,7 +293,7 @@ class Episode(Sample):
             image_keys (str | list[str], optional): The keys to use for images. Defaults to "image".
             freq_hz (int, optional): The frequency in Hz. Defaults to None.
         """
-        Step: type[TimeStep] = cls._step_class.get_default()  # noqa: N806
+        Step: type[TimeStep] = cls._step_cls.get_default()  # noqa: N806
         observations = observations or []
         actions = actions or []
         states = states or []
@@ -492,7 +492,8 @@ class Episode(Sample):
             msg = f"Field '{of}' not found with any numerical values in episode steps"
             raise ValueError(msg)
         logging.debug("Describe data: %s", describe(data))
-        keys = [key.removeprefix("steps.*.") for key, _ in data[0]]
+        keys = full_paths(self.steps[0], of)
+        keys =[k.removeprefix("steps.*.") for k in keys]
         logging.debug("keys: %s", keys)
         return Trajectory(
             steps=data,
@@ -500,7 +501,7 @@ class Episode(Sample):
             keys=keys,
             _episode=self,
             _sample_keys=of,
-            _sample_class=self.steps[0].__class__ if len(keys) > 1 else keys[0],
+            _sample_class=self.steps[0].__class__ if len(keys) > 1 else self.steps[0][of[0]].__class__,
         )
 
     def window(
@@ -612,14 +613,6 @@ class Episode(Sample):
             ])
         """
         return Episode(steps=[step for step in self.steps if condition(step)], metadata=self.metadata)
-
-    def iter(self) -> Iterator[TimeStep]:
-        """Iterate over the steps in the episode.
-
-        Returns:
-            Iterator[TimeStep]: An iterator over the steps in the episode.
-        """
-        return iter(self.steps)
 
     def __add__(self, other) -> "Episode":
         """Append episodes from another Episode.

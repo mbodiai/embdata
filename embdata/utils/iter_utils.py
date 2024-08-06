@@ -12,7 +12,7 @@ exists_iter = lambda k, c: c is not None and len(c) > 0 and (hasattr(c[0], k) or
 get_iter = lambda k, c: None if not exists_iter(k, c) else c[0][k] if k in c[0] else getattr(c[0], k)
 """Get the value of the specified key from the first element in the iterable."""
 
-get_iter_class = lambda k, c: get_iter(k, c).__class__ if get_iter(k, c) is not None else None
+get_iter_cls = lambda k, c: get_iter(k, c).__class__ if get_iter(k, c) is not None else None
 """Get the class of the value of the specified key from the first element in the iterable."""
 
 get_iter_size = lambda k, c: len(get_iter(k, c)) if get_iter(k, c) is not None else None

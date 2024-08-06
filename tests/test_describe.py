@@ -276,7 +276,12 @@ def test_full_paths_list(sample_instance):
     nested_structure = Sample(items=[sample_instance, sample_instance, sample_instance])
     result = full_paths(nested_structure, include=["a", "b"])
     print(describe_keys(nested_structure))
-    assert result == {"a": "items.*.dict_value.a", "b": "items.*.dict_value.b"}
+    assert result == {
+        "a": "items.*.dict_value.a", 
+        "b": "items.*.dict_value.b",
+        "items.dict_value.a": "items.*.dict_value.a",
+        "items.dict_value.b": "items.*.dict_value.b",
+    }
 
 
 
@@ -284,34 +289,61 @@ def test_full_paths_list(sample_instance):
 def test_full_paths():
     data = {"a": 1, "b": {"c": 2, "d": 3}}
     result = full_paths(data)
-    assert result == {'a': 'a', 'b': 'b', 'c': 'b.c', 'd': 'b.d', 'b.c': 'b.c', 'b.d': 'b.d'}
+    assert result == {
+        'a': 'a', 
+        'b': 'b',
+        'c': 'b.c', 
+        'd': 'b.d',
+        'b.c': 'b.c',
+        'b.d': 'b.d',
+    }
 
 
 def test_full_paths_with_include():
     data = {"a": 1, "b": {"c": 2, "d": 3}}
     result = full_paths(data, include={"a", "b.c"})
-    assert result == {'a': 'a', 'c': 'b.c', 'b.c': 'b.c'}
-
+    assert result == {
+        'a': 'a', 
+        'c': 'b.c',
+        'b.c': 'b.c',
+    }
 
 def test_describe_keys():
-    data = {"a": 1, "b": [{"c": 2, "d": 3}, {"c": 4, "f": 5}]}
+    data = {"a": 1, "b": [{"c": 2, "f": 2, "d": 3}, {"c": 4, "f": 5}]}
     result = describe_keys(data)
     assert result == {
-        'a': 'a', 'b': 'b', 'c': 'b.*.c', 'd': 'b.*.d', 'f': 'b.*.f',
-        'b.c': 'b.*.c', 'b.d': 'b.*.d', 'b.f': 'b.*.f'
+        'a': 'a', 
+        'b': 'b', 
+        'c': 'b.*.c', 
+        'd': 'b.*.d', 
+        'f': 'b.*.f',
+        'b.c': 'b.*.c', 
+        'b.d': 'b.*.d', 
+        'b.f': 'b.*.f'
     }
 
 
 def test_describe_keys_with_include():
     data = {"a": 1, "b": [{"c": 2, "d": 3}, {"c": 4, "f": 5}]}
-    result = describe_keys(data, include={"a", "b.*.c"})
-    assert result == {'a': 'a', 'c': 'b.*.c', 'b.c': 'b.*.c'}
+    result = full_paths(data, include={"a", "b.*.c"})
+    assert result == {
+        'a': 'a', 
+        'c': 'b.*.c', 
+        'b.c': 'b.*.c'
+    }
 
 
 def test_describe_keys_with_custom_separator():
     data = {"a": 1, "b": {"c": 2, "d": 3}}
     result = describe_keys(data, sep="-")
-    assert result == {'a': 'a', 'b': 'b', 'c': 'b-c', 'd': 'b-d', 'b-c': 'b-c', 'b-d': 'b-d'}
+    assert result == {
+        'a': 'a', 
+        'b': 'b', 
+        'c': 'b-c', 
+        'd': 'b-d', 
+        'b-c': 'b-c', 
+        'b-d': 'b-d'
+    }
 
 
 # @pytest.mark.parametrize("data, expected", [
@@ -322,3 +354,6 @@ def test_describe_keys_with_custom_separator():
 # ])
 # def test_describe_keys_various_inputs(data, expected):
 #     assert describe_keys(data) == expected
+
+if __name__ == "__main__":
+    pytest.main([__file__, "-vv"])

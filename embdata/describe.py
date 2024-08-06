@@ -6,6 +6,7 @@
 
 import logging
 from typing import Any, Dict
+from typing_extensions import Literal
 
 import numpy as np
 from datasets import Dataset, Value
@@ -53,38 +54,47 @@ def as_table(ds: Any, sep: str = ".", show=True) -> Dict[str, Any]:
     return ds
 
 
-def full_paths(ds: Any, sep: str = ".", show=False, include: set | None = None) -> Dict[str, Any]:
+def full_paths(ds: Any, include: set | None = None, sep: str = ".",
+       show=False) -> Dict[str, Any]:
     """Get the full paths of a dataset or dictionary."""
+
     result = {}
     if hasattr(ds, "dump") and hasattr(ds, "dict"):
         ds = ds.dump()
-    
-    def recurse(current, prefix=''):
+
+    def is_included(full_key):
+        if include is None or not isinstance(full_key, str):
+            return True
+        return any(full_key.endswith(inc) for inc in include)
+
+    def recurse(current, prefix="", include=None):
+        prefix_no_wildcard = prefix.replace("*", "").replace(f"{sep}{sep}", sep).strip(sep)
+
         if isinstance(current, dict):
             for key, value in current.items():
-                new_key = f"{prefix}{key}" if prefix else key
-                if include is None or key in include or new_key in include:
-                    result[key] = new_key
-                    if prefix:
-                        result[new_key] = new_key
-                recurse(value, f"{new_key}{sep}")
-        elif isinstance(current, list | Dataset) and current:
-            if current:
-                recurse(current[0], f"{prefix}*{sep}")
+                full_key = f"{prefix}{key}"
+                full_key_no_wildcard = full_key.replace("*", "").replace(f"{sep}{sep}", sep)
+                if prefix:
+                    result.setdefault(key, full_key)
+                    result.setdefault(full_key_no_wildcard, full_key)
+
+                recurse(value, f"{prefix}{key}{sep}")
+        elif isinstance(current, list | Dataset):
+            recurse(current[0], f"{prefix}*{sep}")
+            if include is not None:
+                result.setdefault(prefix_no_wildcard, prefix)
 
     recurse(ds)
-    
     # Filter the result to only include the specified keys and their full paths
     if include is not None:
-        result = {k: v for k, v in result.items() if k in include or v in include}
+        result = {k: v for k, v in result.items() if is_included(k) or is_included(v)}
 
-    recurse(ds)
     if show:
-        print(result)
+        pprint(result)
     return result
 
 
-def describe_keys(ds: Any, sep: str = ".", show=False, path="", include: set | None = None) -> Dict[str, Any]:  # noqa
+def describe_keys(ds: Any, include: set | None = None, sep: str = ".", show=False) -> Dict[str, Any]:
     """Describe the keys of a nested dictionary or dataset.
 
     This function takes a nested dictionary or dataset and returns a flattened representation
@@ -110,7 +120,7 @@ def describe_keys(ds: Any, sep: str = ".", show=False, path="", include: set | N
         >>> describe_keys(data)
         {'a': 'a', 'b': 'b', 'c': 'b.*.c', 'd': 'b.*.d', 'f': 'b.*.f', 'b.c': 'b.*.c', 'b.d': 'b.*.d', 'b.f': 'b.*.f'}
     """
-    return full_paths(ds, sep, show, include)
+    return full_paths(ds, include, sep, show)
 
 
 def describe(ds: Any, name: str = "", compact: bool = True, show=True, check_full=False) -> Dict[str, Any]:  # noqa: FBT001

@@ -6,6 +6,7 @@ import numpy as np
 import scipy.stats as sstats
 from pydantic import Field
 from pydantic.dataclasses import dataclass
+from rich.pretty import pretty_repr
 from scipy import fftpack
 from scipy.interpolate import interp1d
 from scipy.signal import spectrogram
@@ -14,7 +15,7 @@ from sklearn import decomposition
 
 from embdata.ndarray import NumpyArray
 from embdata.sample import Sample
-
+from rich.pretty import pprint
 
 def import_plotting_backend(backend: Literal["matplotlib", "plotext"] = "plotext") -> Any:
     if backend == "matplotlib":
@@ -45,9 +46,12 @@ class Stats:
 
     def __repr__(self) -> str:
         sep = "\n  "
+        pprint(self.__dict__)
         if isinstance(self.mean, float | int):
-            return f"Stats(\n  {sep.join([f'{key}={round(v, 3)}' for key,v in self.__dict__.items()])}\n)"
-        return f"Stats(\n  {sep.join([f'{key}={[round(x, 3) for x in value]}' for key, value in self.__dict__.items()])}\n)"
+            pprint(self.__dict__)
+            exit()
+            return pretty_repr(f"Stats({sep.join([f'{key}={np.round(v, 3)}' for key,v in self.__dict__.items()])})")
+        return pretty_repr(f"Stats({sep.join([f'{key}={np.round(v, 3)}' for key,v in self.__dict__.items()])})")
 
     def __str__(self) -> str:
         return self.__repr__()
@@ -189,7 +193,7 @@ class Trajectory:
 
     _fig: Any | None = None
     _stats: Stats | None = None
-    _sample_class: List[type[Sample]] | None = None
+    _sample_cls: type[Sample] | None = None
     _array: NumpyArray | None = None
     _map_history: list[Callable] = Field(default_factory=list)
     _map_history_kwargs: list[dict] = Field(default_factory=list)
@@ -220,7 +224,7 @@ class Trajectory:
           dict: A dictionary containing the computed statistics, including mean, variance, skewness, kurtosis, min, and max.
         """
         if self._stats is None:
-            self._stats = stats(self.array, axis=0, sample_type=self._sample_class)
+            self._stats = stats(self.array, axis=0, sample_type=self._sample_cls)
         return self._stats
 
     def plot(self, labels: list[str] | None = None, backend: Literal["matplotlib", "plotext"] = "plotext") -> "Trajectory":
@@ -626,12 +630,12 @@ class Trajectory:
         norm_min = np.min(self.array, axis=0)
         norm_max = np.max(self.array, axis=0)
         array = (self.array - norm_min) / (norm_max - norm_min) * (orig_max - orig_min) + orig_min
-        steps = [self._sample_class(step) for step in array] if self._sample_class is not None else array
+        steps = [self._sample_cls(step) for step in array] if self._sample_cls is not None else array
         return Trajectory(steps, self.freq_hz, self.time_idxs, self.keys, self.angular_dims)
 
     def unstandardize(self, mean: np.ndarray, std: np.ndarray) -> "Trajectory":
         array = (self.array * std) + mean
-        steps = [self._sample_class(step) for step in array] if self._sample_class is not None else array
+        steps = [self._sample_cls(step) for step in array] if self._sample_cls is not None else array
         return Trajectory(steps, self.freq_hz, self.time_idxs, self.keys, self.angular_dims)
 
 
