@@ -1,5 +1,34 @@
 from collections import deque
 from functools import wraps
+from importlib import import_module
+from typing import Any, Callable
+
+
+class LazyObject:
+    def __init__(self, import_path: str):
+        self._import_path = import_path
+        self._real_object = None
+
+    def __getattr__(self, name: str) -> Any:
+        if self._real_object is None:
+            self._real_object = import_module(self._import_path)
+        return getattr(self._real_object, name)
+
+def import_lazy(func: Callable) -> Callable:
+    @wraps(func)
+    def wrapper(*args, **kwargs):
+        lazy_args = [LazyObject(arg) if isinstance(arg, str) else arg for arg in args]
+        lazy_kwargs = {k: LazyObject(v) if isinstance(v, str) else v for k, v in kwargs.items()}
+        return func(*lazy_args, **lazy_kwargs)
+    return wrapper
+
+@import_lazy
+@wraps(import_module)
+def lazy_import(name: str, package: str | None = None) -> Any:
+    try:
+        import_module(name, package)
+    except ImportError:
+        return LazyObject(name)
 
 
 class LazyCall:
