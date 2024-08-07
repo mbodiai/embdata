@@ -30,6 +30,7 @@ image.save("path/to/new/image.jpg", quality=5)
 
 import base64 as base64lib
 import io
+import logging
 from functools import cached_property, reduce, singledispatchmethod
 from pathlib import Path
 from typing import Any, ClassVar, Dict, List, SupportsBytes, Tuple
@@ -71,7 +72,11 @@ SupportsImage = (
     | InstanceOf[io.BytesIO]
 )
 
-HIGHEST_QUALITY = 10
+HIGHEST_QUALITY = 100
+
+PIL_IMAGE_ORDER = ["width", "height"]
+NUMPY_IMAGE_ORDER = ["height", "width", "channel"]
+TORCH_IMAGE_ORDER = ["channel", "height", "width"]
 
 
 class Image(Sample):
@@ -102,6 +107,7 @@ class Image(Sample):
     """
 
     SOURCE_TYPES: ClassVar[List[str]] = ["array", "base64", "path", "url", "bytes"]
+    DEFAULT_MODE: ClassVar[str] = "RGB"
     model_config: ConfigDict = ConfigDict(arbitrary_types_allowed=True, extras="forbid", validate_assignment=False)
 
     size: tuple[int, int] | tuple[int, int, int] | None = None
@@ -177,7 +183,7 @@ class Image(Sample):
         encoding: str = "jpeg",
         size: Tuple[int, ...] | None = None,
         bytes: SupportsBytes | None = None,  # noqa
-        mode: Literal["RGB", "RGBA", "L", "P", "CMYK", "YCbCr", "I", "F"] | None = None,
+        mode: Literal["RGB", "RGBA", "L", "P", "CMYK", "YCbCr", "I", "F"] | None = DEFAULT_MODE,
         **kwargs,
     ):
         """Initializes an image. Either one source argument or size tuple must be provided.
@@ -192,7 +198,7 @@ class Image(Sample):
             encoding (Optional[str], optional): The encoding format of the image. Defaults to 'jpeg'.
             size (Optional[Tuple[int, int]], optional): The size of the image as a (width, height) tuple.
             bytes (Optional[bytes], optional): The bytes object of the image.
-            mode (Optional[str], optional): The mode to use for the image. Defaults to None.
+            mode (Optional[str], optional): The mode to use for the image. Defaults to RGB.
             **kwargs: Additional keyword arguments.
         """
         kwargs["encoding"] = encoding or "jpeg"
@@ -221,14 +227,6 @@ class Image(Sample):
         msg = f"Unsupported argument type: {type(arg)}"
         raise ValueError(msg)
 
-    def __repr__(self):
-        """Return a string representation of the image."""
-        return f"Image(base64={self.base64[:10]}..., encoding={self.encoding}, size={self.size})"
-
-    def __str__(self):
-        """Return a string representation of the image."""
-        return f"Image(base64={self.base64[:10]}..., encoding={self.encoding}, size={self.size})"
-
     @model_validator(mode="before")
     @classmethod
     def ensure_pil(cls, values: Dict[str, SupportsImage]) -> None:
@@ -240,7 +238,7 @@ class Image(Sample):
         return {key: value for key, value in values.items() if key is not None}
 
     @staticmethod
-    def pil_to_data(image: PILImage, encoding: str, size=None, mode: str | None = None) -> dict:
+    def pil_to_data(image: PILImage, encoding: str, size=None, mode: str | None = DEFAULT_MODE) -> dict:
         """Creates an Image instance from a PIL image.
 
         Args:
@@ -287,7 +285,7 @@ class Image(Sample):
         arg: SupportsImage | None = None,  # type: ignore
         size: Tuple[int, int] | None = None,
         encoding="jpeg",
-        mode: Literal["RGB", "RGBA", "L", "P", "CMYK", "YCbCr", "I", "F"] | None = None,
+        mode: Literal["RGB", "RGBA", "L", "P", "CMYK", "YCbCr", "I", "F"] | None = DEFAULT_MODE,
         **kwargs,
     ) -> None:
         kwargs.update(cls.pil_to_data(PILModule.open(arg, formats=[encoding.upper()]), encoding, size, mode))
@@ -328,7 +326,7 @@ class Image(Sample):
         encoding: str = "jpeg",
         action: Literal["download", "set"] = "set",
         size: Tuple[int, int] | None = None,
-        mode: Literal["RGB", "RGBA", "L", "P", "CMYK", "YCbCr", "I", "F"] | None = None,
+        mode: Literal["RGB", "RGBA", "L", "P", "CMYK", "YCbCr", "I", "F"] | None = DEFAULT_MODE,
         **kwargs,
     ) -> None:
         """Decodes a base64 string to create an Image instance.
@@ -378,7 +376,7 @@ class Image(Sample):
         arg: Base64Str,
         encoding: str = "jpeg",
         size: Tuple[int, int] | None = None,
-        mode: Literal["RGB", "RGBA", "L", "P", "CMYK", "YCbCr", "I", "F"] | None = None,
+        mode: Literal["RGB", "RGBA", "L", "P", "CMYK", "YCbCr", "I", "F"] | None = "RGB",
         **kwargs,
     ) -> None:
         """Decodes a base64 string to create an Image instance."""
@@ -394,7 +392,7 @@ class Image(Sample):
         arg: PILImage,
         encoding: str = "jpeg",
         size: Tuple[int, int] | None = None,
-        mode: Literal["RGB", "RGBA", "L", "P", "CMYK", "YCbCr", "I", "F"] | None = None,
+        mode: Literal["RGB", "RGBA", "L", "P", "CMYK", "YCbCr", "I", "F"] | None = DEFAULT_MODE,
         **kwargs,
     ) -> None:
         """Creates an Image instance from a PIL image.
@@ -419,7 +417,7 @@ class Image(Sample):
         arg: Path,
         encoding: str = "jpeg",
         size: Tuple[int] | None = None,
-        mode: str | None = None,
+        mode: Literal["RGB", "RGBA", "L", "P", "CMYK", "YCbCr", "I", "F"] | None = DEFAULT_MODE,
         **kwargs,
     ) -> Dict[str, Any]:
         """Opens an image from a file path and creates an Image instance.
@@ -451,7 +449,12 @@ class Image(Sample):
         return kwargs
 
     @staticmethod
-    def load_url(url: str, action: Literal["download", "set"], mode: str | None = None, **kwargs) -> PILImage | None:
+    def load_url(
+        url: str, 
+        action: Literal["download", "set"] = "set",
+        mode: Literal["RGB", "RGBA", "L", "P", "CMYK", "YCbCr", "I", "F"] | None = DEFAULT_MODE,
+        **kwargs,
+    ) -> PILImage | None:
         """Downloads an image from a URL or decodes it from a base64 data URI.
 
         This method can handle both regular image URLs and base64 data URIs.
@@ -488,21 +491,25 @@ class Image(Sample):
             image = PILModule.open(io.BytesIO(image_data))
             return image.convert(mode)
 
-        if action == "download":
-            from urllib.request import Request, urlopen
+        from urllib.request import Request, urlopen
+        user_agent = "Mozilla/5.0 (Windows; U; Windows NT 5.1; en-US; rv:1.9.0.7) Gecko/2009021910 Firefox/3.0.7"
+        headers = {"User-Agent": user_agent}
+        if not url.startswith(("http:", "https:")):
+            msg = "URL must start with 'http' or 'https'."
+            raise ValueError(msg)
 
-            user_agent = "Mozilla/5.0 (Windows; U; Windows NT 5.1; en-US; rv:1.9.0.7) Gecko/2009021910 Firefox/3.0.7"
-            headers = {"User-Agent": user_agent}
-            if not url.startswith(("http:", "https:")):
-                msg = "URL must start with 'http' or 'https'."
+        if not url.endswith((".jpg", ".jpeg", ".png", ".bmp", ".gif")) and not url.split("?")[0].endswith((".jpg", ".jpeg", ".png", ".bmp", ".gif")):
+            if url.find("huggingface.co") != -1:
+                logging.warning("URL not ending with a valid image extension.")
+            else:
+                msg = f"URL must end with a valid image extension: {url[:20]}...{url[-20:]}"
                 raise ValueError(msg)
-            with urlopen(Request(url, None, headers)) as response:  # noqa
-                data = response.read()
-                image = PILModule.open(io.BytesIO(data))
-            return image.convert(mode)
-        return None
+        with urlopen(Request(url, None, headers)) as response:  # noqa
+            data = response.read()
+            image = PILModule.open(io.BytesIO(data))
+        return image.convert(mode)
 
-    def save(self, path: str, encoding: str | None = None, quality: int = 10) -> str:
+    def save(self, path: str, encoding: str | None = None, quality: int = 100) -> str:
         """Save the image to the specified path.
 
         If the image is a JPEG, the quality parameter can be used to set
@@ -552,7 +559,7 @@ class Image(Sample):
         if platform.system() == "Darwin":
             mpl.use("TkAgg")
         import matplotlib.pyplot as plt
-
+        plt.figure()
         plt.imshow(self.array)
 
     def space(self) -> spaces.Box:
@@ -561,6 +568,15 @@ class Image(Sample):
             msg = "Image size is not defined."
             raise ValueError(msg)
         return spaces.Box(low=0, high=255, shape=(*self.size, 3), dtype=np.uint8)
+
+    def numpy(self) -> np.ndarray:
+        """Return the image as a NumPy array."""
+        return self.array
+
+    def torch(self) -> Any:
+        """Return the image as a PyTorch tensor."""
+        import torch
+        return torch.from_numpy(self.array)
 
     def dump(self, *args, as_field: str | None = None, **kwargs) -> dict | Any:
         """Return a dict or a field of the image."""

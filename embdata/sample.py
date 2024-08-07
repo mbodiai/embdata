@@ -76,6 +76,7 @@ from datasets import Dataset, Features
 from gymnasium import spaces
 from pydantic import BaseModel, ConfigDict, Field, create_model
 from pydantic.fields import FieldInfo
+from rich.pretty import pretty_repr
 
 from embdata.describe import describe, describe_keys, full_paths
 from embdata.features import to_features_dict
@@ -327,20 +328,6 @@ class Sample(BaseModel):
 
         return hash_helper(self.dump())
 
-    def _str(self, obj, prefix="", ignore=None):
-        ignore = ignore or set("_items")
-        if isinstance(obj, Path):
-            obj = str(obj)
-        if not hasattr(obj, "_str"):
-            return str(obj)
-        prefix += " "
-        sep = ",\n" + prefix
-        out = f"{obj.__class__.__name__}(\n{prefix}{sep.join([f'{k}={round(v, 3) if isinstance(v, float) else self._str(v,prefix)}' for k, v in obj if v is not None and k not in ignore])}"
-        if hasattr(obj, "_items"):
-            out += f",\n{prefix}items=[\n{sep}{sep.join([self._str(v, prefix) for v in obj._items])}]"
-
-        return out + ",\n)" if out.removeprefix("Sample(").strip() else "Sample()"
-
     def __str__(self) -> str:
         """Return a string representation of the Sample instance."""
         try:
@@ -350,12 +337,6 @@ class Sample(BaseModel):
                     unnested.add(k.split(".")[0])
                 elif "/" in k:
                     unnested.add(k.split("/")[0])
-            # from rich.console import Console
-            from rich.pretty import pretty_repr
-            # console = Console(record=True, quiet=True)
-            # console.print(Pretty(self.dump(exclude=unnested, recurse=False), indent_guides=True), max_string=30, max_length=10)
-            # return console.export_text()
-            # return self._str(self, prefix="", ignore=set(unnested))
             return pretty_repr(self.dump(exclude=unnested, recurse=False), max_depth=4, max_width=100, max_length=3, max_string=30)
         except Exception: # noqa
             return f"{self.__class__.__name__}({self.dump()})"
@@ -663,7 +644,6 @@ class Sample(BaseModel):
                         current_group,
                         non_numerical=non_numerical,
                         sep=sep,
-                        # include=include,
                     )
                     logger.debug("Flattened: %s", flattened)
                     match to:

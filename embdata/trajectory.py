@@ -341,7 +341,6 @@ class Trajectory:
         for step in self._episode.steps:
             print("Step", step)  # noqa
             for i, key in enumerate(self._sample_keys):
-                print("Key", key, " type", type(step[key]))  # noqa
                 try:
                     step[key] = step[key].__class__(self.array[i])
                 except (TypeError, ValueError, AttributeError, KeyError):
