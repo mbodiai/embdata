@@ -8,7 +8,7 @@ from typing import Any, Dict
 
 import numpy as np
 from datasets import Dataset, Value
-from rich import print, print_json, table
+from rich import print, table
 from rich.console import Console
 from rich.pretty import pprint
 
@@ -107,7 +107,7 @@ def describe_keys(ds: Any, sep: str = ".", show=False, path="") -> Dict[str, Any
                         keys[sub_key] = f"{key}{sep}*{sep}{sub_value}"
                         keys[f"{key}{sep}{sub_key}"] = f"{key}{sep}*{sep}{sub_value}"
     if show:
-        print(keys)
+        pprint(keys)
     return keys
 
 
@@ -169,7 +169,7 @@ def describe(ds: Any, name: str = "", compact: bool = True, show=True, check_ful
         schema = {key: describe(value, key, compact, show=False) for key, value in ds.items()}
 
     if show:
-        print_json(data=schema)
+        pprint(schema)
     return schema
 
 

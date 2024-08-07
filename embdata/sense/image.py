@@ -146,7 +146,7 @@ class Image(Sample):
 
     @computed_field
     @cached_property
-    def url(self) -> AnyUrl:
+    def url(self) -> str:
         """The URL of the image."""
         return f"data:image/{self.encoding};base64,{self.base64}"
 

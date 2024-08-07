@@ -6,6 +6,8 @@ from typing import Callable
 import numpy as np
 import torch
 
+MAX_FLATTENED_SIZE = 64
+
 exists_iter = lambda k, c: c is not None and len(c) > 0 and (hasattr(c[0], k) or k in c[0])
 """Does the first element in the iterable have the specified key?"""
 
@@ -23,7 +25,6 @@ get_iter_item = lambda k, c, i: get_iter(k, c)[i] if get_iter(k, c) is not None 
 
 map_iter = lambda k, c, f: list(map(f, get_iter(k, c))) if get_iter(k, c) is not None else None
 """Map the specified function to the value of the specified key."""
-
 
 pack_iters = lambda f, *c: [f(*step) for step in zip(*c, strict=False)]
 """Pack the iterables into steps and apply the specified function to each step."""
@@ -55,21 +56,37 @@ def map_nested_with_keys(fn: Callable, sample: dict, keys: tuple = ()) -> dict:
         k: map_nested_with_keys(fn, v, (*keys, k)) if isinstance(v, dict) else fn((*keys, k), v) for k, v in sample.items()
     }
 
+def is_exact_match(key: tuple, keys: tuple, sep=".") -> bool:
+    return any(key.endswith(k.split(sep)[-1]) for k in keys)
+
 
 
 def replace_ints_with_wildcard(s, sep=".") -> str:
     pattern = rf"(?<=^{sep})\d+|(?<={sep})\d+(?={sep})|\d+(?={sep}|$)"
     return re.sub(pattern, "*", s).rstrip(f"{sep}*").lstrip(f"{sep}*")
 
-def flatten_recursive(obj, exclude: None | set = None, non_numerical="allow", sep=".") -> tuple[list[str], list]:
+def flatten_recursive(obj, exclude: None | set = None, non_numerical="allow", sep=".",
+    include=None) -> tuple[list[str], list]:
+    """Flatten a nested dictionary or list into a list of keys and a list of values."""
+    include = include or []
     def _flatten(obj, prefix=""):
         if isinstance(obj, torch.Tensor | np.ndarray):
+            if len(np.ravel(obj)) > MAX_FLATTENED_SIZE:
+                logging.warning("Large tensor encountered, skipping flattening.")
+                return [], []
+            logging.debug(f"Converting tensor to numpy array: {obj}")
             obj = obj.tolist()
         out = []
         keys = []
         if isinstance(obj,  dict) or hasattr(obj, "items") and callable(obj.items):
             for k, v in obj.items():
                 new_key = f"{prefix}{k}" if prefix else k
+                if include and is_exact_match(new_key, include, sep):
+                    logging.debug(f"Exact match Key: {k}, include: {include}")
+                    out.append(v)
+                    keys.append(new_key)
+                    continue
+                logging.debug(f"Key: {k}, include: {include}")
                 if any(e == replace_ints_with_wildcard(k, sep) for e in (exclude if exclude is not None else [])):
                     continue
                 subkeys, subouts = _flatten(v, f"{new_key}{sep}")

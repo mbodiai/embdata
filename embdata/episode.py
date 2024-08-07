@@ -2,6 +2,7 @@ import atexit
 import logging
 import os
 import sys
+import traceback
 from itertools import zip_longest
 from threading import Thread
 from typing import Any, Callable, Dict, Iterable, Iterator, List, Literal
@@ -73,6 +74,19 @@ class Episode(Sample):
         freq_hz: int | None = None,
         **kwargs,
     ) -> None:
+        """Create an episode from a list of steps.
+
+        Steps can be a list of dictionaries, samples, or time steps. If steps are dictionaries, the observation, action, and supervision keys must be provided.
+
+        Args:
+            steps (List[Dict | Sample | TimeStep]): A list of steps.
+            observation_key (str, optional): The key to use for observations. Defaults to "observation".
+            action_key (str, optional): The key to use for actions. Defaults to "action".
+            supervision_key (str, optional): The key to use for supervisions. Defaults to "supervision".
+            image_keys (str | list[str], optional): The keys to use for images. Defaults to "image".
+            metadata (Sample | Any, optional): Metadata for the episode. Defaults to None.
+            freq_hz (int, optional): The frequency in Hz. Defaults to None.
+        """
         if not hasattr(steps, "__iter__"):
             msg = "Steps must be an iterable"
             raise ValueError(msg)
@@ -248,7 +262,7 @@ class Episode(Sample):
             msg = "Episode has no steps"
             raise ValueError(msg)
 
-        image_feat = HFImage() if self.steps[0].flatten(include=self.image_keys) else Value("string")
+        image_feat = HFImage() if self.steps[0].flatten("dict",include=self.image_keys) else Value("string")
         feat = {
             "image": image_feat,
             "episode_idx": Value("int64"),
@@ -264,9 +278,14 @@ class Episode(Sample):
         data = []
         for step in self.steps:
             try:
-                images = step.flatten("list", include=self.image_keys)
-                image = images[0] if images else "Absent"
-            except ValueError:
+                images = step.flatten("list",include=self.image_keys)
+                image = images[0] if isinstance(images, list) else images
+                try:
+                    image = Image(image).pil
+                except (ValueError, TypeError, AttributeError):
+                    traceback.print_exc()
+                    image = "Absent"
+            except (ValueError, AttributeError, TypeError, IndexError):
                 image = "Absent"
             step = step.dump(as_field="pil")  # noqa
             step_idx = step.pop("step_idx", None)
@@ -288,16 +307,9 @@ class Episode(Sample):
     def stats(self, mode: Literal["full", "first10"] = "first10") -> Stats:
         """Get the statistics of the episode."""
         if not hasattr(self, "stats_"):
-            self._stats = {}
-            # self.stats_ = Trajectory([step.flatten("list", include=["observation", "action", "state", "supervision"]) for step in self.steps[:10]]).stats()
+            self.stats_ = self.trajectory(mode=mode).stats()
         return self.stats_
 
-    def __repr__(self) -> str:
-        try:
-            stats = str(self.stats()).replace("\n ", "\n  ")
-        except Exception as e:
-            stats = str(self)
-        return f"Episode(\n  {stats}\n)"
 
     def __slice__(self, start: int, stop: int, step: int) -> "Episode":
         return Episode(steps=self.steps[start:stop:step])

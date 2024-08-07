@@ -203,3 +203,7 @@ tests-root = "tests"
 test-framework = "pytest"
 ignore-paths = []
 formatter-cmds = ["hatch run ruff check --exit-zero --fix $file", "hatch run ruff format $file"]
+
+[tool.pytest.ini_options]
+addopts = "-m 'not network'"
+markers = "network: marks tests that make network calls (deselect with '-m \"not network\"')"

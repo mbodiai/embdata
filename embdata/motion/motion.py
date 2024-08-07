@@ -259,7 +259,7 @@ class Motion(Coordinate):
         as long as they are properly defined using the appropriate MotionFields.
     """
 
-    model_config = ConfigDict(arbitrary_types_allowed=True, extra="forbid", populate_by_name=True)
+    model_config = ConfigDict(arbitrary_types_allowed=True, extra="allow", populate_by_name=True)
 
     @model_validator(mode="after")
     def validate_bounds(self) -> "Motion":

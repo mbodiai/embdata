@@ -12,6 +12,9 @@ from datasets import load_dataset
 from embdata.sense.image import Image
 from embdata.motion.control import AnyMotionControl, RelativePoseHandControl
 from embdata.trajectory import Trajectory
+from rich.pretty import pprint
+
+
 
 @pytest.fixture
 def time_step():
@@ -178,9 +181,11 @@ def test_episode_from_zipped_ds(time_step):
 
 def test_episode_flatten(time_step):
     episode = Episode(steps=[time_step, time_step, time_step])
-    flattened = episode.flatten("lists", "action")
+    flattened = episode.flatten("lists", "action", non_numerical="ignore")
     assert len(flattened) == 3
     assert all(isinstance(step, List) for step in flattened)
+    pprint(f"flattened: {flattened}")
+
     assert np.allclose(flattened, [[1], [1], [1]])
 
     flattened = episode.flatten("lists", "observation")

@@ -171,7 +171,6 @@ class Sample(BaseModel):
             data.update(self.from_space(wrapped).model_dump())
         elif "items" in data:
             data["_items"] = data.pop("items")
-
         super().__init__(**data)
         self.__post_init__()
 
@@ -351,7 +350,13 @@ class Sample(BaseModel):
                     unnested.add(k.split(".")[0])
                 elif "/" in k:
                     unnested.add(k.split("/")[0])
-            return self._str(self, prefix="", ignore=set(unnested))
+            # from rich.console import Console
+            from rich.pretty import pretty_repr
+            # console = Console(record=True, quiet=True)
+            # console.print(Pretty(self.dump(exclude=unnested, recurse=False), indent_guides=True), max_string=30, max_length=10)
+            # return console.export_text()
+            # return self._str(self, prefix="", ignore=set(unnested))
+            return pretty_repr(self.dump(exclude=unnested, recurse=False), max_depth=4, max_width=100, max_length=3, max_string=30)
         except Exception: # noqa
             return f"{self.__class__.__name__}({self.dump()})"
 
@@ -595,6 +600,7 @@ class Sample(BaseModel):
         logging.debug("Full excludes: %s", full_excludes)
         flattened_keys, flattened = iter_utils.flatten_recursive(
             self, exclude=full_excludes, non_numerical=non_numerical, sep=sep,
+            include=include if has_include else None,
         )
         logging.debug("Flattened keys: %s", flattened_keys)
         logging.debug("Flattened: %s", flattened)
@@ -646,6 +652,7 @@ class Sample(BaseModel):
                         current_group,
                         non_numerical=non_numerical,
                         sep=sep,
+                        include=include,
                     )
 
                     logger.debug("Flattened for list: %s", flattened)
@@ -656,6 +663,7 @@ class Sample(BaseModel):
                         current_group,
                         non_numerical=non_numerical,
                         sep=sep,
+                        # include=include,
                     )
                     logger.debug("Flattened: %s", flattened)
                     match to:
