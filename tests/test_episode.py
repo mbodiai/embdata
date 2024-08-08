@@ -205,13 +205,17 @@ def test_trajectory(time_step):
     pprint(f"steps: {steps}")
     assert np.allclose(trajectory.array, episode.flatten("lists", "action"))
 
+@pytest.mark.network
 def test_episode_again(time_step):
-    episode = Episode(steps=[time_step, time_step, time_step])
-    new_episode = episode.trajectory().episode()
-    for step, new_step in zip(episode.steps, new_episode.steps):
-        assert step == new_step
+    from datasets import load_dataset
+    ds = load_dataset("mbodiai/test_dataset", split="train").to_list()
+    ds = ds[:5]
+    episode = Episode(steps=ds)
+    traj = episode.trajectory("action", freq_hz=1).resample(10)
+    assert len(traj) == (10 * len(episode)) - 9
+    traj.plot().show()
 
-def test_episode_flattening(time_step):
+def test_episode_resample():
 
     steps = []
     for i in range(5):
@@ -220,7 +224,8 @@ def test_episode_flattening(time_step):
 
     episode = Episode(steps=steps)
 
-    episode.trajectory(of="observation").resample(20)
+    traj = episode.trajectory("action").resample(20)
+    assert len(traj) == 81
 
 if __name__ == "__main__":
     pytest.main(["-vv", __file__])

@@ -53,7 +53,7 @@ def prepare_batch(examples):
         examples["instruction"], padding="max_length", truncation=True, return_tensors="pt", max_length=512
     )
     clip_inputs = clip_processor(
-        images=[Image(base64=img).pil for img in examples["image"]], return_tensors="pt", padding=True
+        images=[Image(img).pil for img in examples["image"]], return_tensors="pt", padding=True
     )
     actions = torch.tensor(examples["action"])
     return {

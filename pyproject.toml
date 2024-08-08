@@ -11,43 +11,48 @@ requires-python = ">=3.10"
 license = "apache-2.0"
 keywords = []
 authors = [
-  { name = "mbodi ai team", email = "info@mbodi.ai" },
+{ name = "mbodi ai team", email = "info@mbodi.ai" },
 ]
 classifiers = [
-  "Development Status :: 4 - Beta",
-  "Programming Language :: Python",
-  "Programming Language :: Python :: 3.10",
-  "Programming Language :: Python :: 3.11",
-  "Programming Language :: Python :: 3.12",
-  "Programming Language :: Python :: Implementation :: CPython",
-  "Programming Language :: Python :: Implementation :: PyPy",
+"Development Status :: 4 - Beta",
+"Programming Language :: Python",
+"Programming Language :: Python :: 3.10",
+"Programming Language :: Python :: 3.11",
+"Programming Language :: Python :: 3.12",
+"Programming Language :: Python :: Implementation :: CPython",
+"Programming Language :: Python :: Implementation :: PyPy",
 ]
 
 dependencies = [
-  "datasets==2.20.0",
-  "einops==0.8.0",
-  "gymnasium==0.29.1",
-  "importlib_resources==6.4.0",
-  "matplotlib==3.9.1",
-  "numpy==1.26.4",
-  "opencv-python==4.10.0.84",
-  "plotext==5.2.8",
-  "pydantic==2.7.4",
-  "pydantic_numpy==5.0.2",
-  "pytest==8.2.2",
-  "rerun-sdk==0.17.0",
-  "rich==13.7.1",
-  "scikit-learn",
-  "shapely==2.0.4",
-  "torch",
-  "torchvision",
-  "transformers>=4.42.4"
-  ]
+"datasets==2.20.0",
+"einops==0.8.0",
+"gymnasium==0.29.1",
+"importlib-resources==6.4.0",
+"importlib_resources==6.4.0",
+"matplotlib==3.9.1",
+"mbench",
+"methodtools==0.4.7",
+"numpy==1.26.4",
+"opencv-python==4.10.0.84",
+"plotext==5.2.8",
+"pydantic-numpy==5.0.2",
+"pydantic==2.7.4",
+"pydantic_numpy==5.0.2",
+"pytest==8.2.2",
+"rerun-sdk==0.17.0",
+"rich==13.7.1",
+"scikit-learn",
+"shapely==2.0.4",
+"torch==2.3.1",
+"torchvision==0.18.1",
+"transformers==4.42.4",
+"transformers>=4.42.4"
+]
 [project.optional-dependencies]
-  audio = [
-  "pyaudio"
-  
-  ]
+audio = [
+"pyaudio"
+
+]
 [tool.hatch.metadata]
 allow-direct-references = true
 [tool.hatch.version]
@@ -59,7 +64,7 @@ python = "3.11"
 
 [tool.hatch.envs.types]
 extra-dependencies = [
-  "mypy>=1.0.0",
+"mypy>=1.0.0",
 ]
 [tool.hatch.envs.types.scripts]
 check = "mypy --install-types --non-interactive {args:tests}"
@@ -69,7 +74,7 @@ source_pkgs = ["embdata", "tests"]
 branch = true
 parallel = true
 omit = [
-  "embdata/__about__.py",
+"embdata/__about__.py",
 ]
 
 [tool.coverage.paths]
@@ -78,9 +83,9 @@ tests = ["tests", "*/embdata/tests"]
 
 [tool.coverage.report]
 exclude_lines = [
-  "no cov",
-  "if __name__ == .__main__.:",
-  "if TYPE_CHECKING:",
+"no cov",
+"if __name__ == .__main__.:",
+"if TYPE_CHECKING:",
 ]
 
 [tool.ruff]
@@ -93,86 +98,86 @@ extend-unsafe-fixes = ["ALL"]
 extend-select = ["ALL"]
 # List of rules: https://docs.astral.sh/ruff/rules
 select = [
-  # flake8-builtins
-  "A",
-  # flake8-commas
-  "COM812",
-  # flake8-comprehensions
-  "C4",
-  # pydocstyle
-  "D",
-  # pycodestyle
-  "E",
-  # Pyflakes
-  "F",
-  # pyupgrade
-  "UP",
-  # flake8-bugbear
-  "B",
-  # flake8-simplify
-  "SIM",
-  # flake8-implicit-str-concat
-  # "ISC",
-  # pep8-naming
-  "N",
-  # flake8-annotations
-  "ANN",
-  # flake8-async
-  "ASYNC",
-  # flake8-bandid selected
-  "S",
-  # flake8-print
-  "T20",
-  # flake8-return
-  "RET",
-  # flake8-simplify
-  "SIM",
-  # flake8-unused-arguments
-  "ARG",
-  # flake8-use-pathlib
-  "PTH",
-  # eradicate
-  "ERA",
-  # pandas-vet
-  "PD",
-  # Import sort
-  "I",
-  # avoid shadowing
-  "PLW",
+# flake8-builtins
+"A",
+# flake8-commas
+"COM812",
+# flake8-comprehensions
+"C4",
+# pydocstyle
+"D",
+# pycodestyle
+"E",
+# Pyflakes
+"F",
+# pyupgrade
+"UP",
+# flake8-bugbear
+"B",
+# flake8-simplify
+"SIM",
+# flake8-implicit-str-concat
+# "ISC",
+# pep8-naming
+"N",
+# flake8-annotations
+"ANN",
+# flake8-async
+"ASYNC",
+# flake8-bandid selected
+"S",
+# flake8-print
+"T20",
+# flake8-return
+"RET",
+# flake8-simplify
+"SIM",
+# flake8-unused-arguments
+"ARG",
+# flake8-use-pathlib
+"PTH",
+# eradicate
+"ERA",
+# pandas-vet
+"PD",
+# Import sort
+"I",
+# avoid shadowing
+"PLW",
 ]
 ignore = [
-  "D105", # Missing docstring in magic method
-  "PGH004",
-  "D100",
-  "D101",
-  "D104",
-  "D106",
-  # missing-type-self
-  "ANN101",
-  # missing-type-cls
-  "ANN102",
-  # missing-type-kwargs
-  "ANN003",
-  # utf-8 encoding skip
-  "ANN204", # Missing type annotation for function argument `self`
-  "UP009",
-  # Star-arg unpacking after a keyword argument is strongly discouraged
-  "B026",
-  # Missing type annotation for function argument `self`
-  "ANN001",
-  # Dynamically typed expressions (typing.Any) are disallowed in `wrapper`
-  "ANN401",
-  # We don't need docstrings for every method
-  "ANN202",
-  "D107",
-  "D102",
-  "D103",
-  # Inline lambdas
-  "E731",
-  # Sometimes we need List and Tuple
-  "UP006",
-  "UP035",
-  "ANN002",
+"D105", # Missing docstring in magic method
+"PGH004",
+"D100",
+"D101",
+"D104",
+"D106",
+# missing-type-self
+"ANN101",
+# missing-type-cls
+"ANN102",
+# missing-type-kwargs
+"ANN003",
+# utf-8 encoding skip
+"ANN204", # Missing type annotation for function argument `self`
+"UP009",
+# Star-arg unpacking after a keyword argument is strongly discouraged
+"B026",
+# Missing type annotation for function argument `self`
+"ANN001",
+# Dynamically typed expressions (typing.Any) are disallowed in `wrapper`
+"ANN401",
+# We don't need docstrings for every method
+"ANN202",
+"D107",
+"D102",
+"D103",
+# Inline lambdas
+"E731",
+# Sometimes we need List and Tuple
+"UP006",
+"UP035",
+"ANN002",
 ]
 
 # Allow fix for all enabled rules (when `--fix`) is provided.

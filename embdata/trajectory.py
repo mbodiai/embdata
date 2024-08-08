@@ -1,13 +1,13 @@
 import importlib
 import traceback
 from functools import partial
-from typing import Any, Callable, List, Literal, Tuple
+from itertools import repeat
+from typing import Any, Callable, List, Literal, Tuple, TYPE_CHECKING
 
 import numpy as np
 import scipy.stats as sstats
-from pydantic import Field
+from pydantic import Field, PrivateAttr
 from pydantic.dataclasses import dataclass
-from rich.pretty import pprint, pretty_repr
 from scipy import fftpack
 from scipy.interpolate import interp1d
 from scipy.signal import spectrogram
@@ -17,7 +17,10 @@ from sklearn import decomposition
 from embdata.ndarray import NumpyArray
 from embdata.sample import Sample
 from embdata.time import TimeStep
+from embdata.utils.pretty import prettify
 
+if TYPE_CHECKING:
+    from plotext._figure import _figure_class
 
 def import_plotting_backend(backend: Literal["matplotlib", "plotext"] = "plotext") -> Any:
     if backend == "matplotlib":
@@ -46,13 +49,7 @@ class Stats:
         return getattr(self, key)
 
     def __repr__(self) -> str:
-        try:
-            return pretty_repr({
-                k: np.round(v, 2) if isinstance(v, np.ndarray | np.number) else v for k, v in self.__dict__.items() if v is not None
-            })
-        except Exception as e:
-            traceback.print_exc()
-            return f"Stats({dict(self)})"
+        return prettify(self)
 
     def __str__(self) -> str:
         return self.__repr__()
@@ -137,12 +134,13 @@ def plot_trajectory(
         labels = ["X", "Y", "Z", "Roll", "Pitch", "Yaw", "Grasp"]
     elif labels is None:
         labels = [f"Dimension {i}" for i in range(num_plots)]
-    fig, axs = plt.subplots(num_plots, 1)
+    fig = plt.subplots(num_plots, 1)
 
     for i in range(num_plots):
-        axs[i].plot(np.arange(num_steps) * time_step, trajectory[:, i])
-        axs[i].set_ylabel(labels[i])
-        axs[i].set_xlabel("Time (s)")
+        ax = fig._get_subplot(i, 0)
+        ax.plot(np.arange(num_steps) * time_step, trajectory[:, i])
+        ax.ylabel(labels[i])
+        ax.xlabel("Time (s)")
     return fig
 
 
@@ -186,11 +184,15 @@ class Trajectory:
         >>> filtered_traj.plot().show()
     """
 
-    steps: NumpyArray | List[Sample | NumpyArray | TimeStep] = Field(description="A 2D array or list of samples representing the trajectory")
+    steps: NumpyArray | List[Sample | TimeStep] | Any = Field(
+        description="A 2D array or list of samples representing the trajectory"
+    )
     freq_hz: float | None = Field(default=None, description="The frequency of the trajectory in Hz")
     keys: List[str] | str | Tuple | None = Field(default=None, description="The labels for each dimension")
     angular_dims: List[int] | List[str] | None = Field(default=None, description="The dimensions that are angular")
-    time_idxs: NumpyArray | None | List = Field(default=None, description="The time index of each step in the trajectory. Calculated if not provided.")
+    time_idxs: NumpyArray | None | List = Field(
+        default=None, description="The time index of each step in the trajectory. Calculated if not provided."
+    )
     _episode: Any | None = Field(default=None, description="The episode that the trajectory is part of.")
     _fig: Any | None = None
     _stats: Stats | None = None
@@ -201,13 +203,23 @@ class Trajectory:
     _sample_keys: list[str] | None = None
 
     def __repr__(self) -> str:
-        return f"Trajectory({self.stats()})"
+        try:
+            return "Trajectory(" + prettify(self.stats()) + ")"
+        except Exception as e:
+            traceback.print_exc()
+            return super().__repr__()
 
     def __str__(self) -> str:
         return self.__repr__()
 
     def __eq__(self, other: "Trajectory") -> bool:
         return np.allclose(self.array, other.array)
+
+    def __init__(self, steps, freq_hz, time_idxs=None, keys=None, angular_dims=None, episode=None, **kwargs):
+        kwargs["_episode"] = episode
+        super().__init__(
+            steps=steps, freq_hz=freq_hz, time_idxs=time_idxs, keys=keys, angular_dims=angular_dims, **kwargs
+        )
 
     @property
     def array(self) -> np.ndarray:
@@ -229,7 +241,9 @@ class Trajectory:
         return self._stats
 
     def plot(
-        self, labels: list[str] | None = None, backend: Literal["matplotlib", "plotext"] = "plotext",
+        self,
+        labels: list[str] | None = None,
+        backend: Literal["matplotlib", "plotext"] = "plotext",
     ) -> "Trajectory":
         """Plot the trajectory. Saves the figure to the trajectory object. Call show() to display the figure.
 
@@ -254,17 +268,18 @@ class Trajectory:
         Returns:
           Trajectory: The modified trajectory.
         """
-        t = Trajectory(
+        return Trajectory(
             [fn(step) for step in self.steps],
             self.freq_hz,
             self.time_idxs,
             self.keys,
             self.angular_dims,
+            episode=self._episode,
+            _map_history=self._map_history,
+            _map_history_kwargs=self._map_history_kwargs,
+            _sample_keys=self._sample_keys,
+            _sample_cls=self._sample_cls,
         )
-        t._map_history.extend(self._map_history)  # noqa: SLF001
-        t._map_history_kwargs.extend(self._map_history_kwargs) # noqa: SLF001
-        t._episode = self._episode # noqa: SLF001
-        return t
 
     def __len__(self):
         return len(self.steps)
@@ -276,6 +291,18 @@ class Trajectory:
         return iter(self.steps)
 
     def __post_init__(self, *args, **kwargs):
+        if "episode" in kwargs:
+            self._episode = kwargs["episode"]
+        elif "_episode" in kwargs:
+            self._episode = kwargs["_episode"]
+        if "_map_history" in kwargs:
+            self._map_history = kwargs["_map_history"]
+        if "_map_history_kwargs" in kwargs:
+            self._map_history_kwargs = kwargs["_map_history_kwargs"]
+        if "_sample_keys" in kwargs:
+            self._sample_keys = kwargs["_sample_keys"]
+        if "_sample_cls" in kwargs:
+            self._sample_cls = kwargs["_sample_cls"]
         if isinstance(self.steps[0], Sample):
             self._sample_cls = type(self.steps[0])
             self._sample_keys = self._sample_cls.keys()
@@ -286,7 +313,7 @@ class Trajectory:
         if self.time_idxs is None:
             self.time_idxs = np.arange(0, len(self.array)) / self.freq_hz
 
-        super().__init__(*args, **kwargs)
+        super(Trajectory).__init__(*args, **kwargs)
 
     def relative(self, step_difference=-1) -> "Trajectory":
         """Subtract each step from the previous step to convert the trajectory to relative actions.
@@ -317,35 +344,41 @@ class Trajectory:
         if initial_state is None:
             initial_state = np.zeros(self.array.shape[1])
         self._map_history.append(partial(self.make_relative))
-        self._map_history_kwargs.append({
-            "step_difference": 1,
-        })
-        t= Trajectory(
+        self._map_history_kwargs.append(
+            {
+                "step_difference": 1,
+            }
+        )
+        self._episode.freq_hz = self.freq_hz
+
+        return Trajectory(
             np.cumsum(np.concatenate([np.array([initial_state]), self.array], axis=0), axis=0),
             self.freq_hz,
-            self.time_idxs,
+            None,
             self.keys,
             self.angular_dims,
+            episode=self._episode,
+            _map_history=self._map_history,
+            _map_history_kwargs=self._map_history_kwargs,
+            _sample_keys=self._sample_keys,
+            _sample_cls=self._sample_cls,
         )
-        t._map_history.extend(self._map_history)  # noqa: SLF001
-        t._map_history_kwargs.extend(self._map_history_kwargs) # noqa: SLF001
-        t._episode = self._episode # noqa: SLF001
-        return t
 
     def episode(self) -> Any:
         """Convert the trajectory to an episode."""
         if self._episode is None:
             msg = "This trajectory is not part of an episode"
             raise ValueError(msg)
+        if len(self._episode.steps) != len(self.array):
+            msg = "The trajectory and episode have different lengths"
+            raise ValueError(msg)
         steps = []
         for step in self._episode.steps:
-            print("Step", step)  # noqa
             for i, key in enumerate(self._sample_keys):
                 try:
                     step[key] = step[key].__class__(self.array[i])
                 except (TypeError, ValueError, AttributeError, KeyError):
                     step[key] = step[key].__class__.unflatten(self.array[i])
-
 
             steps.append(step)
         self._episode.steps = steps
@@ -375,6 +408,7 @@ class Trajectory:
             # For downsampling, just take every nth sample.
             downsampling_factor = int(self.freq_hz / target_hz)
             resampled_array = self.array[::downsampling_factor, :]
+
         else:
             if len(self.array) < 4:
                 msg = "Cannot upsample a trajectory with bicubic interpolationwith less than 4 samples"
@@ -404,7 +438,18 @@ class Trajectory:
                     spline = RotationSpline(np.arange(0, len(self.array)) / self.freq_hz, self.array[:, i])
                     resampled_array[:, i] = spline(resampled_time_idxs)
 
-        return Trajectory(resampled_array, target_hz, resampled_time_idxs, self.keys, self.angular_dims)
+        return Trajectory(
+            resampled_array,
+            target_hz,
+            resampled_time_idxs,
+            self.keys,
+            self.angular_dims,
+            _sample_cls=self._sample_cls,
+            _sample_keys=self._sample_keys,
+            _episode=self._episode,
+            _map_history=self._map_history,
+            _map_history_kwargs=self._map_history_kwargs,
+        )
 
     def save(self, filename: str = "trajectory.png") -> None:
         """Save the current figure to a file.
@@ -437,31 +482,90 @@ class Trajectory:
         """
         plt = import_plotting_backend(backend)
         x = self.array
-        nrows, ncols = 3, 3  # Adjust based on the number of dimensions
-        fig, axes = plt.subplots(nrows, ncols, figsize=(15, 15), sharex=True, sharey=True)
-        axes = axes.flatten()
-
         N = x.shape[0]
         T = 1.0 / self.freq_hz
         freqs = np.fft.fftfreq(N, T)[: N // 2]
 
         keys = self.keys or [f"Dimension {i}" for i in range(x.shape[1])]
+        fig: _figure_class  = plt.subplots(x.shape[1], 1)
+        """
+        def title(self, title = None):
+        self.monitor.set_title(title) if self._no_plots else [[self._get_subplot(row, col).title(title) for col in self._Cols] for row in self._Rows]
 
+    def xlabel(self, label = None, xside = None):
+        self.monitor.set_xlabel(label = label, xside = xside) if self._no_plots else [[self._get_subplot(row, col).xlabel(label = label, xside = xside) for col in self._Cols] for row in self._Rows]
+        
+    def ylabel(self, label = None, yside = None):
+        self.monitor.set_ylabel(label = label, yside = yside) if self._no_plots else [[self._get_subplot(row, col).ylabel(label = label, yside = yside) for col in self._Cols] for row in self._Rows]
+
+    def xlim(self, left = None, right = None, xside = None):
+        self.monitor.set_xlim(left = left, right = right, xside = xside) if self._no_plots else [[self._get_subplot(row, col).xlim(left = left, right = right, xside = xside) for col in self._Cols] for row in self._Rows]
+
+    def ylim(self, lower = None, upper = None, yside = None):
+        self.monitor.set_ylim(lower = lower, upper = upper, yside = yside) if self._no_plots else [[self._get_subplot(row, col).ylim(lower = lower, upper = upper, yside = yside) for col in self._Cols] for row in self._Rows]
+        
+    def xscale(self, scale = None, xside = None):
+        self.monitor.set_xscale(scale = scale, xside = xside) if self._no_plots else [[self._get_subplot(row, col).xscale(scale = scale, xside = xside) for col in self._Cols] for row in self._Rows]
+        
+    def yscale(self, scale = None, yside = None):
+        self.monitor.set_yscale(scale = scale, yside = yside) if self._no_plots else [[self._get_subplot(row, col).yscale(scale = scale, yside = yside) for col in self._Cols] for row in self._Rows]
+        
+    def xticks(self, ticks = None, labels = None, xside = None):
+        self.monitor.set_xticks(ticks = ticks, labels = labels, xside = xside) if self._no_plots else [[self._get_subplot(row, col).xticks(ticks = ticks, labels = labels, xside = xside) for col in self._Cols] for row in self._Rows]
+
+    def yticks(self, ticks = None, labels = None, yside = None):
+        self.monitor.set_yticks(ticks = ticks, labels = labels, yside = yside) if self._no_plots else [[self._get_subplot(row, col).yticks(ticks = ticks, labels = labels, yside = yside) for col in self._Cols] for row in self._Rows]
+
+    def xfrequency(self, frequency = None, xside = None):
+        self.monitor.set_xfrequency(frequency = frequency, xside = xside) if self._no_plots else [[self._get_subplot(row, col).xfrequency(frequency = frequency, xside = xside) for col in self._Cols] for row in self._Rows]
+
+    def yfrequency(self, frequency = None, yside = None):
+        self.monitor.set_yfrequency(frequency = frequency, yside = yside) if self._no_plots else [[self._get_subplot(row, col).yfrequency(frequency = frequency, yside = yside) for col in self._Cols] for row in self._Rows]
+
+    def xreverse(self, reverse = None, xside = None):
+        self.monitor.set_xreverse(reverse = reverse, xside = xside) if self._no_plots else [[self._get_subplot(row, col).xreverse(reverse = reverse, xside = xside) for col in self._Cols] for row in self._Rows]
+
+    def yreverse(self, reverse = None, yside = None):
+        self.monitor.set_yreverse(reverse = reverse, yside = yside) if self._no_plots else [[self._get_subplot(row, col).yreverse(reverse = reverse, yside = yside) for col in self._Cols] for row in self._Rows]
+
+    def xaxes(self, lower = None, upper = None):
+        self.monitor.set_xaxes(lower = lower, upper = upper) if self._no_plots else [[self._get_subplot(row, col).xaxes(lower = lower, upper = upper) for col in self._Cols] for row in self._Rows]
+
+    def yaxes(self, left = None, right = None):
+        self.monitor.set_yaxes(left = left, right = right) if self._no_plots else [[self._get_subplot(row, col).yaxes(left = left, right = right) for col in self._Cols] for row in self._Rows]
+
+    def frame(self, frame = None):
+        self.monitor.set_frame(frame = frame) if self._no_plots else [[self._get_subplot(row, col).frame(frame = frame) for col in self._Cols] for row in self._Rows]
+        
+    def grid(self, horizontal = None, vertical = None):
+        self.monitor.set_grid(horizontal = horizontal, vertical = vertical) if self._no_plots else [[self._get_subplot(row, col).grid(horizontal = horizontal, vertical = vertical) for col in self._Cols] for row in self._Rows]
+
+    def canvas_color(self, color = None):
+        self.monitor.set_canvas_color(color) if self._no_plots else [[self._get_subplot(row, col).canvas_color(color) for col in self._Cols] for row in self._Rows]
+
+    def axes_color(self, color = None):
+        self.monitor.set_axes_color(color) if self._no_plots else [[self._get_subplot(row, col).axes_color(color) for col in self._Cols] for row in self._Rows]
+
+    def ticks_color(self, color = None):
+        self.monitor.set_ticks_color(color) if self._no_plots else [[self._get_subplot(row, col).ticks_color(color) for col in self._Cols] for row in self._Rows]
+        
+    def ticks_style(self, style = None):
+        self.monitor.set_ticks_style(style) if self._no_plots else [[self._get_subplot(row, col).ticks_style(style) for col in self._Cols] for row in self._Rows]
+        
+"""
         for i in range(x.shape[1]):
-            ax = axes[i] if i < len(axes) else axes[-1]
+            ax = fig._get_subplot(i, 0)
             fft_vals = np.fft.fft(x[:, i])
             magnitude = 2.0 / N * np.abs(fft_vals[0 : N // 2])
             ax.plot(freqs, magnitude)
-            ax.set_title(keys[i])
-            ax.set_xlabel("Frequency [Hz]")
-            ax.set_ylabel("Magnitude")
-            ax.set_xlim(0, self.freq_hz / 2)  # Nyquist frequency
+            ax.title(keys[i])
+            ax.xlabel("Frequency [Hz]")
+            ax.ylabel("Magnitude")
+            ax.ylim(0, 1)
+            ax.xlim(0, self.freq_hz / 2)  # Nyquist frequency
             ax.grid(True)
 
-        for ax in axes[x.shape[1] :]:
-            ax.remove()  # Remove unused subplots
 
-        plt.tight_layout()
         self._fig = fig
         return self
 

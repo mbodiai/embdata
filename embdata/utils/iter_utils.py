@@ -6,6 +6,8 @@ from typing import Callable
 import numpy as np
 import torch
 
+logging = logging.getLogger(" ")
+
 MAX_FLATTENED_SIZE = 64
 
 exists_iter = lambda k, c: c is not None and len(c) > 0 and (hasattr(c[0], k) or k in c[0])
@@ -72,9 +74,11 @@ def flatten_recursive(obj, exclude: None | set = None, non_numerical="allow", se
     def _flatten(obj, prefix=""):
         if isinstance(obj, torch.Tensor | np.ndarray):
             if len(np.ravel(obj)) > MAX_FLATTENED_SIZE:
-                logging.warning("Large tensor encountered, skipping flattening.")
+                logging.warning("Large tensor encountered, skipping flattening. %s shape %s include: %s", prefix, obj.shape, include)
+                if is_exact_match(prefix.rstrip(sep), include, sep):
+                    return [prefix.rstrip(sep)], [obj]
                 return [], []
-            logging.debug(f"Converting tensor to numpy array: {obj}")
+            logging.debug(f"Converting tensor to numpy array: {obj}")  # noqa: G004
             obj = obj.tolist()
         out = []
         keys = []

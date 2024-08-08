@@ -16,3 +16,4 @@ torch==2.3.1
 torchvision==0.18.1
 transformers==4.42.4
 methodtools==0.4.7
+mbench

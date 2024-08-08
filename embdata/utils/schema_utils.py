@@ -18,7 +18,7 @@ def unflatten_from_schema(obj, schema, klass) -> dict: # noqa: C901
         raise ValueError(msg)
 
     def unflatten_recursive(schema_part, index=0):
-        if schema_part["type"] == "object":
+        if schema_part.get("type") == "object":
             result = {} if schema_part.get("title") != "Sample" else klass()
             for prop, prop_schema in schema_part["properties"].items():
                 value, index = unflatten_recursive(prop_schema, index)
@@ -27,7 +27,7 @@ def unflatten_from_schema(obj, schema, klass) -> dict: # noqa: C901
             if schema_part.get("title") == "Sample":
                 return klass(**result), index
             return result, index
-        if schema_part["type"] == "array":
+        if schema_part.get("type") == "array":
             items = []
             if schema_part.get("shape"):
                 array = obj[index : index + sum(schema_part["shape"])]
@@ -54,6 +54,7 @@ def simplify(
     include: Literal["simple", "descriptions", "tensor", "info"] = "simple",
     target_model: type[BaseModel] | None = None,
 ) -> dict:
+    _include = include
     title = title or schema.get("title", "")
     if isinstance(obj, dict):
         obj = target_model(**obj)

@@ -473,10 +473,11 @@ class Sample(BaseModel):
             >>> Sample.unflatten(flat_dict, sample.schema())
             Sample(x=1, y=2, z={'a': 3, 'b': 4}, extra_field=5)
         """
-        try:
-            schema = schema or cls().schema()
-        except Exception as e:
-            schema = {}
+        schema = schema or cls().schema()
+        if not schema.get("properties"):
+            kwargs = one_d_array_or_dict if isinstance(one_d_array_or_dict, dict) else {"items": one_d_array_or_dict}
+            return cls(**kwargs)
+
         return cls(**schema_utils.unflatten_from_schema(one_d_array_or_dict, schema, cls))
 
     def flatten(  # noqa
@@ -750,55 +751,8 @@ class Sample(BaseModel):
 
         schema = schema_utils.resolve_refs(schema)
 
-        def simplify(schema, obj, title=""):
-            title = title or schema.get("title", "")
-            if isinstance(obj, dict):
-                obj = Sample(**obj)
-                _include = "simple"
-            elif hasattr(obj, "_extra"):
-                title = obj.__class__.__name__
-                _include = include
-            if "description" in schema and include != "descriptions":
-                del schema["description"]
-            if "additionalProperties" in schema:
-                del schema["additionalProperties"]
-            if "items" in schema:
-                schema["items"] = simplify(schema["items"], obj[0])
-                schema["maxItems"] = len(obj)
-                if schema["items"].get("title"):  # Use the object title instead.
-                    del schema["items"]["title"]
-            if "type" in schema and "ndarray" in schema["type"]:
-                # Handle numpy arrays
-                schema["type"] = "array"
-                schema["items"] = {"type": "number"}
+        return schema_utils.simplify(schema, self, include=include, target_model=self.__class__)
 
-                schema["shape"] = schema["properties"]["shape"]["default"]
-                if schema["shape"] == "Any" and obj is not None:
-                    schema["shape"] = obj.shape
-                del schema["properties"]
-                del schema["required"]
-            if "type" in schema and schema["type"] == "object":
-                if "properties" not in schema:
-                    schema = obj.schema(include=_include)
-                for k, value in schema["properties"].items():
-                    if include == "simple" and k.startswith("_"):
-                        continue
-                    if k in obj:
-                        schema["properties"][k] = simplify(
-                            value,
-                            obj[k],
-                            title=schema["properties"][k].get("title", k.capitalize()),
-                        )
-                if not schema["properties"]:
-                    schema = obj.schema(include=_include)
-            if "allOf" in schema or "anyOf" in schema:
-                msg = f"Schema contains allOf or anyOf which is unsupported: {schema}"
-                raise ValueError(msg)
-            if title:
-                schema["title"] = title
-            return schema
-
-        return simplify(schema, self)
 
     def infer_features_dict(self) -> Dict[str, Any]:
         """Infers features from the data recusively."""

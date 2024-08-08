@@ -13,12 +13,13 @@ from datasets import Dataset, DatasetDict, Features, IterableDataset, Sequence, 
 from datasets import Image as HFImage
 from pydantic import Field, PrivateAttr, model_validator
 
+from embdata.describe import describe
 from embdata.features import to_features_dict
 from embdata.motion.control import AnyMotionControl, RelativePoseHandControl
 from embdata.sample import Sample
 from embdata.sense.image import Image
 from embdata.time import ImageTask, TimeStep, VisionMotorStep
-from embdata.trajectory import Trajectory
+from embdata.trajectory import Stats, Trajectory
 from embdata.utils.iter_utils import get_iter_class
 from embdata.utils.rerun_utils import get_blueprint, project_points_to_2d
 
@@ -173,10 +174,22 @@ class Episode(Sample):
         actions: List[Sample | Dict | np.ndarray],
         states: List[Sample | Dict | np.ndarray] | None = None,
         supervisions: List[Sample | Dict | np.ndarray] | None = None,
+        image_keys: str | list[str] = "image",
         freq_hz: int | None = None,
         **kwargs,
     ) -> "Episode":
-        Step = cls._step_class.get_default()
+        """Create an episode from lists of observations, actions, states, and supervisions or other list of dicts.
+
+        Args:
+            observations (List[Sample | Dict | np.ndarray]): A list of observations.
+            actions (List[Sample | Dict | np.ndarray]): A list of actions.
+            states (List[Sample | Dict | np.ndarray], optional): A list of states. Defaults to None.
+            supervisions (List[Sample | Dict | np.ndarray], optional): A list of supervisions. Defaults to None.
+            image_keys (str | list[str], optional): The keys to use for images. Defaults to "image".
+            freq_hz (int, optional): The frequency in Hz. Defaults to None.
+        """
+
+        Step: type[TimeStep] = cls._step_class.get_default()  # noqa: N806
         observations = observations or []
         actions = actions or []
         states = states or []
@@ -185,9 +198,14 @@ class Episode(Sample):
         freq_hz = freq_hz or 1.0
         kwargs.update({"freq_hz": freq_hz})
         steps = [
-            Step(observation=o, action=a, state=s, supervision=sup, timestamp=i / freq_hz)
+            Step(observation=o, action=a, state=s, supervision=sup, timestamp=i / freq_hz, image_keys=image_keys)
             for i, o, a, s, sup in zip_longest(
-                range(length), observations, actions, states, supervisions, fillvalue=Sample()
+                range(length),
+                observations,
+                actions,
+                states,
+                supervisions,
+                fillvalue=Sample(),
             )
         ]
         return cls(steps=steps, **kwargs)
@@ -243,8 +261,20 @@ class Episode(Sample):
         if self.steps is None or len(self.steps) == 0:
             msg = "Episode has no steps"
             raise ValueError(msg)
-        
-        features = {**self.steps[0].infer_features_dict(),**{"info": to_features_dict(self.steps[0].model_info())}}
+
+        image_feat = HFImage() if self.steps[0].flatten("dict",include=self.image_keys) else Value("string")
+        feat = {
+            "image": image_feat,
+            "episode_idx": Value("int64"),
+            "step_idx": Value("int64"),
+            "timestamp": Value("float32"),
+            **self.steps[0].infer_features_dict(),
+        }
+        model_info = self.steps[0].model_info()
+        if model_info:
+            feat["info"] = to_features_dict(self.steps[0].model_info())
+        feat = Features(feat)
+
         data = []
         for step in self.steps:
             try:
@@ -261,40 +291,31 @@ class Episode(Sample):
             step_idx = step.pop("step_idx", None)
             episode_idx = step.pop("episode_idx", None)
             timestamp = step.pop("timestamp", None)
-            
-            data.append({
+            step = {  # noqa
                 "image": image,
                 "episode_idx": episode_idx,
                 "step_idx": step_idx,
                 "timestamp": timestamp,
                 **step,
-                "info": model_info,
-            })
+            }
+            if model_info:
+                step["info"] = model_info
+            data.append(step)
 
-        feat = Features({
-            "image": HFImage(), 
-            "episode_idx": Value("int64"), 
-            "step_idx": Value("int64"), 
-            "timestamp": Value("float32"),
-             **features,
-        })
-
-        with open("last_push.txt", "w+") as f:
-            f.write(str(self.steps))
-            f.write(str(data[0]))
-            f.write(str(data[-1]))
-            f.write(str(data[-1].values()))
-        
         return Dataset.from_list(data, features=feat)
 
-    def stats(self) -> dict:
-        return self.trajectory().stats()
+    def stats(self, mode: Literal["full", "first10"] = "first10") -> Stats:
+        """Get the statistics of the episode."""
+        if not hasattr(self, "stats_"):
+            self.stats_ = self.trajectory(mode=mode).stats()
+        return self.stats_
+
 
     def __slice__(self, start: int, stop: int, step: int) -> "Episode":
         return Episode(steps=self.steps[start:stop:step])
 
     def trajectory(
-        self, of: str | list[str] = "steps", freq_hz: int | None = None, mode: Literal["full", "first10"] = "first10"
+        self, of: str | list[str] = "steps", freq_hz: int | None = None, mode: Literal["full", "first10"] = "full"
     ) -> Trajectory:
         """Numpy array with rows (axis 0) consisting of the `of` argument. Can be steps or plural form of fields.
 
@@ -336,13 +357,12 @@ class Episode(Sample):
         include = [k for k in self.steps[0].flatten("dict") if any(k in field for field in full_keys)]
         if of == ["step"]:
             if mode == "full":
-                data = self.flatten(to="lists", include=include)
+                data = self.flatten(to="dicts", include=include)
             elif mode == "first10":
-                data = self.flatten(to="lists", include=["observation", "action"])[:10]
+                data = self.flatten(to="dicts", include=include)[:10]
             if not data:
                 msg = "Episode has no steps"
                 raise ValueError(msg)
-
             return Trajectory(
                 data,
                 freq_hz=freq_hz,
@@ -366,7 +386,7 @@ class Episode(Sample):
         if not data:
             msg = f"Field '{of}' not found with any numerical values in episode steps"
             raise ValueError(msg)
-        # logging.debug("Describe data: %s", describe(data))
+
         keys = [key.removeprefix("steps.*.") for key in full_keys]
         logging.debug("keys: %s", keys)
         return Trajectory(
@@ -459,13 +479,7 @@ class Episode(Sample):
         """
         return Episode(steps=[step for step in self.steps if condition(step)], metadata=self.metadata)
 
-    def iter(self) -> Iterator[TimeStep]:
-        """Iterate over the steps in the episode.
 
-        Returns:
-            Iterator[TimeStep]: An iterator over the steps in the episode.
-        """
-        return iter(self.steps)
 
     def __add__(self, other) -> "Episode":
         """Append episodes from another Episode.
