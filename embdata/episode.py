@@ -18,14 +18,11 @@ from embdata.geometry import Pose
 from embdata.motion import Motion
 from embdata.motion.control import AnyMotionControl, RelativePoseHandControl
 from embdata.sample import Sample
-from embdata.sense.camera import CameraParams, Distortion, Extrinsics, Intrinsics
-from embdata.sense.image import Image, SupportsImage
-from embdata.trajectory import Trajectory
-from embdata.ndarray import NumpyArray
-import json
-import rerun.blueprint as rrb
-from embdata.utils.rerun_utils import get_blueprint
- 
+from embdata.sense.image import Image
+from embdata.time import ImageTask, TimeStep, VisionMotorStep
+from embdata.trajectory import Stats, Trajectory
+from embdata.utils.iter_utils import get_iter_class
+from embdata.utils.rerun_utils import get_blueprint, project_points_to_2d
 try:
     from lerobot.common.datasets.lerobot_dataset import LeRobotDataset
     from lerobot.common.datasets.utils import calculate_episode_data_index, hf_transform_to_torch
@@ -173,10 +170,10 @@ class TimeStep(Sample):
             yield window
 
 logger = logging.getLogger(__name__)
-if logger.level == logging.DEBUG or "MBENCH" in os.environ:
-    from mbench.profile import profileme
+# if logger.level == logging.DEBUG or "MBENCH" in os.environ:
+#     # from mbench.profile import profileme
 
-    profileme()
+#     # profileme()
 
 
 
@@ -477,7 +474,8 @@ class Episode(Sample):
             msg = "Episode has no steps"
             raise ValueError(msg)
         freq_hz = freq_hz or self.freq_hz or 1
-        include = [k for k in self.steps[0].flatten("dict") if self.steps[0].get(k) is not None and k in of]
+        
+        include = [k for k in self.steps[0].flatten("dict") if k not in self.steps[0].keys() is not None and k in of]
         if of == ["step"]:
             if mode == "full":
                 data = self.flatten(to="lists", include=include)
@@ -510,7 +508,7 @@ class Episode(Sample):
         if not data:
             msg = f"Field '{of}' not found with any numerical values in episode steps"
             raise ValueError(msg)
-        logging.debug("Describe data: %s", describe(data))
+        # logging.debug("Describe data: %s", describe(data))
         keys = [key.removeprefix("steps.*.") for key in full_keys]
         logging.debug("keys: %s", keys)
         return Trajectory(
@@ -867,7 +865,6 @@ class Episode(Sample):
     def rerun(self, mode: Literal["local", "remote"], port=3389, ws_port=8888) -> "Episode":
         """Start a rerun server."""
 
-        
         rr.init("rerun-mbodied-data", spawn=True)
         # rr.serve(open_browser=False, web_port=port, ws_port=ws_port)
 
@@ -880,53 +877,7 @@ class Episode(Sample):
                             "ef/y",
                             "ef/z"]
         
-        rr.init("rerun-mbodied-data", spawn=False)
-        rr.serve(open_browser=False, web_port=port, ws_port=ws_port)
-        # rr.log("world/camera_lowres", rr.Transform3D(transform=camera_from_world))
-        # rr.log("world/camera_lowres", rr.Pinhole(image_from_camera=intrinsic, resolution=[w, h]))
-        blueprint = rrb.Blueprint(
-            rrb.Vertical(
-                rrb.Horizontal(
-                    rrb.Spatial2DView( 
-                        name=f"Scene",
-                        background=[0.0, 0.0, 0.0, 0.0],
-                        origin=f"scene",
-                        visible=True,
-                        # contents=['$origin/image', '/arrows'],
-                    ),
-
-                    # rrb.Spatial2DView(
-                    #     name=f"Depth",
-                    #     background=[0.0, 0.0, 0.0, 0.0],
-                    #     origin=f"world/camera_lowres/",
-                    #     visible=True,
-                    #     contents=['$origin/depth'], 
-                    # ),
-                     
-                ),
-                rrb.Horizontal(
-                    rrb.TimeSeriesView(
-                        name=f"Actions",
-                        origin=f"action",
-                        visible=True,
-                        axis_y=rrb.ScalarAxis(range=(-0.5, 0.5), zoom_lock=True),
-                        plot_legend=rrb.PlotLegend(visible=True),
-                        time_ranges=[
-                            rrb.VisibleTimeRange(
-                                "timeline0",
-                                start=rrb.TimeRangeBoundary.cursor_relative(seq=-100),
-                                end=rrb.TimeRangeBoundary.cursor_relative(),
-                            ),
-                        ],
-                    ),
-                ),
-                row_shares=[2, 1],
-            ),
-            rrb.SelectionPanel(state="collapsed"),
-            rrb.TimePanel(state="collapsed"),
-            rrb.BlueprintPanel(state="collapsed"),
-
-        )
+        plot_colors = [(255, 0, 0), (0, 255, 0), (0, 0, 255), (255, 255, 0), (0, 255, 255), (255, 0, 255)]
 
         for state, color in zip(states_to_log, plot_colors):
             print(f"Logging state {state}")
@@ -972,7 +923,7 @@ class Episode(Sample):
                 projected_start_points_2d = []
                 projected_end_points_2d = []
                 for j in range(len(window) - 1):
-                    start_point_2d, end_point_2d = self.project_points_to_2d(params, window[j].absolute_pose.pose, window[j+1].absolute_pose.pose)
+                    start_point_2d, end_point_2d = project_points_to_2d(params, window[j].absolute_pose.pose, window[j+1].absolute_pose.pose)
                     projected_start_points_2d.append(start_point_2d)
                     projected_end_points_2d.append(end_point_2d)
 

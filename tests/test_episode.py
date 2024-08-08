@@ -11,7 +11,7 @@ from embdata.episode import Episode, TimeStep, VisionMotorStep, ImageTask
 from embdata.sample import Sample
 from datasets import load_dataset
 from embdata.sense.image import Image
-from embdata.motion.control import AnyMotionControl, RelativePoseHandControl
+from embdata.motion.control import AnyMotionControl, HandControl, RelativePoseHandControl
 from embdata.trajectory import Trajectory
 from rich.pretty import pprint
 
@@ -197,64 +197,31 @@ def test_episode_flatten(time_step):
 
 def test_trajectory(time_step):
     episode = Episode(steps=[time_step, time_step, time_step])
-    dataset = episode.dataset()
-    episode = Episode.from_list(dataset.to_list(), observation_key="observation", action_key="action")
+    trajectory = episode.trajectory("action", freq_hz=1)
+    assert len(trajectory) == 3
+    # print(trajectory.array)
+    # print(episode.steps)
+    steps  = episode.flatten("lists", "action")
+    from rich.pretty import pprint
+    pprint(f"steps: {steps}")
+    assert np.allclose(trajectory.array, episode.flatten("lists", "action"))
 
+def test_episode_again(time_step):
+    episode = Episode(steps=[time_step, time_step, time_step])
+    new_episode = episode.trajectory().episode()
+    for step, new_step in zip(episode.steps, new_episode.steps):
+        assert step == new_step
 
-def test_object_scene(time_step):
-    # ds = load_dataset("mbodiai/new_ds", split="train")
-    # features = ds.features
-    from embdata.describe import describe
-    from datasets import concatenate_datasets
-    from embdata.episode import Episode, TimeStep, VisionMotorEpisode, ImageTask
-    episode = VisionMotorEpisode(steps=[])
+def test_episode_flattening(time_step):
 
-    class SceneObject(Sample):
-        """Model for Scene Object Poses."""
-        object_name: str = ""
-        object_pose: Pose = Field(default_factory=Pose, description="Object Pose")
+    steps = []
+    for i in range(5):
+        steps.append(VisionMotorStep(observation=ImageTask(image=Image(size=(224, 224)), task="Do something"), 
+                                     action=HandControl(pose=Pose(x=1, y=2, z=3, roll=0, pitch=0, yaw=np.pi / 2), grasp=0.0)))
 
+    episode = Episode(steps=steps)
 
-    class SceneData(Sample):
-        """Model for Scene Data."""
-        image: Image
-        depth_image: Depth
-        scene_objects: List[SceneObject] = Field(default_factory=lambda: [SceneObject()], description="List of Scene Objects")
-
-    episode.append(
-        VisionMotorStep(
-            episode_idx=0,
-            step_idx=0,
-            observation=ImageTask(image=Image(size=(224, 224)), task="task"),
-            action=RelativePoseHandControl(),
-            state=SceneData(image=Image(size=(224, 224), mode="RGB"), depth_image=Depth(size=(224, 224), mode="I"), scene_objects=[
-                SceneObject(object_name="object1", object_pose=Pose(x=0.1, y=0.2, z=0.3, roll=0.1, pitch=0.2, yaw=0.3)),
-                SceneObject(object_name="object2", object_pose=Pose(x=0.1, y=0.2, z=0.3, roll=0.21, pitch=0.2, yaw=0.3)),
-            ]),
-        )
-    )
-    new_ds = episode.dataset()
-    print(f"New Features: ")
-    from rich import print_json
-    # print_json(data=new_ds.features)
-    new_ds.push_to_hub("mbodiai/test_randss", private=True)
-    describe(new_ds.features)
-    new_new_ds = load_dataset("mbodiai/test_randss", split="train")
-    new_new_features = new_new_ds.features
-    # print(f"New new Features:")
-    # print_json(data=new_new_features)
-
-    
-        
-def test_concatenate():
-    ds = load_dataset("mbodiai/testinglatest", split="train").to_list()
-    print(len(ds))
-    for item in ds:
-        print(item["action"]["pose"])
-        print(item["action"]["grasp"])
-    assert False
-    # describe(features)
-    # ds = concatenate_datasets([new_new_ds, episode.dataset()])
+    episode.trajectory(of="observation").resample(20)
 
 if __name__ == "__main__":
     pytest.main(["-vv", __file__])

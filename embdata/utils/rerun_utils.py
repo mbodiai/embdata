@@ -1,5 +1,11 @@
 import rerun as rr
 import rerun.blueprint as rrb
+import numpy as np
+import cv2
+from typing import Tuple
+from embdata.sense.camera import CameraParams
+from embdata.motion.control import Pose
+from embdata.ndarray import NumpyArray
 
 def get_blueprint() -> rrb.Blueprint:
 
@@ -36,3 +42,35 @@ def get_blueprint() -> rrb.Blueprint:
         rrb.SelectionPanel(state="collapsed"),
     )
     return blueprint
+
+def project_points_to_2d(camera_params: CameraParams, start_pose: Pose, end_pose: Pose) -> Tuple[np.ndarray, np.ndarray]:
+
+    intrinsic = camera_params.intrinsic.matrix
+    distortion = np.array([camera_params.distortion.k1, camera_params.distortion.k2, camera_params.distortion.p1, camera_params.distortion.p2, camera_params.distortion.k3]).reshape(5, 1)
+    
+    translation = np.array(camera_params.extrinsic.translation_vector).reshape(3, 1)
+    rotation = cv2.Rodrigues(np.array(camera_params.extrinsic.rotation_vector).reshape(3, 1))[0]
+    end_effector_offset = 0.175
+
+    # Switch x and z coordinates for the 3D points
+    start_position_3d: NumpyArray[3, 1] = np.array([start_pose.z - end_effector_offset, -start_pose.y, start_pose.x]).reshape(3, 1)
+    end_position_3d: NumpyArray[3, 1] = np.array([end_pose.z - end_effector_offset, -end_pose.y, end_pose.x]).reshape(3, 1)
+
+    # Transform the 3D point to the camera frame
+    start_position_3d_camera_frame: NumpyArray[3, 1] = np.dot(rotation, start_position_3d) + translation
+    end_position_3d_camera_frame: NumpyArray[3, 1] = np.dot(rotation, end_position_3d) + translation
+
+    # Project the transformed 3D point to 2D
+    start_point_2d, _ = cv2.projectPoints(objectPoints=start_position_3d_camera_frame, 
+                                            rvec=np.zeros((3,1)), 
+                                            tvec=np.zeros((3,1)), 
+                                            cameraMatrix=intrinsic,
+                                            distCoeffs=distortion)
+
+    end_point_2d, _ = cv2.projectPoints(objectPoints=end_position_3d_camera_frame, 
+                                            rvec=np.zeros((3,1)), 
+                                            tvec=np.zeros((3,1)), 
+                                            cameraMatrix=intrinsic,
+                                            distCoeffs=distortion)
+    
+    return start_point_2d[0][0], end_point_2d[0][0]
