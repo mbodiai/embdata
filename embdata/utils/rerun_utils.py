@@ -12,10 +12,10 @@ def get_blueprint() -> rrb.Blueprint:
                     origin=f"scene",
                     visible=True,
                 ),
-                rrb.Spatial2DView( 
-                    name=f"Scene",
+                rrb.Spatial2DView(
+                    name=f"Augmented",
                     background=[0.0, 0.0, 0.0, 0.0],
-                    origin=f"depth",
+                    origin=f"augmented",
                     visible=True,
                 ),
             ),
