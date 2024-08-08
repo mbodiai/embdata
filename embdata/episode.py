@@ -859,24 +859,21 @@ class Episode(Sample):
         
         yield window
 
+    def log_scalar(self, name: str, value: float, step: int) -> None:
+
+        rr.log(name, rr.Scalar(value))
+
+
     def rerun(self, mode: Literal["local", "remote"], port=3389, ws_port=8888) -> "Episode":
         """Start a rerun server."""
-        params = CameraParams(
-            intrinsic=Intrinsics(focal_length_x=911.0, focal_length_y=911.0, optical_center_x=653.0, optical_center_y=371.0),
-            extrinsic=Extrinsics(
-                rotation_vector=[-2.1703, 2.186, 0.053587],
-                translation_vector=[0.09483, 0.25683, 1.2942],
-            ),
-            distortion=Distortion(k1=0.0, k2=0.0, p1=0.0, p2=0.0, k3=0.0), 
-            depth_scale=0.001
-        )
+
         
         rr.init("rerun-mbodied-data", spawn=True)
         # rr.serve(open_browser=False, web_port=port, ws_port=ws_port)
 
         blueprint = get_blueprint()
 
-        states_to_plot = ["RemoteControl/x",
+        states_to_log = ["RemoteControl/x",
                             "RemoteControl/y",
                             "RemoteControl/z",
                             "ef/x",
@@ -931,14 +928,14 @@ class Episode(Sample):
 
         )
 
-        for state, color in zip(states_to_plot, plot_colors):
+        for state, color in zip(states_to_log, plot_colors):
             print(f"Logging state {state}")
             rr.log(f"action/{state}", rr.SeriesLine(color=color, name=state), static=True)
         
         end_effector_offset = 0.175
         next_n = 4
-        arrow_color = [(160, 0, 0)]
-        radii = 10
+        arrow_color = 0xF14F21 # Alpha set to 128 for 50% transparency
+        radii = 7
         
         for i, step in enumerate(self.steps):
             print(f"Processing step {i}")
@@ -947,39 +944,17 @@ class Episode(Sample):
             rr.set_time_sequence("timeline0", i)
             rr.set_time_seconds("timestamp", step.timestamp)
 
-            # rr.log(f"action/x", rr.Scalar(step.action.pose.x))
-            # rr.log(f"action/y", rr.Scalar(step.action.pose.y))
-            # rr.log(f"action/z", rr.Scalar(step.action.pose.z))
-            if i == 0:
-                rr.log(f"action/ef/x", rr.Scalar(0.3))
-                rr.log(f"action/ef/y", rr.Scalar(0.0))
-                rr.log(f"action/ef/z", rr.Scalar(0.325 - end_effector_offset))
-            else:
-                rr.log(f"action/ef/x", rr.Scalar(self.steps[i].absolute_pose.pose.x))
-                rr.log(f"action/ef/y", rr.Scalar(self.steps[i].absolute_pose.pose.y))
-                rr.log(f"action/ef/z", rr.Scalar(self.steps[i].absolute_pose.pose.z - end_effector_offset))
+            # rr.log(f"action/ef/x", rr.Scalar(step.absolute_pose.pose.x))
+            rr.log(f"action/ef/y", rr.Scalar(step.absolute_pose.pose.y))
+            # rr.log(f"action/ef/z", rr.Scalar(step.absolute_pose.pose.z - end_effector_offset))
             
-            # Convert rotation vector to rotation matrix
-            R, _ = cv2.Rodrigues(np.array(params.extrinsic.rotation).reshape(3, 1))
-            rr.log(f"scene/image", rr.Image(data=step.observation.image.array if step.observation.image else None))
-            # rr.log(f"world/camera_lowres/depth", rr.DepthImage(data=step.state.scene.depth_image if step.state.scene.depth_image else None, meter=1000))
+            rr.log("scene/image", rr.Image(data=step.observation.image.array if step.observation.image else None))
+            rr.log("augmented/image", rr.Image(data=step.inpaint_image.array if step.inpaint_image else None))
+            # rr.log("segmented/image", rr.Image(data=step.segmentation_image.array if step.segmentation_image else None))
+            
+            params = step.camera_params
 
-            projected_start_points_2d = []
-            projected_end_points_2d = []    
-
-       
-            for j in range(next_n):
-                current_index = i + j
-                next_index = current_index + 1
-                if next_index >= len(self.steps):
-                    break
-                
-                if current_index == 0:
-                    start_pose: Pose = Pose(x=0.3, y=0.0, z=0.325, roll=0.0, pitch=0.0, yaw=0.0)
-                else:
-                    start_pose: Pose = self.steps[current_index].absolute_pose.pose
-                
-                end_pose: Pose = self.steps[next_index].absolute_pose.pose
+            detection_results = step.detection_result.objects
 
             for obj in detection_results:
                 name = obj.name
@@ -1005,17 +980,20 @@ class Episode(Sample):
                 end_points_2d_array = np.array(projected_end_points_2d)
                 vectors = end_points_2d_array - start_points_2d_array
                 
-                rr.log(f"scene/arrows", rr.Arrows2D(vectors=vectors, origins=start_points_2d_array, colors=colors, radii=radii))
-
-                rr.log("scene/arrows", rr.Arrows2D(vectors=vectors, origins=start_points_2d_array, colors=arrow_color, radii=radii))
+                rr.log("scene/arrows", rr.Arrows2D(vectors=vectors, origins=start_points_2d_array, colors=(arrow_color, 50), radii=radii))
 
             scene_objects = step.state.scene.scene_objects
 
             for obj in scene_objects:
-                rr.log(f"Objects/{obj['object_name'].replace(' ', '')}", rr.Points3D(positions=[[obj['object_pose']["x"], obj['object_pose']["y"], obj['object_pose']["z"]]], labels=[obj['object_name']]))
-                rr.log(f"action/{obj['object_name'].replace(' ', '')}/x", rr.Scalar(obj['object_pose']["x"]))
-                rr.log(f"action/{obj['object_name'].replace(' ', '')}/y", rr.Scalar(obj['object_pose']["y"]))
-                rr.log(f"action/{obj['object_name'].replace(' ', '')}/z", rr.Scalar(obj['object_pose']["z"]))
+
+                object_name = obj['object_name'].replace(' ', '')
+                rr.log(f"Objects/{object_name}", rr.Points3D(positions=[[obj['object_pose']["x"], obj['object_pose']["y"], obj['object_pose']["z"]]], labels=[obj['object_name']]))
+                
+                if object_name == "RemoteControl":
+                    # rr.log(f"action/{object_name}/x", rr.Scalar(obj['object_pose']['x']))
+                    rr.log(f"action/{object_name}/y", rr.Scalar(obj['object_pose']['y']))
+                    # rr.log(f"action/{object_name}/z", rr.Scalar(obj['object_pose']['z']))
+
 
         rr.send_blueprint(blueprint)
 
