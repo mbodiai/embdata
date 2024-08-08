@@ -3,7 +3,6 @@ import os
 from typing import List
 from PIL import Image as PILModule
 from embdata.geometry import Pose
-from embdata.sense.depth import Depth
 import numpy as np
 from pydantic import Field
 import pytest
@@ -11,7 +10,7 @@ from embdata.episode import Episode, TimeStep, VisionMotorStep, ImageTask
 from embdata.sample import Sample
 from datasets import load_dataset
 from embdata.sense.image import Image
-from embdata.motion.control import AnyMotionControl, HandControl, RelativePoseHandControl
+from embdata.motion.control import AnyMotionControl, RelativePoseHandControl, HandControl
 from embdata.trajectory import Trajectory
 from rich.pretty import pprint
 

@@ -1,5 +1,6 @@
-from pydantic import Field, computed_field
 import numpy as np
+from pydantic import Field, computed_field
+
 from embdata.ndarray import NumpyArray
 from embdata.sample import Sample
 

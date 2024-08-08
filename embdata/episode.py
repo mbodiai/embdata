@@ -1,179 +1,38 @@
 import logging
+import os
 import sys
 import traceback
 from itertools import zip_longest
 from threading import Thread
-from typing import Any, Callable, Dict, Iterable, Iterator, List, Literal, Tuple
-from scipy.spatial.transform import Rotation
-import cv2
+from typing import Any, Callable, Dict, Iterable, Iterator, List, Literal
+
 import numpy as np
 import rerun as rr
 import torch
-from datasets import Dataset, DatasetDict, Features, Sequence, Value
+from datasets import Dataset, DatasetDict, Features, IterableDataset, Sequence, Value
 from datasets import Image as HFImage
-from pydantic import ConfigDict, Field, PrivateAttr, computed_field
+from pydantic import Field, PrivateAttr, model_validator
 
 from embdata.features import to_features_dict
-from embdata.geometry import Pose
-from embdata.motion import Motion
 from embdata.motion.control import AnyMotionControl, RelativePoseHandControl
 from embdata.sample import Sample
 from embdata.sense.image import Image
 from embdata.time import ImageTask, TimeStep, VisionMotorStep
-from embdata.trajectory import Stats, Trajectory
+from embdata.trajectory import Trajectory
 from embdata.utils.iter_utils import get_iter_class
 from embdata.utils.rerun_utils import get_blueprint, project_points_to_2d
+
 try:
     from lerobot.common.datasets.lerobot_dataset import LeRobotDataset
     from lerobot.common.datasets.utils import calculate_episode_data_index, hf_transform_to_torch
 except ImportError:
     logging.info("lerobot not found. Go to https://github.com/huggingface/lerobot to install it.")
 
-
-def convert_images(values: Dict[str, Any] | Any, image_keys: set[str] | str | None = "image") -> "TimeStep":
-        if not isinstance(values, dict | Sample):
-            if Image.supports(values):
-                try:
-                    return Image(values)
-                except Exception:
-                    return values
-            return values
-        if isinstance(image_keys, str):
-            image_keys = {image_keys}
-        obj = {}
-        for key, value in values.items():
-            if key in image_keys:
-                try :
-                    if isinstance(value, dict):
-                        obj[key] = Image(**value)
-                    else:
-                        obj[key] = Image(value)
-                except Exception as e: # noqa
-                    logging.warning(f"Failed to convert {key} to Image: {e}")
-                    obj[key] = value
-            elif isinstance(value, dict | Sample):
-                obj[key] = convert_images(value)
-            else:
-                obj[key] = value
-        return obj
-
-class TimeStep(Sample):
-    """Time step for a task."""
-
-    episode_idx: int | None = 0
-    step_idx: int | None = 0
-    model_config = ConfigDict(arbitrary_types_allowed=True, extra="allow")
-    observation: Sample | None = None
-    action: Sample | None = None
-    state: Sample | None = None
-    supervision: Any = None
-    timestamp: float | None = None
-
-    _observation_class: type[Sample] = PrivateAttr(default=Sample)
-    _action_class: type[Sample] = PrivateAttr(default=Sample)
-    _state_class: type[Sample] = PrivateAttr(default=Sample)
-    _supervision_class: type[Sample] = PrivateAttr(default=Sample)
-    
-    @classmethod
-    def from_dict(cls, values: Dict[str, Any], image_keys: str | set | None = "image",
-            observation_key: str | None = "observation", action_key: str | None = "action", supervision_key: str | None = "supervision") -> "TimeStep":
-        obs = values.pop(observation_key, None)
-        act = values.pop(action_key, None)
-        sta = values.pop("state", None)
-        sup = values.pop(supervision_key, None)
-        timestamp = values.pop("timestamp", 0)
-        step_idx = values.pop("step_idx", 0)
-        episode_idx = values.pop("episode_idx", 0)
-
-        Obs = cls._observation_class.get_default()
-        Act = cls._action_class.get_default()  # noqa: N806, SLF001
-        Sta = cls._state_class.get_default()  # noqa: N806, SLF001
-        Sup = cls._supervision_class.get_default()
-        obs = Obs(**convert_images(obs, image_keys)) if obs is not None else None
-        act = Act(**convert_images(act, image_keys)) if act is not None else None
-        sta = Sta(**convert_images(sta, image_keys)) if sta is not None else None
-        sup = Sup(**convert_images(sup, image_keys)) if sup is not None else None
-        field_names = cls.model_fields.keys()
-        return cls(
-            observation=obs,
-            action=act,
-            state=sta,
-            supervision=sup,
-            episode_idx=episode_idx,
-            step_idx=step_idx,
-            timestamp=timestamp,
-            **{k: v for k, v in values.items() if k not in field_names},
-        )
-
-    def __init__(
-        self,
-        observation: Sample | Dict | np.ndarray, 
-        action: Sample | Dict | np.ndarray,
-        state: Sample | Dict | np.ndarray | None = None, 
-        supervision: Any | None = None, 
-        episode_idx: int | None = 0,
-        step_idx: int | None = 0,
-        timestamp: float | None = None,
-        image_keys: str | set[str] | None = "image",
-         **kwargs):
-
-        obs = observation
-        act = action
-        sta = state
-        sup = supervision
-
-        Obs = TimeStep._observation_class.get_default() if not isinstance(obs, Sample) else obs.__class__
-        Act = TimeStep._action_class.get_default() if not isinstance(act, Sample) else act.__class__
-        Sta = TimeStep._state_class.get_default() if not isinstance(sta, Sample) else sta.__class__
-        Sup = TimeStep._supervision_class.get_default() if not isinstance(sup, Sample) else Sample
-        obs = Obs(**convert_images(obs, image_keys)) if obs is not None else None
-        act = Act(**convert_images(act, image_keys)) if act is not None else None
-        sta = Sta(**convert_images(sta, image_keys)) if sta is not None else None
-        sup = Sup(**convert_images(supervision)) if supervision is not None else None
-
-        super().__init__(  # noqa: PLE0101
-            observation=observation,
-            action=action,
-            state=state, 
-            supervision=supervision, 
-            episode_idx=episode_idx, 
-            step_idx=step_idx, 
-            timestamp=timestamp, 
-            **{k: v for k, v in kwargs.items() if k not in ["observation", "action", "state", "supervision"]},
-        )
-
-    def window(self, steps: List["TimeStep"], nforward: int = 1, nbackward: int = 1, pad_value: Any = None) -> Iterable[List["TimeStep"]]:
-        """Get a sliding window of the episode.
-
-        Args:
-            steps (List[TimeStep]): List of timesteps.
-            nforward (int, optional): The number of steps to look forward. Defaults to 1.
-            nbackward (int, optional): The number of steps to look backward. Defaults to 1.
-            pad_value (Any, optional): The value to use for padding. Defaults to None.
-
-        Returns:
-            Iterable[List[TimeStep]]: A sliding window of the episode.
-        """
-        length = len(steps)
-        for i in range(length):
-            start = max(0, i - nbackward)
-            end = min(length, i + nforward + 1)
-            window = steps[start:end]
-            
-            if pad_value is not None:
-                while len(window) < nbackward + nforward + 1:
-                    if len(window) < nbackward + 1:
-                        window.insert(0, pad_value)
-                    else:
-                        window.append(pad_value)
-            
-            yield window
-
 logger = logging.getLogger(__name__)
-# if logger.level == logging.DEBUG or "MBENCH" in os.environ:
-#     # from mbench.profile import profileme
+if logger.level == logging.DEBUG or "MBENCH" in os.environ:
+    from mbench import profileme
 
-#     # profileme()
+    profileme()
 
 
 
@@ -474,8 +333,7 @@ class Episode(Sample):
             msg = "Episode has no steps"
             raise ValueError(msg)
         freq_hz = freq_hz or self.freq_hz or 1
-        
-        include = [k for k in self.steps[0].flatten("dict") if k not in self.steps[0].keys() is not None and k in of]
+        include = [k for k in self.steps[0].flatten("dict") if any(k in field for field in full_keys)]
         if of == ["step"]:
             if mode == "full":
                 data = self.flatten(to="lists", include=include)
@@ -519,30 +377,6 @@ class Episode(Sample):
             _sample_keys=include,
             _sample_cls=self.steps[0].__class__ if len(keys) > 1 else self.steps[0][of[0]].__class__,
         )
-
-    def window(
-        self,
-        of: str | list[str] = "steps",
-        nforward: int = 1,
-        nbackward: int = 1,
-        pad_value: Any = None,
-        freq_hz: int | None = None,
-    ) -> Iterable[Trajectory]:
-        """Get a sliding window of the episode.
-
-        Args:
-            of (str, optional): What to include in the window. Defaults to "steps".
-            nforward (int, optional): The number of steps to look forward. Defaults to 1.
-            nbackward (int, optional): The number of steps to look backward. Defaults to 1.
-
-        Returns:
-            Trajectory: A sliding window of the episode.
-        """
-        of = of if isinstance(of, list) else [of]
-        of = [f[:-1] if f.endswith("s") else f for f in of]
-        if self.steps is None or len(self.steps) == 0:
-            msg = "Episode has no steps"
-            raise ValueError(msg)
 
     def __len__(self) -> int:
         """Get the number of steps in the episode.
@@ -830,7 +664,7 @@ class Episode(Sample):
             steps=steps,
             freq_hz=lerobot_dataset.fps,
         )
-    
+
     def window(self, steps: List[VisionMotorStep], current_n : int = 0, nforward: int = 1, nbackward: int = 1, pad_value: Any = None) -> Iterable[List[VisionMotorStep]]:
         """Get a sliding window of the episode.
 
@@ -854,7 +688,6 @@ class Episode(Sample):
                     window.insert(0, pad_value)
                 else:
                     window.append(pad_value)
-        
         yield window
 
     def log_scalar(self, name: str, value: float, step: int) -> None:
@@ -864,7 +697,6 @@ class Episode(Sample):
 
     def rerun(self, mode: Literal["local", "remote"], port=3389, ws_port=8888) -> "Episode":
         """Start a rerun server."""
-
         rr.init("rerun-mbodied-data", spawn=True)
         # rr.serve(open_browser=False, web_port=port, ws_port=ws_port)
 
@@ -879,7 +711,7 @@ class Episode(Sample):
         
         plot_colors = [(255, 0, 0), (0, 255, 0), (0, 0, 255), (255, 255, 0), (0, 255, 255), (255, 0, 255)]
 
-        for state, color in zip(states_to_log, plot_colors):
+        for state, color in zip(states_to_log, plot_colors, strict=False):
             print(f"Logging state {state}")
             rr.log(f"action/{state}", rr.SeriesLine(color=color, name=state), static=True)
         
@@ -964,7 +796,7 @@ class Episode(Sample):
             sys.exit()
         finally:
             self.close_view()
-        
+
 
     def close_view(self) -> None:
         if hasattr(self, "_rr_thread"):

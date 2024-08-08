@@ -71,7 +71,6 @@ from pathlib import Path
 from typing import Annotated, Any, Dict, Generator, List, Literal, Union, get_origin
 
 import numpy as np
-from rich import print_json
 import torch
 from datasets import Dataset, Features
 from gymnasium import spaces
@@ -358,7 +357,7 @@ class Sample(BaseModel):
         """Return the value of the attribute with the specified key or the default value if it does not exist."""
         try:
             return self[key]
-        except KeyError:
+        except Exception:
             return default
 
     def _dump(
@@ -455,45 +454,6 @@ class Sample(BaseModel):
             }
         return self.dump(exclude=exclude, recurse=True)
 
-    @staticmethod
-    def unflatten_from_schema(obj, schema) -> dict:
-        if isinstance(obj, ( np.ndarray, torch.Tensor)):
-            obj = obj.tolist()
-        elif isinstance(obj, dict | Sample):
-            # return unflatten_dict(obj, schema=schema)
-            obj = list(obj.values())
-        if schema is None:
-            raise ValueError("Schema is required for unflattening a non-dictionary object.")
-
-        def unflatten_recursive(schema_part, index=0):
-            if schema_part["type"] == "object":
-                result = {} if schema_part.get("title") != "Sample" else Sample()
-                for prop, prop_schema in schema_part["properties"].items():
-                    value, index = unflatten_recursive(prop_schema, index)
-                    value = Sample(**value) if prop_schema.get("title") == "Sample" else value
-                    result[prop] = value
-                # print(f"result: {result}")
-                if schema_part.get("title") == "Sample":
-                    return Sample(**result), index
-
-                return result, index
-            elif schema_part["type"] == "array":
-                items = []
-                if schema_part.get("shape"):
-                    array = obj[index : index + sum(schema_part["shape"])]
-                    if all(isinstance(i, list | tuple | np.ndarray | float | int) for i in array):
-                        result = np.array(array).reshape(schema_part["shape"])
-                        index += reduce(operator.mul, schema_part["shape"], 1)
-                        return result, index
-                for _ in range(schema_part.get("maxItems", len(obj) - index)):
-                    value, index = unflatten_recursive(schema_part["items"], index)
-                    items.append(value)
-                return items, index
-            else:  # Assuming it's a primitive type
-                return obj[index], index + 1
-
-        unflattened, index = unflatten_recursive(schema)
-        return unflattened
     @classmethod
     def unflatten(cls, one_d_array_or_dict, schema=None) -> "Sample":
         """Unflatten a one-dimensional array or dictionary into a Sample instance.
@@ -513,82 +473,11 @@ class Sample(BaseModel):
             >>> Sample.unflatten(flat_dict, sample.schema())
             Sample(x=1, y=2, z={'a': 3, 'b': 4}, extra_field=5)
         """
-
-        schema = schema or cls().schema()
-        return cls(**cls.unflatten_from_schema(one_d_array_or_dict, schema))
-        
-
-    # def rearrange(self, pattern: str, **kwargs) -> Any:
-    #     """Pack, unpack, flatten, select indices according to an einops-style pattern.
-
-    #     rearrange('(b s) [action state] -> b s [actions state]', s=32) will select the action and state keys
-    #      and pack them into batches of size 32.
-    #     """
-    #     # Parse the input and output patterns
-    #     input_pattern, output_pattern = pattern.split('->')
-    #     input_pattern = input_pattern.strip()
-    #     output_pattern = output_pattern.strip()
-
-    #     # Extract keys from square brackets
-    #     input_keys = re.findall(r'\[([^\]]+)\]', input_pattern)
-    #     output_keys = re.findall(r'\[([^\]]+)\]', output_pattern)
-
-    #     # Flatten the sample and select only the required keys
-    #     flattened = self.flatten(to="dict")
-    #     selected_data = {key: flattened[key] for key in input_keys[0].split() if key in flattened}
-
-    #     # Convert selected data to numpy arrays
-    #     np_data = {k: np.array(v) for k, v in selected_data.items()}
-
-    #     # Apply einops rearrange
-    #     rearranged_data = einops_rearrange(np_data, pattern, **kwargs)
-
-    #     if isinstance(rearranged_data, dict):
-    #         # If the output is a dictionary, directly assign it to the output Sample
-    #         for k, v in rearranged_data.items():
-    #             setattr(output_sample, k, v.tolist() if isinstance(v, np.ndarray) else v)
-    #     else:
-    #         # If the output is not a dictionary, we need to reconstruct it based on the output pattern
-    #         output_keys = output_keys[0].split() if output_keys else input_keys[0].split()
-    #         for i, key in enumerate(output_keys):
-    #             setattr(output_sample, key, rearranged_data[..., i].tolist())
-
-    #     return output_sample
-    @staticmethod
-    def _flatten_recursive(obj, exclude: None | set = None, non_numerical="allow", sep="."):
-        def _flatten(obj, prefix=""):
-            if isinstance(obj, np.ndarray | torch.Tensor):
-                obj = obj.tolist()
-            out = []
-            keys = []
-            if isinstance(obj, Sample | dict):
-                for k, v in obj.items():
-                    if k == exclude:
-                        continue
-                    new_key = f"{prefix}{k}" if prefix else k
-                    subkeys, subouts = _flatten(v, f"{new_key}{sep}")
-                    out.extend(subouts)
-                    keys.extend(subkeys)
-            elif isinstance(obj, list):
-                for i, v in enumerate(obj):
-                    subkeys, subouts = _flatten(v, f"{prefix}{i}{sep}")
-                    out.extend(subouts)
-                    keys.extend(subkeys)
-            else:
-                if non_numerical == "forbid" and not isinstance(obj, int | float | np.number):
-                    msg = f"Non-numerical value encountered: {obj}"
-                    raise TypeError(msg)
-                if non_numerical == "ignore" and not isinstance(obj, int | float | np.number):
-                    return [],[]
-                out.append(obj)
-                keys.append(prefix.rstrip(sep))
-            return keys, out
-
-        return _flatten(obj)
-
-    @staticmethod
-    def flatten_recursive(obj, exclude: None | set = None, non_numerical="allow", sep="."):
-        return Sample._flatten_recursive(obj, exclude=exclude, non_numerical=non_numerical, sep=sep)
+        try:
+            schema = schema or cls().schema()
+        except Exception as e:
+            schema = {}
+        return cls(**schema_utils.unflatten_from_schema(one_d_array_or_dict, schema, cls))
 
     def flatten(  # noqa
         self,
@@ -712,20 +601,6 @@ class Sample(BaseModel):
                 return np.array(flattened, dtype=object)
             if to in ["pt", "torch", "pytorch"]:
                 return torch.tensor(flattened, dtype=torch.float32)
-            else:
-                return flattened
-
-        from embdata.describe import full_paths, describe_keys
-
-        # Get the full paths of the selected keys. e.g. c-> a.b.*.c
-        full_path_keys = full_paths(self, include).values()
-        full_includes = list(full_path_keys) if include else []
-
-        exclude = set(describe_keys(self).values()) - set(full_includes)
-        flattened_keys, flattened = self.flatten_recursive(self, exclude=exclude, non_numerical=non_numerical, sep=sep)
-        def replace_ints_with_wildcard(s, sep="."):
-            pattern = rf"(?<=^{sep})\d+|(?<={sep})\d+(?={sep})|\d+(?={sep}|$)"
-            return re.sub(pattern, "*", s).rstrip(f"{sep}*").lstrip(f"{sep}*")
 
             return flattened
 
@@ -736,16 +611,41 @@ class Sample(BaseModel):
         for flattened_key, value in zip(flattened_keys, flattened, strict=False):
             for selected_key, full_selected_key in zip(include, full_includes, strict=False):
                 # e.g.: a.b.*.c was selected and a.b.0.c.d should be flattened to the c part of a row
-                if full_selected_key in flattened_key:
+                if full_selected_key in flattened_key and not any(
+                    ignore_key == flattened_key for ignore_key in full_excludes
+                ):
                     current_group[selected_key].append(value)
                     ninclude_processed[selected_key] += 1
 
             # All keys have been processed, add a new row.
-            if all(num_processed == ninclude_processed[include[0]] for num_processed in ninclude_processed.values())\
-                and all(len(processed_items) > 0 for processed_items in current_group.values()):
-                    # Ensure that we limit to two dimensions.
-                    current_group = {k: v[0] if len(v) == 1 else v for k, v in current_group.items() if k not in exclude}
-                    flattened_key, flattened = self.flatten_recursive(current_group, exclude=exclude, non_numerical=non_numerical, sep=sep)
+            if all(
+                num_processed == ninclude_processed[include[0]] for num_processed in ninclude_processed.values()
+            ) and all(len(processed_items) > 0 for processed_items in current_group.values()):
+                # Ensure that we limit to two dimensions.
+                logger.debug("Entering with current group: %s", current_group)
+                current_group = {k: v[0] if len(v) == 1 else v for k, v in current_group.items() if k not in exclude}
+                if to in ["dict", "sample"]:
+                    # Short circuit to avoid unnecessary processing.
+                    result.append(current_group)
+                    logger.debug("Flattened for dict: %s", result)
+                elif to in ["list"]:
+                    flat_key, flattened = iter_utils.flatten_recursive(
+                        current_group,
+                        non_numerical=non_numerical,
+                        sep=sep,
+                        include=include,
+                    )
+
+                    logger.debug("Flattened for list: %s", flattened)
+                    result.extend(flattened)
+                else:
+                    logger.debug("Flattened for other: %s", result)
+                    flat_key, flattened = iter_utils.flatten_recursive(
+                        current_group,
+                        non_numerical=non_numerical,
+                        sep=sep,
+                    )
+                    logger.debug("Flattened: %s", flattened)
                     match to:
                         case "dicts":
                             result.append(dict(zip(flat_key, flattened, strict=False)))
@@ -767,15 +667,6 @@ class Sample(BaseModel):
             return torch.tensor(flattened, dtype=float)
         return flattened
 
-    def squeeze(self):
-        for k, v in self:
-            if isinstance(v, Sample):
-                setattr(self, k, v.squeeze())
-            if isinstance(v, list) and len(v) == 1:
-                setattr(self, k, v[0])
-            if isinstance(v, dict) and len(v) == 1:
-                setattr(self, k, next(iter(v.values())))
-        return self
 
     # def setdefault(self, key: str, default: Any, nest=True) -> Any:
     #     """Set the default value for the attribute with the specified key."""
@@ -856,71 +747,14 @@ class Sample(BaseModel):
         schema = self._extra.model_json_schema() if hasattr(self, "_extra") else self.model_json_schema()
         if include == "all":
             return schema
-        def resolve_refs(schema: dict) -> dict:
-            def _resolve(obj, defs=None):
-                if isinstance(obj, dict):
-                    if obj and "$ref" in obj and defs is not None:
-                        ref_key = obj["$ref"].split("/")[-1]
-                        resolved = defs[ref_key]
-                        resolved.update({k: _resolve(v) for k, v in obj.items() if k != "$ref" and v is not None})
-                        return _resolve(resolved, defs)
-                    if "items" in obj:
-                        obj["items"] = _resolve(obj["items"], defs)
-                    if "properties" in obj:
-                        obj["properties"] = {
-                            k: _resolve(v, defs) for k, v in obj["properties"].items() if v is not None
-                        }
-                    if "allOf" in obj:
-                        all_of_resolved = {}
-                        for item in obj["allOf"]:
-                            resolved_item = _resolve(item, defs)
-                            all_of_resolved.update(resolved_item)
-                        obj.pop("allOf")
-                        obj.update(all_of_resolved)
 
-
-                    fallback = None
-                    if "anyOf" in obj:
-                        first_non_null = None
-                        for item in obj["anyOf"]:
-                            if "$ref" in item:
-                                item = defs[item["$ref"].split("/")[-1]]
-                                if "type" in item and item["type"] != "null":
-                                    first_non_null = item
-                                    break
-                            if "type" in item and item["type"] == "null":
-                                if item["type"] == "array" and not include == "tensor":
-                                    fallback = item
-                                    continue
-                                else:
-                                    break
-                            first_non_null = item
-                        first_non_null = first_non_null or fallback
-                        if first_non_null is not None:
-                            obj.pop("anyOf")
-                            obj.update(_resolve(first_non_null, defs))
-                            return obj
-
-                    return {k: _resolve(v, defs) for k, v in obj.items() if v is not None}
-                return obj
-
-            schema_copy = copy.deepcopy(schema)
-            defs = schema_copy.get("$defs", {})
-            schema = _resolve(schema_copy, defs)
-            schema.pop("$defs", None)
-            return schema
-
-        schema = resolve_refs(schema)
+        schema = schema_utils.resolve_refs(schema)
 
         def simplify(schema, obj, title=""):
             title = title or schema.get("title", "")
             if isinstance(obj, dict):
-                title = title or obj.get("title", "")
                 obj = Sample(**obj)
                 _include = "simple"
-            elif isinstance(obj, Sample):
-                _include = include
-                # title = "Sample"
             elif hasattr(obj, "_extra"):
                 title = obj.__class__.__name__
                 _include = include
@@ -982,7 +816,6 @@ class Sample(BaseModel):
                     feat_dict[k] = [to_features_dict(v[0])]
             else:
                 feat_dict[k] = to_features_dict(v)
-                
         return feat_dict
 
     def to(self, container: Any, **kwargs) -> Any:

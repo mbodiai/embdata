@@ -42,10 +42,8 @@ from pydantic import (
     AnyUrl,
     Base64Str,
     FilePath,
-    InstanceOf,
+    PrivateAttr,
     computed_field,
-    model_serializer,
-    model_validator,
 )
 from sklearn.cluster import KMeans
 from sklearn.linear_model import RANSACRegressor
@@ -56,22 +54,39 @@ from typing_extensions import Literal
 from embdata.ndarray import NumpyArray
 from embdata.sense.image import Image
 
-from typing import Any, ClassVar, Dict, List, SupportsBytes, Tuple
-
 SupportsImage = Union[np.ndarray, PILImage, Base64Str, AnyUrl, FilePath]  # noqa: UP007
 
-DepthArrayLike = NumpyArray[1,Any, Any, np.uint16] | NumpyArray[Any, Any, np.uint16]
+DepthArrayLike = NumpyArray[1, Any, Any, np.uint16] | NumpyArray[Any, Any, np.uint16]
+
 class Depth(Image):
-    mode: Literal["RGB", "RGBA", "L", "P", "CMYK", "YCbCr", "I", "F"] = "I"
-    def __init__( # noqa
+    """A class for representing depth images and points."""
+    DEFAULT_MODE = "I"
+    mode: Literal["RGB", "RGBA", "L", "P", "CMYK", "YCbCr", "I", "F"] = DEFAULT_MODE
+    points: NumpyArray[Any, 3,  np.float32] | None = None
+    encoding: Literal["png"] = "png"
+    _rgb: NumpyArray[Any, Any, 3, np.uint8] | None = PrivateAttr(default=None)
+
+    @computed_field(return_type=DepthArrayLike)
+    @cached_property
+    def array(self) -> DepthArrayLike:
+        """The image represented as a NumPy array."""
+        return np.array(self.pil)
+
+    @computed_field(return_type=NumpyArray[Any,Any,3,np.uint8])
+    @cached_property
+    def rgb(self) -> NumpyArray[Any,Any,3,np.uint8]:
+        """The rgb image represented as a NumPy array."""
+        return self._rgb
+
+    def __init__(  # noqa
         self,
-        arg: SupportsImage | None = None, # type: ignore
+        arg: SupportsImage | None = None,  # type: ignore
         path: str | None = None,
         array: np.ndarray | None = None,
         base64: Base64Str | None = None,
-        encoding: str = "jpeg",
+        encoding: str = "png",
         size: Tuple[int, ...] | None = None,
-        bytes: SupportsBytes | None = None, # noqa
+        bytes: SupportsBytes | None = None,  # noqa
         mode: Literal["RGB", "RGBA", "L", "P", "CMYK", "YCbCr", "I", "F"] | None = "I",
         **kwargs,
     ):
@@ -90,33 +105,42 @@ class Depth(Image):
             mode (Optional[str], optional): The mode to use for the image. Defaults to 'RGB'.
             **kwargs: Additional keyword arguments.
         """
-        kwargs["encoding"] = encoding or "jpeg"
+        kwargs["encoding"] = encoding or "png"
         kwargs["path"] = path
-        kwargs["size"] = size[:2] if isinstance(size, Tuple) else size
+        kwargs["size"] = size[:2] if isinstance(size, Tuple) else size if size is not None else (224,224)
         kwargs["mode"] = mode
         kwargs["array"] = array
         kwargs["base64"] = base64
         kwargs["bytes"] = bytes
         if isinstance(arg, Image):
             kwargs.update(arg.model_dump())
-            arg = None
+            rgb = arg.array
+            kwargs["rgb"] = rgb
+            kwargs["pil"] = arg.pil.convert("I")
+        elif isinstance(arg, np.ndarray) and arg.ndim == 3 and arg.shape[2] == 3:
+            rgb = arg.astype(np.uint8)
+        else:
+            rgb = None
+        if array is not None:
+            rgb = array if array.ndim == 3 else array[..., :3]
         if arg is None:
             for k, v in kwargs.items():
                 if k in self.SOURCE_TYPES and v is not None:
                     arg = kwargs.pop(k)
                     break
             if arg is None and kwargs.get("size") is not None:
-                arg = np.zeros(kwargs["size"] + (3,), dtype=np.uint8)
-        kwargs = Image.dispatch_arg(arg, **kwargs)
+                arg = np.zeros(kwargs["size"] + (3,), dtype=np.uint16)
+        if arg is None:
+            arg = np.zeros((224, 224, 3), dtype=np.uint16)
         super().__init__(**kwargs)
         self.array = np.array(self.pil, dtype=np.uint16)
         self._rgb = rgb
 
-    @computed_field(return_type=DepthArrayLike)
-    @cached_property
-    def array(self) -> DepthArrayLike:
-        """The image represented as a NumPy array."""
-        return np.array(self.pil)
+    @classmethod
+    def from_pil(cls, pil: PILImage, **kwargs) -> "Depth":
+        """Create an image from a PIL image."""
+        return cls(pil=pil, **kwargs)
+
     def cluster_points(self, n_clusters: int = 3) -> List[int]:
         """Cluster the points using KMeans.
 

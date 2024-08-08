@@ -348,7 +348,6 @@ class Pose6D(Coordinate):
         if "position" in data and "orientation" in data:
             pose = self.from_position_orientation(data["position"], data["orientation"])
             data = pose.model_dump()
-        # print(f"Pose6D data: {data}")
         super().__init__(**data)
 
     def to(self, container_or_unit=None, sequence="zyx", unit="m", angular_unit="rad", **kwargs) -> Any:
@@ -490,7 +489,3 @@ if __name__ == "__main__":
     import doctest
 
     doctest.testmod(verbose=True)
-
-    point = Coordinate(x=1, y=2)
-
-    print(point)
