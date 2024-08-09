@@ -7,7 +7,7 @@ The `Coordinate` class in the `embdata` package allows for creating dynamic coor
 You can create coordinate objects with different attributes on the fly:
 
 ```python
-from embdata.geometry import Coordinate
+from embdata.coordinate import Coordinate
 
 # Create a 2D point
 point_2d = Coordinate(x=1, y=2)
@@ -36,7 +36,7 @@ point_2d = Coordinate(x=custom_coord.longitude, y=custom_coord.latitude)
 The `Coordinate` class supports bound checking for its attributes using `CoordinateField`:
 
 ```python
-from embdata.geometry import Coordinate, CoordinateField
+from embdata.coordinate import Coordinate, CoordinateField
 
 class BoundedCoordinate(Coordinate):
     x: float = CoordinateField(bounds=(-10, 10))

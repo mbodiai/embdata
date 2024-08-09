@@ -69,7 +69,7 @@ Hover with intellisense or view the table of contents to see documentation for e
 ### Episode
 ```python
 from embdata import Episode, TimeStep, ImageTask, Image, Motion, VisionMotorEpisode
-from embdata.geometry import Pose6D
+from embdata.coordinate import Pose6D
 from embdata.motion.control import MobileSingleHandControl, HandControl, HeadControl
 from datasets import get_dataset_config_info, get_dataset_config_names, load_dataset
 from embdata.describe import describe
@@ -113,7 +113,7 @@ episode.show(mode="local")
 ### Geometry
 
 ```python
-from embdata.geometry import Pose6D
+from embdata.coordinate import Pose6D
 import numpy as np
 
 # Create a 6D pose
@@ -227,7 +227,7 @@ The `MobileSingleHandControl` class represents control for a robot that can move
 
 **Usage Example**
 ```python
-from embdata.geometry import PlanarPose
+from embdata.coordinate import PlanarPose
 from embdata.motion.control import MobileSingleHandControl, HandControl, HeadControl
 
 # Create a MobileSingleHandControl instance
@@ -499,7 +499,7 @@ The `Pose6D` class represents absolute coordinates for a 6D pose in 3D space, in
 
 **Usage Example**
 ```python
-from embdata.geometry import Pose6D
+from embdata.coordinate import Pose6D
 import math
 
 # Create a Pose3D instance
@@ -546,7 +546,7 @@ The `HandControl` class represents an action for a 7D space, including the pose 
 
 **Usage Example**
 ```python
-from embdata.geometry import Pose
+from embdata.coordinate import Pose
 from embdata.motion.control import HandControl
 
 # Create a HandControl instance
@@ -1013,7 +1013,7 @@ The `HandControl` class represents an action for a 7D space, including the pose 
 #**Usage Example**
 
 ```python
-from embdata.geometry import Pose
+from embdata.coordinate import Pose
 from embdata.motion.control import HandControl
 
 # Create a HandControl instance

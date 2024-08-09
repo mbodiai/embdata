@@ -9,7 +9,7 @@ This document provides examples of how to use the `embdata` library for various 
 
 ```python
 from embdata.sample import Sample
-from embdata.geometry import Pose6D
+from embdata.coordinate import Pose6D
 import numpy as np
 
 # Create a Sample object
@@ -66,7 +66,7 @@ print(upsampled_traj)
 <summary><strong>Using Geometric Transformations</strong></summary>
 
 ```python
-from embdata.geometry import Pose6D
+from embdata.coordinate import Pose6D
 import numpy as np
 
 # Create a Pose6D object

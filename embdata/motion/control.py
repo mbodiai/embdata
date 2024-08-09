@@ -30,7 +30,7 @@ Example:
 
 Example:
     from embdata.motion import Motion, AbsoluteMotionField, MotionField, MotionType, VelocityMotionField
-    from embdata.geometry import PlanarPose, Pose
+    from embdata.coordinate import PlanarPose, Pose
 
     class HandControl(Motion):
         pose: Pose = RelativeMotionField(default_factory=Pose, description="Pose of the robot hand.", motion_type="relative")
@@ -48,7 +48,7 @@ from typing import Any
 import numpy as np
 from pydantic import ConfigDict
 
-from embdata.geometry import PlanarPose, Pose
+from embdata.coordinate import PlanarPose, Pose
 from embdata.motion import AbsoluteMotionField, Motion, MotionField, RelativeMotionField
 from embdata.ndarray import NumpyArray
 
@@ -91,7 +91,7 @@ class HandControl(Motion):
 
     Example:
         ```python
-        from embdata.geometry import Pose
+        from embdata.coordinate import Pose
         from embdata.motion.control import HandControl
 
         # Create a HandControl instance

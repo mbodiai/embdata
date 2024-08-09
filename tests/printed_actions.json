@@ -64,7 +64,7 @@ Schema: {'$defs': {'Pose6D': {'additionalProperties': False, 'description': 'Abs
                 }
             }, 'title': 'Pose6D', 'type': 'object'
         }
-    }, 'additionalProperties': False, 'description': 'Action for a 7D space representing x, y, z, roll, pitch, yaw, and openness of the hand.\n\nThis class represents the control for a robot hand, including its pose and grasp state.\n\nAttributes:\n    pose (Pose): The pose of the robot hand, including position and orientation.\n    grasp (float): The openness of the robot hand, ranging from 0 (closed) to 1 (open).\n\nExample:\n    ```python\n    from embdata.geometry import Pose\n    from embdata.motion.control import HandControl\n\n    # Create a HandControl instance\n    hand_control = HandControl(pose=Pose(position=[
+    }, 'additionalProperties': False, 'description': 'Action for a 7D space representing x, y, z, roll, pitch, yaw, and openness of the hand.\n\nThis class represents the control for a robot hand, including its pose and grasp state.\n\nAttributes:\n    pose (Pose): The pose of the robot hand, including position and orientation.\n    grasp (float): The openness of the robot hand, ranging from 0 (closed) to 1 (open).\n\nExample:\n    ```python\n    from embdata.coordinate import Pose\n    from embdata.motion.control import HandControl\n\n    # Create a HandControl instance\n    hand_control = HandControl(pose=Pose(position=[
         0.1,
         0.2,
         0.3

@@ -109,39 +109,94 @@ def stats(array: np.ndarray, axis=0, bias=True, sample_type: type[Sample] | None
 
 def plot_trajectory(
     trajectory: np.ndarray,
-    labels: list[str] | None = None,
-    time_step: float = 0.1,
+    labels: List[str] | None = None,
     backend: Literal["matplotlib", "plotext"] = "plotext",
+    time_step: float = 0.1,
 ) -> None:
-    """Plot the trajectory.
+    """Plot the trajectory for arbitrary action spaces.
 
     Args:
       trajectory (np.ndarray): The trajectory array.
       labels (list[str], optional): The labels for each dimension of the trajectory. Defaults to None.
+      backend (Literal["matplotlib", "plotext"], optional): The plotting backend to use. Defaults to "plotext".
       time_step (float, optional): The time step between each step in the trajectory. Defaults to 0.1.
-      show (bool, optional): Whether to display the plot. Defaults to True.
 
     Returns:
       None
     """
     plt = import_plotting_backend(backend)
+    plt.clf()
+    plt.subplots(1, 2)
+    plt.subplot(1, 1).plotsize(plt.tw() // 2, None)
+    plt.subplot(1, 1).subplots(3, 1)
+    plt.subplot(1, 2).subplots(2, 1)
+    plt.subplot(1, 1).ticks_style('bold')
 
-    num_steps = trajectory.shape[0]
-    num_plots = trajectory.shape[1]
-    if labels is None and num_plots == 6:
-        labels = ["X", "Y", "Z", "Roll", "Pitch", "Yaw"]
-    elif labels is None and num_plots == 7:
-        labels = ["X", "Y", "Z", "Roll", "Pitch", "Yaw", "Grasp"]
-    elif labels is None:
-        labels = [f"Dimension {i}" for i in range(num_plots)]
-    fig = plt.subplots(num_plots, 1)
+    n_dims = trajectory.shape[1]
+    print(f"labels: {labels}")  # noqa
+    if labels is None or len(labels) != n_dims:
+        labels = [f"Dim{i}" for i in range(n_dims)]
 
-    for i in range(num_plots):
-        ax = fig._get_subplot(i, 0)
-        ax.plot(np.arange(num_steps) * time_step, trajectory[:, i])
-        ax.ylabel(labels[i])
-        ax.xlabel("Time (s)")
-    return fig
+    time = np.arange(len(trajectory)) * time_step
+
+    # Left column, first plot: 3D-like plot of first three dimensions
+    plt.subplot(1, 1).subplot(1, 1)
+    plt.theme('fhd')
+    dim_count = min(3, n_dims)
+    for i in range(dim_count):
+        for j in range(i+1, dim_count):
+            plt.scatter(trajectory[:,i], trajectory[:,j], label=f"{labels[i]}-{labels[j]}")
+    plt.title("3D Trajectory Projections")
+    plt.xlabel(labels[0])
+    plt.ylabel(labels[1])
+
+    # Left column, second plot: Next three dimensions (if available)
+    plt.subplot(1, 1).subplot(2, 1)
+    plt.theme('fhd')
+    dim_start = 3
+    dim_end = min(6, n_dims)
+    if dim_end > dim_start:
+        for i in range(dim_start, dim_end):
+            plt.plot(time, trajectory[:,i], label=labels[i])
+        plt.title("Additional Dimensions")
+        plt.xlabel("Time")
+        plt.ylabel("Value")
+    else:
+        plt.title("No additional dimensions to plot")
+
+    # Left column, third plot: Histogram of the third dimension (if available)
+    plt.subplot(1, 1).subplot(3, 1)
+    plt.theme('fhd')
+    if n_dims > 2:
+        plt.hist(trajectory[:,2], bins=18)
+        plt.title(f'Histogram of {labels[2]}')
+        plt.xlabel(labels[2])
+        plt.ylabel("Frequency")
+    else:
+        plt.title('Histogram (Not enough dimensions)')
+
+    # Right column, first plot: First two dimensions over time
+    plt.subplot(1, 2).subplot(1, 1)
+    plt.theme('fhd')
+    plt.title('First Two Dimensions Over Time')
+    for i in range(min(2, n_dims)):
+        plt.plot(time, trajectory[:,i], label=f"{labels[i]} trajectory")
+    plt.xlabel("Time")
+    plt.ylabel("Value")
+
+    # Right column, second plot: Last dimension (if available)
+    plt.subplot(1, 2).subplot(2, 1)
+    plt.theme('fhd')
+    plt.plotsize(2 * plt.tw() // 3, plt.th() // 2)
+    if n_dims > 6:
+        plt.plot(time, trajectory[:,-1])
+        plt.title(f"{labels[-1]} Over Time")
+        plt.xlabel("Time")
+        plt.ylabel(labels[-1])
+    else:
+        plt.title("Not enough dimensions for additional plot")
+
+    return plt
 
 
 @dataclass
@@ -189,10 +244,10 @@ class Trajectory:
     )
     freq_hz: float | None = Field(default=None, description="The frequency of the trajectory in Hz")
     keys: List[str] | str | Tuple | None = Field(default=None, description="The labels for each dimension")
-    angular_dims: List[int] | List[str] | None = Field(default=None, description="The dimensions that are angular")
-    time_idxs: NumpyArray | None | List = Field(
-        default=None, description="The time index of each step in the trajectory. Calculated if not provided."
+    timestamps: NumpyArray | None | List = Field(
+        default=None, description="The timestamp of each step in the trajectory. Calculated if not provided."
     )
+    angular_dims: List[int] | List[str] | None = Field(default=None, description="The dimensions that are angular")
     _episode: Any | None = Field(default=None, description="The episode that the trajectory is part of.")
     _fig: Any | None = None
     _stats: Stats | None = None
@@ -215,11 +270,6 @@ class Trajectory:
     def __eq__(self, other: "Trajectory") -> bool:
         return np.allclose(self.array, other.array)
 
-    def __init__(self, steps, freq_hz, time_idxs=None, keys=None, angular_dims=None, episode=None, **kwargs):
-        kwargs["_episode"] = episode
-        super().__init__(
-            steps=steps, freq_hz=freq_hz, time_idxs=time_idxs, keys=keys, angular_dims=angular_dims, **kwargs
-        )
 
     @property
     def array(self) -> np.ndarray:
@@ -256,6 +306,7 @@ class Trajectory:
           Trajectory: The original trajectory.
 
         """
+        labels = labels or self.keys
         self._fig = plot_trajectory(self.array, labels, time_step=1 / self.freq_hz, backend=backend)
         return self
 
@@ -271,7 +322,7 @@ class Trajectory:
         return Trajectory(
             [fn(step) for step in self.steps],
             self.freq_hz,
-            self.time_idxs,
+            self.timestamps,
             self.keys,
             self.angular_dims,
             episode=self._episode,
@@ -291,6 +342,17 @@ class Trajectory:
         return iter(self.steps)
 
     def __post_init__(self, *args, **kwargs):
+        if args:
+            self.steps = args[0]
+        if len(args) > 1:
+            self.freq_hz = args[1]
+        if len(args) > 3:
+            self.keys = args[3]
+        if len(args) > 2:
+            self.timestamps = args[2]
+        if len(args) > 4:
+            self.angular_dims = args[4]
+        
         if "episode" in kwargs:
             self._episode = kwargs["episode"]
         elif "_episode" in kwargs:
@@ -310,8 +372,8 @@ class Trajectory:
             self.steps = [[step] for step in self.steps]
         if self.keys is None:
             self.keys = [f"Dimension {i}" for i in range(len(self.steps[0]))]
-        if self.time_idxs is None:
-            self.time_idxs = np.arange(0, len(self.array)) / self.freq_hz
+        if self.timestamps is None:
+            self.timestamps = np.arange(0, len(self.array)) / self.freq_hz
 
         super(Trajectory).__init__(*args, **kwargs)
 
@@ -321,16 +383,19 @@ class Trajectory:
         Returns:
           Trajectory: The converted relative trajectory with one less step.
         """
-        t = Trajectory(
+        return Trajectory(
             np.diff(self.array, n=-step_difference, axis=0),
             self.freq_hz,
-            self.time_idxs[1:],
             self.keys,
+            self.timestamps[1:],
             self.angular_dims,
+            _sample_cls=self._sample_cls,
+            _sample_keys=self._sample_keys,
+            _episode=self._episode,
+            _map_history=self._map_history,
+            _map_history_kwargs=self._map_history_kwargs,
         )
-        t._map_history.append(partial(self.absolute, initial_state=self.array[0]))  # noqa: SLF001
-        t._map_history_kwargs.append({"initial_state": self.array[0]})  # noqa: SLF001
-        return t
+
 
     def absolute(self, initial_state: None | np.ndarray = None) -> "Trajectory":
         """Convert trajectory of relative actions to absolute actions.
@@ -354,8 +419,8 @@ class Trajectory:
         return Trajectory(
             np.cumsum(np.concatenate([np.array([initial_state]), self.array], axis=0), axis=0),
             self.freq_hz,
-            None,
             self.keys,
+            None,
             self.angular_dims,
             episode=self._episode,
             _map_history=self._map_history,
@@ -419,6 +484,10 @@ class Trajectory:
             resampled_array = np.zeros((len(resampled_time_idxs), num_dims))
 
             for i in range(num_dims):
+                print(f"len(self.array): {len(self.array)}")  # noqa
+                print(f"len(self.array[:, i]): {len(self.array[:, i])}")  # noqa
+                print(f"len(np.arange(0, len(self.array)) / self.freq_hz): {len(np.arange(0, len(self.array)) / self.freq_hz)}")  # noqa
+                print(self.array.shape)  # noqa
                 spline = interp1d(
                     np.arange(0, len(self.array)) / self.freq_hz,
                     self.array[:, i],
@@ -441,8 +510,8 @@ class Trajectory:
         return Trajectory(
             resampled_array,
             target_hz,
-            resampled_time_idxs,
             self.keys,
+            resampled_time_idxs,
             self.angular_dims,
             _sample_cls=self._sample_cls,
             _sample_keys=self._sample_keys,
@@ -488,73 +557,9 @@ class Trajectory:
 
         keys = self.keys or [f"Dimension {i}" for i in range(x.shape[1])]
         fig: _figure_class  = plt.subplots(x.shape[1], 1)
-        """
-        def title(self, title = None):
-        self.monitor.set_title(title) if self._no_plots else [[self._get_subplot(row, col).title(title) for col in self._Cols] for row in self._Rows]
-
-    def xlabel(self, label = None, xside = None):
-        self.monitor.set_xlabel(label = label, xside = xside) if self._no_plots else [[self._get_subplot(row, col).xlabel(label = label, xside = xside) for col in self._Cols] for row in self._Rows]
-        
-    def ylabel(self, label = None, yside = None):
-        self.monitor.set_ylabel(label = label, yside = yside) if self._no_plots else [[self._get_subplot(row, col).ylabel(label = label, yside = yside) for col in self._Cols] for row in self._Rows]
-
-    def xlim(self, left = None, right = None, xside = None):
-        self.monitor.set_xlim(left = left, right = right, xside = xside) if self._no_plots else [[self._get_subplot(row, col).xlim(left = left, right = right, xside = xside) for col in self._Cols] for row in self._Rows]
-
-    def ylim(self, lower = None, upper = None, yside = None):
-        self.monitor.set_ylim(lower = lower, upper = upper, yside = yside) if self._no_plots else [[self._get_subplot(row, col).ylim(lower = lower, upper = upper, yside = yside) for col in self._Cols] for row in self._Rows]
-        
-    def xscale(self, scale = None, xside = None):
-        self.monitor.set_xscale(scale = scale, xside = xside) if self._no_plots else [[self._get_subplot(row, col).xscale(scale = scale, xside = xside) for col in self._Cols] for row in self._Rows]
-        
-    def yscale(self, scale = None, yside = None):
-        self.monitor.set_yscale(scale = scale, yside = yside) if self._no_plots else [[self._get_subplot(row, col).yscale(scale = scale, yside = yside) for col in self._Cols] for row in self._Rows]
-        
-    def xticks(self, ticks = None, labels = None, xside = None):
-        self.monitor.set_xticks(ticks = ticks, labels = labels, xside = xside) if self._no_plots else [[self._get_subplot(row, col).xticks(ticks = ticks, labels = labels, xside = xside) for col in self._Cols] for row in self._Rows]
-
-    def yticks(self, ticks = None, labels = None, yside = None):
-        self.monitor.set_yticks(ticks = ticks, labels = labels, yside = yside) if self._no_plots else [[self._get_subplot(row, col).yticks(ticks = ticks, labels = labels, yside = yside) for col in self._Cols] for row in self._Rows]
-
-    def xfrequency(self, frequency = None, xside = None):
-        self.monitor.set_xfrequency(frequency = frequency, xside = xside) if self._no_plots else [[self._get_subplot(row, col).xfrequency(frequency = frequency, xside = xside) for col in self._Cols] for row in self._Rows]
-
-    def yfrequency(self, frequency = None, yside = None):
-        self.monitor.set_yfrequency(frequency = frequency, yside = yside) if self._no_plots else [[self._get_subplot(row, col).yfrequency(frequency = frequency, yside = yside) for col in self._Cols] for row in self._Rows]
-
-    def xreverse(self, reverse = None, xside = None):
-        self.monitor.set_xreverse(reverse = reverse, xside = xside) if self._no_plots else [[self._get_subplot(row, col).xreverse(reverse = reverse, xside = xside) for col in self._Cols] for row in self._Rows]
-
-    def yreverse(self, reverse = None, yside = None):
-        self.monitor.set_yreverse(reverse = reverse, yside = yside) if self._no_plots else [[self._get_subplot(row, col).yreverse(reverse = reverse, yside = yside) for col in self._Cols] for row in self._Rows]
-
-    def xaxes(self, lower = None, upper = None):
-        self.monitor.set_xaxes(lower = lower, upper = upper) if self._no_plots else [[self._get_subplot(row, col).xaxes(lower = lower, upper = upper) for col in self._Cols] for row in self._Rows]
-
-    def yaxes(self, left = None, right = None):
-        self.monitor.set_yaxes(left = left, right = right) if self._no_plots else [[self._get_subplot(row, col).yaxes(left = left, right = right) for col in self._Cols] for row in self._Rows]
-
-    def frame(self, frame = None):
-        self.monitor.set_frame(frame = frame) if self._no_plots else [[self._get_subplot(row, col).frame(frame = frame) for col in self._Cols] for row in self._Rows]
-        
-    def grid(self, horizontal = None, vertical = None):
-        self.monitor.set_grid(horizontal = horizontal, vertical = vertical) if self._no_plots else [[self._get_subplot(row, col).grid(horizontal = horizontal, vertical = vertical) for col in self._Cols] for row in self._Rows]
-
-    def canvas_color(self, color = None):
-        self.monitor.set_canvas_color(color) if self._no_plots else [[self._get_subplot(row, col).canvas_color(color) for col in self._Cols] for row in self._Rows]
-
-    def axes_color(self, color = None):
-        self.monitor.set_axes_color(color) if self._no_plots else [[self._get_subplot(row, col).axes_color(color) for col in self._Cols] for row in self._Rows]
-
-    def ticks_color(self, color = None):
-        self.monitor.set_ticks_color(color) if self._no_plots else [[self._get_subplot(row, col).ticks_color(color) for col in self._Cols] for row in self._Rows]
-        
-    def ticks_style(self, style = None):
-        self.monitor.set_ticks_style(style) if self._no_plots else [[self._get_subplot(row, col).ticks_style(style) for col in self._Cols] for row in self._Rows]
-        
-"""
+        fig.theme("fhd")
         for i in range(x.shape[1]):
-            ax = fig._get_subplot(i, 0)
+            ax = fig.subplot(i, 0)
             fft_vals = np.fft.fft(x[:, i])
             magnitude = 2.0 / N * np.abs(fft_vals[0 : N // 2])
             ax.plot(freqs, magnitude)
@@ -569,6 +574,7 @@ class Trajectory:
         self._fig = fig
         return self
 
+    
     def frequencies_nd(self, backend: Literal["matplotlib", "plotext"] = "plotext") -> "Trajectory":
         """Plot the nd frequencies of the trajectory.
 
@@ -617,7 +623,7 @@ class Trajectory:
         fft[np.abs(frequencies) > cutoff_freq] = 0
         filtered_trajectory = fftpack.ifft(fft, axis=0)
 
-        return Trajectory(filtered_trajectory, self.freq_hz, self.time_idxs)
+        return Trajectory(filtered_trajectory, self.freq_hz, self.timestamps)
 
     def spectrogram(self, backend: Literal["matplotlib", "plotext"] = "plotext") -> "Trajectory":
         """Plot the spectrogram of the trajectory.
@@ -629,10 +635,13 @@ class Trajectory:
         x = self.array
         fs = self.freq_hz
         f, t, Sxx = spectrogram(x, fs)
-        plt.pcolormesh(t, f, Sxx, shading="gouraud")
-        plt.ylabel("Frequency [Hz]")
-        plt.xlabel("Time [sec]")
-        self._fig = plt.gcf()
+        plt: _figure_class = plt.subplots(1, 1)
+        plt.matrix_plot(Sxx)
+        plt.xlabel("Time")
+        plt.ylabel("Frequency")
+        plt.title("Spectrogram")
+        plt.xticks(t)
+        plt.yticks(f)
 
     def q01(self) -> float:
         return np.percentile(self.array, 1, axis=0)
@@ -707,6 +716,79 @@ class Trajectory:
     #             f"Operation {operation} failed with kwargs {kwargs}. Signature is {inspect.signature(operation)}"
     #         ) from e
 
+    def pca(self, whiten=False) -> "Trajectory":
+        """Apply PCA normalization to the trajectory.
+
+        Returns:
+          Trajectory: The PCA-normalized trajectory.
+        """
+        pca: decomposition.PCA = decomposition.PCA(n_components=self.array.shape[1], whiten=whiten)
+        self._map_history.append(partial(self.un_pca))
+        self._map_history_kwargs.append(
+            {
+                "pca_model": pca,
+            }
+        )
+        return Trajectory(
+            pca.fit_transform(self.array),
+            self.freq_hz,
+            self.timestamps,
+            self.keys,
+            self.angular_dims,
+        )
+    
+    def un_pca(self, pca_model = None) -> "Trajectory":
+        """Reverse PCA normalization on the trajectory.
+
+        Returns:
+          Trajectory: The original trajectory before PCA normalization.
+        """
+        if pca_model is None:
+            pca_model: decomposition.PCA | None = self._map_history_kwargs.pop().get("pca_model")
+            if pca_model is None:
+                raise ValueError("No PCA model found in history")
+            self._map_history.pop()
+        original_array = pca_model.inverse_transform(self.array)
+        return Trajectory(
+            original_array,
+            self.freq_hz,
+            self.keys,
+            self.timestamps,
+            self.angular_dims,
+            _sample_cls=self._sample_cls,
+            _sample_keys=self._sample_keys,
+            _episode=self._episode,
+            _map_history=self._map_history,
+            _map_history_kwargs=self._map_history_kwargs
+        )
+
+    def standardize(self) -> "Trajectory":
+        """Apply standard normalization to the trajectory.
+
+        Returns:
+          Trajectory: The standardized trajectory.
+        """
+        mean = np.mean(self.array, axis=0)
+        std = np.std(self.array, axis=0)
+        self._map_history.append(partial(self.unstandardize))
+        self._map_history_kwargs.append(
+            {
+                "mean": mean,
+                "std": std,
+            }
+        )
+        return Trajectory((self.array - mean) / std, self.freq_hz, self.keys, self.timestamps, self.angular_dims,
+                            _sample_cls=self._sample_cls, _sample_keys=self._sample_keys, _episode=self._episode, 
+                            _map_history=self._map_history, _map_history_kwargs=self._map_history_kwargs)
+
+        
+    def unstandardize(self, mean: np.ndarray, std: np.ndarray) -> "Trajectory":
+        array = (self.array * std) + mean
+        steps = [self._sample_cls(step) for step in array] if self._sample_cls is not None else array
+        return Trajectory(steps, self.freq_hz, self.timestamps, self.keys, self.angular_dims,
+                            _sample_cls=self._sample_cls, _sample_keys=self._sample_keys, _episode=self._episode, 
+                            _map_history=self._map_history, _map_history_kwargs=self._map_history_kwargs)
+
     def minmax(self, min: float = 0, max: float = 1) -> "Trajectory":
         """Apply min-max normalization to the trajectory.
 
@@ -719,38 +801,25 @@ class Trajectory:
         """
         min_vals = np.min(self.array, axis=0)
         max_vals = np.max(self.array, axis=0)
+        self._map_history.append(partial(self.unminmax))
+        self._map_history_kwargs.append(
+            {
+                "orig_min": min_vals,
+                "orig_max": max_vals,
+            }
+        )
         return Trajectory(
             (self.array - min_vals) / (max_vals - min_vals) * (max - min) + min,
             self.freq_hz,
-            self.time_idxs,
             self.keys,
+            self.timestamps,
             self.angular_dims,
+            _sample_cls=self._sample_cls,
+            _sample_keys=self._sample_keys,
+            _episode=self._episode,
+            _map_history=self._map_history,
+            _map_history_kwargs=self._map_history_kwargs,
         )
-
-    def pca(self, whiten=False) -> "Trajectory":
-        """Apply PCA normalization to the trajectory.
-
-        Returns:
-          Trajectory: The PCA-normalized trajectory.
-        """
-        pca = decomposition.PCA(n_components=self.array.shape[1], whiten=whiten)
-        return Trajectory(
-            pca.fit_transform(self.array),
-            self.freq_hz,
-            self.time_idxs,
-            self.keys,
-            self.angular_dims,
-        )
-
-    def standardize(self) -> "Trajectory":
-        """Apply standard normalization to the trajectory.
-
-        Returns:
-          Trajectory: The standardized trajectory.
-        """
-        mean = np.mean(self.array, axis=0)
-        std = np.std(self.array, axis=0)
-        return Trajectory((self.array - mean) / std, self.freq_hz, self.time_idxs, self.keys, self.angular_dims)
 
     def unminmax(
         self,
@@ -762,12 +831,7 @@ class Trajectory:
         norm_max = np.max(self.array, axis=0)
         array = (self.array - norm_min) / (norm_max - norm_min) * (orig_max - orig_min) + orig_min
         steps = [self._sample_cls(step) for step in array] if self._sample_cls is not None else array
-        return Trajectory(steps, self.freq_hz, self.time_idxs, self.keys, self.angular_dims)
-
-    def unstandardize(self, mean: np.ndarray, std: np.ndarray) -> "Trajectory":
-        array = (self.array * std) + mean
-        steps = [self._sample_cls(step) for step in array] if self._sample_cls is not None else array
-        return Trajectory(steps, self.freq_hz, self.time_idxs, self.keys, self.angular_dims)
+        return Trajectory(steps, self.freq_hz, self.timestamps, self.keys, self.angular_dims)
 
 
 def main() -> None:

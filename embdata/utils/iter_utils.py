@@ -67,6 +67,11 @@ def replace_ints_with_wildcard(s, sep=".") -> str:
     pattern = rf"(?<=^{sep})\d+|(?<={sep})\d+(?={sep})|\d+(?={sep}|$)"
     return re.sub(pattern, "*", s).rstrip(f"{sep}*").lstrip(f"{sep}*")
 
+def is_excluded(key: str, exclude: None | set = None, sep=".") -> bool:
+    """Check if the key should be excluded."""
+    return any(e == replace_ints_with_wildcard(key, sep) for e in (exclude if exclude is not None else []))
+
+logged_large_tensor = False
 def flatten_recursive(obj, exclude: None | set = None, non_numerical="allow", sep=".",
     include=None) -> tuple[list[str], list]:
     """Flatten a nested dictionary or list into a list of keys and a list of values."""
@@ -74,7 +79,9 @@ def flatten_recursive(obj, exclude: None | set = None, non_numerical="allow", se
     def _flatten(obj, prefix=""):
         if isinstance(obj, torch.Tensor | np.ndarray):
             if len(np.ravel(obj)) > MAX_FLATTENED_SIZE:
-                logging.warning("Large tensor encountered, skipping flattening. %s shape %s include: %s", prefix, obj.shape, include)
+                global logged_large_tensor
+                if not logged_large_tensor:
+                    logging.warning("Large tensor encountered, skipping flattening. %s shape %s include: %s", prefix, obj.shape, include)
                 if is_exact_match(prefix.rstrip(sep), include, sep):
                     return [prefix.rstrip(sep)], [obj]
                 return [], []
@@ -85,13 +92,14 @@ def flatten_recursive(obj, exclude: None | set = None, non_numerical="allow", se
         if isinstance(obj,  dict) or hasattr(obj, "items") and callable(obj.items):
             for k, v in obj.items():
                 new_key = f"{prefix}{k}" if prefix else k
+                logging.debug(f"Key: {k}, include: {include}")
+
+                if is_excluded(new_key, exclude, sep):
+                    continue
                 if include and is_exact_match(new_key, include, sep):
                     logging.debug(f"Exact match Key: {k}, include: {include}")
                     out.append(v)
                     keys.append(new_key)
-                    continue
-                logging.debug(f"Key: {k}, include: {include}")
-                if any(e == replace_ints_with_wildcard(k, sep) for e in (exclude if exclude is not None else [])):
                     continue
                 subkeys, subouts = _flatten(v, f"{new_key}{sep}")
                 out.extend(subouts)

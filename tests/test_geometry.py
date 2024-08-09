@@ -1,6 +1,6 @@
 import pytest
 import numpy as np
-from embdata.geometry import Coordinate, Pose6D, CoordinateField, PlanarPose
+from embdata.coordinate import Coordinate, Pose6D, CoordinateField, PlanarPose
 
 
 @pytest.fixture

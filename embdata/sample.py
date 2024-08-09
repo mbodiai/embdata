@@ -68,6 +68,7 @@ from functools import cached_property, reduce
 from importlib import import_module
 from itertools import zip_longest
 from pathlib import Path
+import traceback
 from typing import Annotated, Any, Dict, Generator, List, Literal, Union, get_origin
 
 import numpy as np
@@ -76,11 +77,12 @@ from datasets import Dataset, Features
 from gymnasium import spaces
 from pydantic import BaseModel, ConfigDict, Field, create_model
 from pydantic.fields import FieldInfo
-from rich.pretty import pretty_repr
+
 
 from embdata.describe import describe, describe_keys, full_paths
 from embdata.features import to_features_dict
 from embdata.utils import iter_utils, schema_utils, space_utils
+from embdata.utils.pretty import prettify
 
 OneDimensional = Annotated[Literal["dict", "np", "pt", "list", "sample"], "Numpy, PyTorch, list, sample, or dict"]
 logger = logging.getLogger(" ")
@@ -337,8 +339,9 @@ class Sample(BaseModel):
                     unnested.add(k.split(".")[0])
                 elif "/" in k:
                     unnested.add(k.split("/")[0])
-            return pretty_repr(self.dump(exclude=unnested, recurse=False), max_depth=4, max_width=100, max_length=3, max_string=30)
+            return prettify(self.dump(exclude=unnested, recurse=False))
         except Exception: # noqa
+            traceback.print_exc()
             return f"{self.__class__.__name__}({self.dump()})"
 
     def __repr__(self) -> str:
@@ -570,11 +573,14 @@ class Sample(BaseModel):
                 set(full_includes) | set(describe_keys(self, include).keys())
             )
         else:
-            full_excludes = set(describe_keys(self).values())
+            full_excludes = set(full_paths(self, exclude, show=False).values())
 
         for ex in full_excludes.copy():
             if any(ex.startswith(inc) for inc in full_includes):
                 full_excludes.remove(ex)
+            if any(inc.startswith(ex) for inc in full_includes):
+                full_excludes.remove(ex)
+    
 
         if to in ["numpy", "np", "torch", "pt"] and non_numerical != "forbid":
             non_numerical = "ignore"
@@ -582,17 +588,11 @@ class Sample(BaseModel):
         logging.debug("Full excludes: %s", full_excludes)
         flattened_keys, flattened = iter_utils.flatten_recursive(
             self, exclude=full_excludes, non_numerical=non_numerical, sep=sep,
-            include=include if has_include else None,
+            include=include
         )
         logging.debug("Flattened keys: %s", flattened_keys)
-        logging.debug("Flattened: %s", flattened)
+        # logging.debug("Flattened: %s", flattened)
         if not has_include:
-            flattened_keys, flattened = iter_utils.flatten_recursive(
-                self,
-                exclude=exclude,
-                non_numerical=non_numerical,
-                sep=sep,
-            )
             zipped = zip(flattened_keys, flattened, strict=False)
             if to == "sample":
                 return Sample(**dict(zipped))

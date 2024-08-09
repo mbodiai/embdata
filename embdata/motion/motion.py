@@ -45,7 +45,7 @@ from pydantic import ConfigDict, model_validator
 from pydantic_core import PydanticUndefined
 from typing_extensions import Literal
 
-from embdata.geometry import Coordinate, CoordinateField
+from embdata.coordinate import Coordinate, CoordinateField
 from embdata.units import AngularUnit, LinearUnit
 
 MotionType = Literal[

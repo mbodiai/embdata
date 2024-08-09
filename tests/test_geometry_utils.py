@@ -1,7 +1,7 @@
 import numpy as np
 import pytest
 from embdata.utils.geometry_utils import pose_to_transformation_matrix
-from embdata.geometry import Pose, Pose6D
+from embdata.coordinate import Pose, Pose6D
 from embdata.motion import Motion
 
 

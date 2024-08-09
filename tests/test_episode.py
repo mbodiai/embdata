@@ -2,7 +2,7 @@ import io
 import os
 from typing import List
 from PIL import Image as PILModule
-from embdata.geometry import Pose
+from embdata.coordinate import Pose
 import numpy as np
 from pydantic import Field
 import pytest

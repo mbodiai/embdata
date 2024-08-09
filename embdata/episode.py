@@ -272,7 +272,7 @@ class Episode(Sample):
         }
         model_info = self.steps[0].model_info()
         if model_info:
-            feat["info"] = to_features_dict(self.steps[0].model_info())
+            feat["_info"] = to_features_dict(self.steps[0].model_info())
         feat = Features(feat)
 
         data = []
@@ -299,7 +299,7 @@ class Episode(Sample):
                 **step,
             }
             if model_info:
-                step["info"] = model_info
+                step["_info"] = model_info
             data.append(step)
 
         return Dataset.from_list(data, features=feat)
@@ -315,7 +315,7 @@ class Episode(Sample):
         return Episode(steps=self.steps[start:stop:step])
 
     def trajectory(
-        self, of: str | list[str] = "steps", freq_hz: int | None = None, mode: Literal["full", "first10"] = "full"
+        self, of: str | list[str] = "action", freq_hz: int | None = None, mode: Literal["full", "first10"] = "full"
     ) -> Trajectory:
         """Numpy array with rows (axis 0) consisting of the `of` argument. Can be steps or plural form of fields.
 
@@ -344,6 +344,7 @@ class Episode(Sample):
         Example:
             Understand the relationship between frequency and grasping.
         """
+        
         step_keys = {"observations", "actions", "states", "steps", "supervisions"}
         of = of if isinstance(of, list) else [of]
         from embdata.describe import full_paths
@@ -354,12 +355,12 @@ class Episode(Sample):
             msg = "Episode has no steps"
             raise ValueError(msg)
         freq_hz = freq_hz or self.freq_hz or 1
-        include = [k for k in self.steps[0].flatten("dict") if any(k in field for field in full_keys)]
+        include = [k for k in self.steps[0].flatten("dict", exclude="info") if any(k in field for field in full_keys)]
         if of == ["step"]:
             if mode == "full":
-                data = self.flatten(to="dicts", include=include)
+                data = self.flatten(to="lists", include=include, exclude="info")
             elif mode == "first10":
-                data = self.flatten(to="dicts", include=include)[:10]
+                data = self.flatten(to="lists", include=include, exclude="info")[:10]
             if not data:
                 msg = "Episode has no steps"
                 raise ValueError(msg)
@@ -372,7 +373,7 @@ class Episode(Sample):
                 _sample_keys=include,
             )
         logging.debug("Describe data: %s", list(self.steps[0].flatten("dict")))
-        if not any(k in field for field in self.steps[0].flatten("dict") for k in of):
+        if not any(k in field for field in self.steps[0].flatten("dict", exclude="info") for k in of):
             msg = f"Field '{of}' not found in episode steps"
             raise ValueError(msg)
         logging.debug("Flattening episode steps for %s", of)
@@ -388,7 +389,7 @@ class Episode(Sample):
             raise ValueError(msg)
 
         keys = [key.removeprefix("steps.*.") for key in full_keys]
-        logging.debug("keys: %s", keys)
+        keys = [subkey for key in keys for subkey in self.steps[0][key].flatten("dict")]
         return Trajectory(
             steps=data,
             freq_hz=freq_hz,
@@ -423,7 +424,18 @@ class Episode(Sample):
 
     def __iter__(self) -> Any:
         """Iterate over the keys in the dataset."""
-        return super().__iter__()
+        return iter(self.steps)
+    
+    def dump(self, as_field: str = "dict") -> Any:
+        """Dump the episode to a dictionary or list of dictionaries.
+
+        Args:
+            as_field (str, optional): The format to dump the episode to. Defaults to "dict".
+
+        Returns:
+            Any: The dumped episode.
+        """
+        return [step.dump(as_field) for step in self.steps]
 
     def map(self, func: Callable[[TimeStep | Dict | np.ndarray], np.ndarray | TimeStep], field=None) -> "Episode":
         """Apply a function to each step in the episode.
@@ -560,14 +572,17 @@ class Episode(Sample):
         episodes.append(current_episode)
         return episodes
 
-    def group_by(self, key: str) -> Dict:
-        """Group the steps in the episode by a key.
+    def group_by(self, key: str) -> Dict[str, "Episode"]:
+        """Group the steps in the episode by a key or a list of discriminators.
 
         Args:
             key (str): The key to group by.
+            discriminators (List[Callable[[TimeStep], Any]]): A function that takes a time step and returns a one of the choices.
+            choices (List, optional): A list of choices to group by. Defaults to None.
 
         Returns:
             Dict: A dictionary of lists of steps grouped by the key.
+
 
         Example:
             >>> episode = Episode(
@@ -679,30 +694,54 @@ class Episode(Sample):
             freq_hz=lerobot_dataset.fps,
         )
 
-    def window(self, steps: List[VisionMotorStep], current_n : int = 0, nforward: int = 1, nbackward: int = 1, pad_value: Any = None) -> Iterable[List[VisionMotorStep]]:
-        """Get a sliding window of the episode.
+    def window(self, nforward: int, nbackward: int = 0, current_n: int = 0, pad_value: Any = None) -> Iterable:
+        """Create a sliding window over the episode.
 
         Args:
-            steps (List[TimeStep]): List of timesteps.
-            nforward (int, optional): The number of steps to look forward. Defaults to 1.
-            nbackward (int, optional): The number of steps to look backward. Defaults to 1.
-            pad_value (Any, optional): The value to use for padding. Defaults to None.
+            nforward (int): The number of steps to look forward.
+            nbackward (int, optional): The number of steps to look backward. Defaults to 0.
+            current_n (int, optional): The current step index. Defaults to 0.
+            pad_value (Any, optional): The value to pad the window with. Defaults to None.
+
+        Yields:
+            Iterable: An iterable of steps in the window.
+        """
+        for i in range(current_n - nbackward, current_n + nforward):
+            if i < 0 or i >= len(self):
+                yield pad_value
+            else:
+                yield self[i]
+
+    def windowed(self, nforward: int, nbackward: int = 0, pad_value: Any = None) -> "Episode":
+        """Create a windowed episode.
+
+        Args:
+            nforward (int): The number of steps to look forward.
+            nbackward (int, optional): The number of steps to look backward. Defaults to 0.
+            pad_value (Any, optional): The value to pad the window with. Defaults to None.
 
         Returns:
-            Iterable[List[TimeStep]]: A sliding window of the episode.
+            Episode: The windowed episode.
         """
-        length = len(steps)
-        start = max(0, current_n - nbackward)
-        end = min(length, current_n + nforward + 1)
-        window = steps[start:end]
+        self.__iter__ = yield from [self.window(nforward, nbackward, i, pad_value) for i in range(len(self))]
+        return self
 
-        if pad_value is not None:
-            while len(window) < nbackward + nforward + 1:
-                if len(window) < nbackward + 1:
-                    window.insert(0, pad_value)
-                else:
-                    window.append(pad_value)
-        yield window
+    def flatten(self, to: Literal["dicts", "lists", "torch"], include: list[str] | None = None, exclude: list[str] | None = None) -> Any:
+        """Flatten the episode to a list of dictionaries, lists, or torch tensors.
+
+        Args:
+            to (str): The format to flatten the episode to.
+            include (list[str], optional): The keys to include in the flattened data. Defaults to None.
+
+        Returns:
+            Any: The flattened episode.
+        """
+        to = [t[:-1] if t.endswith("s") else t for t in to]
+        include = [include.removeprefix("steps.*.") for include in include]
+        flattened = [step.flatten(to, include=include, exclude=exclude) for step in self.steps]
+        if flattened and not isinstance(flattened[0], dict | Sample) and len(flattened[0]) == 1:
+            return [f[0] for f in flattened]
+        return flattened
 
     def log_scalar(self, name: str, value: float, step: int) -> None:
 
@@ -765,7 +804,6 @@ class Episode(Sample):
                 rr.log(f"scene/detection/{name}", rr.Boxes2D(mins=[min_corner], sizes=[(width, height)], labels=[name]))
 
             for window in self.window(self.steps, current_n=i, nforward=next_n, nbackward=0):
-                print(f"Processing window with {len(window)} steps")
                 projected_start_points_2d = []
                 projected_end_points_2d = []
                 for j in range(len(window) - 1):

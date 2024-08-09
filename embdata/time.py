@@ -1,4 +1,4 @@
-from typing import Any, Dict
+from typing import Any, Dict, Iterable, List
 
 import numpy as np
 from pydantic import ConfigDict, PrivateAttr
@@ -30,7 +30,7 @@ class TimeStep(Sample):
     _action_class: type[Sample] = PrivateAttr(default=Sample)
     _state_class: type[Sample] = PrivateAttr(default=Sample)
     _supervision_class: type[Sample] = PrivateAttr(default=Sample)
-
+    
     @classmethod
     def from_dict(  # noqa: PLR0913
         cls,
@@ -110,6 +110,31 @@ class TimeStep(Sample):
             **{k: v for k, v in kwargs.items() if k not in ["observation", "action", "state", "supervision"]},
         )
 
+
+    def window(self, steps: List["TimeStep"], current_n : int = 0, nforward: int = 1, nbackward: int = 1, pad_value: Any = None) -> Iterable[List["TimeStep"]]:
+        """Get a sliding window of the episode.
+
+        Args:
+            steps (List[TimeStep]): List of timesteps.
+            nforward (int, optional): The number of steps to look forward. Defaults to 1.
+            nbackward (int, optional): The number of steps to look backward. Defaults to 1.
+            pad_value (Any, optional): The value to use for padding. Defaults to None.
+
+        Returns:
+            Iterable[List[TimeStep]]: A sliding window of the episode.
+        """
+        length = len(steps)
+        start = max(0, current_n - nbackward)
+        end = min(length, current_n + nforward + 1)
+        window = steps[start:end]
+
+        if pad_value is not None:
+            while len(window) < nbackward + nforward + 1:
+                if len(window) < nbackward + 1:
+                    window.insert(0, pad_value)
+                else:
+                    window.append(pad_value)
+        return window
 
 class ImageTask(Sample):
     """Canonical Observation."""

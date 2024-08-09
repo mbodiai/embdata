@@ -25,8 +25,8 @@ from embdata.motion.control import (
 )
 from embdata.motion import Motion, MotionField
 
-from embdata.geometry import Pose6D
-from embdata.geometry import PlanarPose
+from embdata.coordinate import Pose6D
+from embdata.coordinate import PlanarPose
 
 
 @pytest.fixture(autouse=True)

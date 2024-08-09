@@ -2,7 +2,7 @@ from typing import List
 
 from pydantic import Field
 
-from embdata.geometry import Pose
+from embdata.coordinate import Pose
 from embdata.ndarray import NumpyArray
 from embdata.sample import Sample
 from embdata.sense.camera import CameraParams

@@ -9,7 +9,7 @@ import numpy as np
 from scipy.spatial.distance import cdist
 from shapely.geometry import LineString, Point, Polygon
 
-from embdata.geometry import Pose
+from embdata.coordinate import Pose
 
 
 # Rotation matrices and transformations
