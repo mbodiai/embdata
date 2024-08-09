@@ -1,5 +1,6 @@
 from embdata.sample import Sample
 
+
 class State(Sample):
     """A class for storing the state of an environment."""
     done: bool = False

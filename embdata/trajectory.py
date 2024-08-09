@@ -1,12 +1,11 @@
 import importlib
 import traceback
 from functools import partial
-from itertools import repeat
-from typing import Any, Callable, List, Literal, Tuple, TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, Callable, List, Literal, Tuple
 
 import numpy as np
 import scipy.stats as sstats
-from pydantic import Field, PrivateAttr
+from pydantic import Field
 from pydantic.dataclasses import dataclass
 from scipy import fftpack
 from scipy.interpolate import interp1d
@@ -113,6 +112,55 @@ def plot_trajectory(
     backend: Literal["matplotlib", "plotext"] = "plotext",
     time_step: float = 0.1,
 ) -> None:
+    """Plot the trajectory for arbitrary action spaces, showing each dimension individually.
+
+    Args:
+      trajectory (np.ndarray): The trajectory array.
+      labels (list[str], optional): The labels for each dimension of the trajectory. Defaults to None.
+      backend (Literal["matplotlib", "plotext"], optional): The plotting backend to use. Defaults to "plotext".
+      time_step (float, optional): The time step between each step in the trajectory. Defaults to 0.1.
+
+    Returns:
+      None
+    """
+    plt = import_plotting_backend(backend)
+    plt.clf()
+
+    n_dims = trajectory.shape[1]
+    if labels is None or len(labels) != n_dims:
+        labels = [f"Dim{i}" for i in range(n_dims)]
+
+    time = np.arange(len(trajectory)) * time_step
+
+    # Calculate the number of rows and columns for subplots
+    n_rows = (n_dims + 1) // 2  # +1 to round up
+    n_cols = 2
+
+    plt.subplots(n_rows, n_cols)
+    plt.theme("fhd")
+
+    for i in range(n_dims):
+        row = i // n_cols + 1
+        col = i % n_cols + 1
+        plt.subplot(row, col)
+        plt.plot(time, trajectory[:, i])
+        plt.title(f"{labels[i]} Over Time")
+        plt.xlabel("Time")
+        plt.ylabel(labels[i])
+
+    # If there's an odd number of dimensions, add a blank subplot
+    if n_dims % 2 != 0:
+        plt.subplot(n_rows, n_cols)
+        plt.title("Unused subplot")
+
+    return plt
+
+def plot_varied(
+    trajectory: np.ndarray,
+    labels: List[str] | None = None,
+    backend: Literal["matplotlib", "plotext"] = "plotext",
+    time_step: float = 0.1,
+) -> None:
     """Plot the trajectory for arbitrary action spaces.
 
     Args:
@@ -130,7 +178,7 @@ def plot_trajectory(
     plt.subplot(1, 1).plotsize(plt.tw() // 2, None)
     plt.subplot(1, 1).subplots(3, 1)
     plt.subplot(1, 2).subplots(2, 1)
-    plt.subplot(1, 1).ticks_style('bold')
+    plt.subplot(1, 1).ticks_style("bold")
 
     n_dims = trajectory.shape[1]
     print(f"labels: {labels}")  # noqa
@@ -141,7 +189,7 @@ def plot_trajectory(
 
     # Left column, first plot: 3D-like plot of first three dimensions
     plt.subplot(1, 1).subplot(1, 1)
-    plt.theme('fhd')
+    plt.theme("fhd")
     dim_count = min(3, n_dims)
     for i in range(dim_count):
         for j in range(i+1, dim_count):
@@ -152,7 +200,7 @@ def plot_trajectory(
 
     # Left column, second plot: Next three dimensions (if available)
     plt.subplot(1, 1).subplot(2, 1)
-    plt.theme('fhd')
+    plt.theme("fhd")
     dim_start = 3
     dim_end = min(6, n_dims)
     if dim_end > dim_start:
@@ -166,19 +214,19 @@ def plot_trajectory(
 
     # Left column, third plot: Histogram of the third dimension (if available)
     plt.subplot(1, 1).subplot(3, 1)
-    plt.theme('fhd')
+    plt.theme("fhd")
     if n_dims > 2:
         plt.hist(trajectory[:,2], bins=18)
-        plt.title(f'Histogram of {labels[2]}')
+        plt.title(f"Histogram of {labels[2]}")
         plt.xlabel(labels[2])
         plt.ylabel("Frequency")
     else:
-        plt.title('Histogram (Not enough dimensions)')
+        plt.title("Histogram (Not enough dimensions)")
 
     # Right column, first plot: First two dimensions over time
     plt.subplot(1, 2).subplot(1, 1)
-    plt.theme('fhd')
-    plt.title('First Two Dimensions Over Time')
+    plt.theme("fhd")
+    plt.title("First Two Dimensions Over Time")
     for i in range(min(2, n_dims)):
         plt.plot(time, trajectory[:,i], label=f"{labels[i]} trajectory")
     plt.xlabel("Time")
@@ -186,7 +234,7 @@ def plot_trajectory(
 
     # Right column, second plot: Last dimension (if available)
     plt.subplot(1, 2).subplot(2, 1)
-    plt.theme('fhd')
+    plt.theme("fhd")
     plt.plotsize(2 * plt.tw() // 3, plt.th() // 2)
     if n_dims > 6:
         plt.plot(time, trajectory[:,-1])
@@ -197,7 +245,6 @@ def plot_trajectory(
         plt.title("Not enough dimensions for additional plot")
 
     return plt
-
 
 @dataclass
 class Trajectory:
@@ -240,12 +287,12 @@ class Trajectory:
     """
 
     steps: NumpyArray | List[Sample | TimeStep] | Any = Field(
-        description="A 2D array or list of samples representing the trajectory"
+        description="A 2D array or list of samples representing the trajectory",
     )
     freq_hz: float | None = Field(default=None, description="The frequency of the trajectory in Hz")
     keys: List[str] | str | Tuple | None = Field(default=None, description="The labels for each dimension")
     timestamps: NumpyArray | None | List = Field(
-        default=None, description="The timestamp of each step in the trajectory. Calculated if not provided."
+        default=None, description="The timestamp of each step in the trajectory. Calculated if not provided.",
     )
     angular_dims: List[int] | List[str] | None = Field(default=None, description="The dimensions that are angular")
     _episode: Any | None = Field(default=None, description="The episode that the trajectory is part of.")
@@ -260,7 +307,7 @@ class Trajectory:
     def __repr__(self) -> str:
         try:
             return "Trajectory(" + prettify(self.stats()) + ")"
-        except Exception as e:
+        except Exception:
             traceback.print_exc()
             return super().__repr__()
 
@@ -294,6 +341,7 @@ class Trajectory:
         self,
         labels: list[str] | None = None,
         backend: Literal["matplotlib", "plotext"] = "plotext",
+        varied: bool = False,
     ) -> "Trajectory":
         """Plot the trajectory. Saves the figure to the trajectory object. Call show() to display the figure.
 
@@ -307,7 +355,10 @@ class Trajectory:
 
         """
         labels = labels or self.keys
-        self._fig = plot_trajectory(self.array, labels, time_step=1 / self.freq_hz, backend=backend)
+        if varied:
+            self._fig = plot_varied(self.array, labels, time_step=1 / self.freq_hz, backend=backend)
+        else:
+            self._fig = plot_trajectory(self.array, labels, time_step=1 / self.freq_hz, backend=backend)
         return self
 
     def map(self, fn) -> "Trajectory":
@@ -352,7 +403,7 @@ class Trajectory:
             self.timestamps = args[2]
         if len(args) > 4:
             self.angular_dims = args[4]
-        
+
         if "episode" in kwargs:
             self._episode = kwargs["episode"]
         elif "_episode" in kwargs:
@@ -412,7 +463,7 @@ class Trajectory:
         self._map_history_kwargs.append(
             {
                 "step_difference": 1,
-            }
+            },
         )
         self._episode.freq_hz = self.freq_hz
 
@@ -543,71 +594,6 @@ class Trajectory:
             raise ValueError(msg)
         import_plotting_backend(backend).show()
 
-    def frequencies(self, backend: Literal["matplotlib", "plotext"] = "plotext") -> "Trajectory":
-        """Plot the frequency spectrogram of the trajectory.
-
-        Returns:
-          Trajectory: The modified trajectory.
-        """
-        plt = import_plotting_backend(backend)
-        x = self.array
-        N = x.shape[0]
-        T = 1.0 / self.freq_hz
-        freqs = np.fft.fftfreq(N, T)[: N // 2]
-
-        keys = self.keys or [f"Dimension {i}" for i in range(x.shape[1])]
-        fig: _figure_class  = plt.subplots(x.shape[1], 1)
-        fig.theme("fhd")
-        for i in range(x.shape[1]):
-            ax = fig.subplot(i, 0)
-            fft_vals = np.fft.fft(x[:, i])
-            magnitude = 2.0 / N * np.abs(fft_vals[0 : N // 2])
-            ax.plot(freqs, magnitude)
-            ax.title(keys[i])
-            ax.xlabel("Frequency [Hz]")
-            ax.ylabel("Magnitude")
-            ax.ylim(0, 1)
-            ax.xlim(0, self.freq_hz / 2)  # Nyquist frequency
-            ax.grid(True)
-
-
-        self._fig = fig
-        return self
-
-    
-    def frequencies_nd(self, backend: Literal["matplotlib", "plotext"] = "plotext") -> "Trajectory":
-        """Plot the nd frequencies of the trajectory.
-
-        Returns:
-          Trajectory: The modified trajectory.
-        """
-        plt = import_plotting_backend(backend)
-        n_dims = self.array.shape[1]
-        N = len(self.array)
-
-        fig, axs = plt.subplots(2, 3, figsize=(15, 10), sharex=True, sharey=True)
-        axs = axs.flatten()
-
-        t = np.arange(N) / self.freq_hz
-        freqs = fftpack.fftfreq(N, d=1 / self.freq_hz)
-        Sxx = np.abs(fftpack.fft2(self.array, axes=(0, 1)))
-        Sxx = np.fft.fftshift(Sxx, axes=1)
-        Sxx = np.log10(Sxx + 1e-10)  # Add small constant to avoid log(0)
-
-        keys = self.keys[:n_dims] if self.keys else ["X", "Y", "Z", "Roll", "Pitch", "Yaw"]
-
-        for i, ax in enumerate(axs):
-            im = ax.pcolormesh(freqs, t, Sxx[:, :, i], shading="gouraud", cmap="viridis")
-            ax.set_title(keys[i])
-            ax.set_xlabel("Frequency [Hz]")
-            ax.set_ylabel("Time [s]")
-            ax.set_ylim(t[0], t[-1])
-            ax.set_xlim(-self.freq_hz / 2, self.freq_hz / 2)
-            fig.colorbar(im, ax=ax, label="Log Magnitude")
-
-        plt.tight_layout()
-        self._fig = fig
-        return self
 
     def low_pass_filter(self, cutoff_freq: float) -> "Trajectory":
         """Apply a low-pass filter to the trajectory.
@@ -625,23 +611,116 @@ class Trajectory:
 
         return Trajectory(filtered_trajectory, self.freq_hz, self.timestamps)
 
-    def spectrogram(self, backend: Literal["matplotlib", "plotext"] = "plotext") -> "Trajectory":
-        """Plot the spectrogram of the trajectory.
 
-        Returns:
-          Trajectory: The modified trajectory.
-        """
+    def frequencies(self, backend: Literal["matplotlib", "plotext"] = "plotext") -> "Trajectory":
         plt = import_plotting_backend(backend)
+        plt.clf()
+
+        x = self.array
+        N = x.shape[0]
+        T = 1.0 / self.freq_hz
+        freqs = np.fft.fftfreq(N, T)[: N // 2]
+
+        n_dims = x.shape[1]
+        keys = self.keys or [f"Dimension {i}" for i in range(n_dims)]
+
+        # Calculate the number of rows and columns for subplots
+        n_rows = (n_dims + 1) // 2  # +1 to round up
+        n_cols = 2
+
+        plt.subplots(n_rows, n_cols)
+        plt.theme("fhd")
+
+        for i in range(n_dims):
+            row = i // n_cols + 1
+            col = i % n_cols + 1
+            plt.subplot(row, col)
+            fft_vals = np.fft.fft(x[:, i])
+            magnitude = np.abs(fft_vals[0 : N // 2])
+            plt.plot(freqs, magnitude)
+            plt.title(f"{keys[i]} Frequency")
+            plt.xlabel("Frequency [Hz]")
+            plt.ylabel("Magnitude")
+
+        # If there's an odd number of dimensions, add a blank subplot
+        if n_dims % 2 != 0:
+            plt.subplot(n_rows, n_cols)
+            plt.title("Unused subplot")
+
+        self._fig = plt
+        return self
+
+    def frequencies_nd(self, backend: Literal["matplotlib", "plotext"] = "plotext") -> "Trajectory":
+        plt = import_plotting_backend(backend)
+        plt.clf()
+
+        n_dims = self.array.shape[1]
+        N = len(self.array)
+
+        freqs = fftpack.fftfreq(N, d=1 / self.freq_hz)
+        Sxx = np.abs(fftpack.fft2(self.array, axes=(0, 1)))
+
+        keys = self.keys[:n_dims] if self.keys else [f"Dimension {i}" for i in range(n_dims)]
+
+        # Calculate the number of rows and columns for subplots
+        n_rows = (n_dims + 1) // 2  # +1 to round up
+        n_cols = 2
+
+        plt.subplots(n_rows, n_cols)
+        plt.theme("fhd")
+
+        for i in range(n_dims):
+            row = i // n_cols + 1
+            col = i % n_cols + 1
+            plt.subplot(row, col)
+            plt.plot(freqs, Sxx[:, i])
+            plt.title(f"{keys[i]} ND Frequency")
+            plt.xlabel("Frequency [Hz]")
+            plt.ylabel("Magnitude")
+
+        # If there's an odd number of dimensions, add a blank subplot
+        if n_dims % 2 != 0:
+            plt.subplot(n_rows, n_cols)
+            plt.title("Unused subplot")
+
+        self._fig = plt
+        return self
+
+    def spectrogram(self, backend: Literal["matplotlib", "plotext"] = "plotext") -> "Trajectory":
+        plt = import_plotting_backend(backend)
+        plt.clf()
+
         x = self.array
         fs = self.freq_hz
-        f, t, Sxx = spectrogram(x, fs)
-        plt: _figure_class = plt.subplots(1, 1)
-        plt.matrix_plot(Sxx)
-        plt.xlabel("Time")
-        plt.ylabel("Frequency")
-        plt.title("Spectrogram")
-        plt.xticks(t)
-        plt.yticks(f)
+        n_dims = x.shape[1]
+
+        keys = self.keys[:n_dims] if self.keys else [f"Dimension {i}" for i in range(n_dims)]
+
+        # Calculate the number of rows and columns for subplots
+        n_rows = (n_dims + 1) // 2  # +1 to round up
+        n_cols = 2
+
+        plt.subplots(n_rows, n_cols)
+        plt.theme("fhd")
+
+        for i in range(n_dims):
+            row = i // n_cols + 1
+            col = i % n_cols + 1
+            plt.subplot(row, col)
+            f, t, Sxx = spectrogram(x[:, i], fs)
+            plt.plot(t, np.mean(Sxx, axis=0))  # Plot average over frequencies
+            plt.title(f"{keys[i]} Spectrogram")
+            plt.xlabel("Time")
+            plt.ylabel("Average Magnitude")
+
+        # If there's an odd number of dimensions, add a blank subplot
+        if n_dims % 2 != 0:
+            plt.subplot(n_rows, n_cols)
+            plt.title("Unused subplot")
+
+        self._fig = plt
+        return self
+
 
     def q01(self) -> float:
         return np.percentile(self.array, 1, axis=0)
@@ -727,7 +806,7 @@ class Trajectory:
         self._map_history_kwargs.append(
             {
                 "pca_model": pca,
-            }
+            },
         )
         return Trajectory(
             pca.fit_transform(self.array),
@@ -736,7 +815,7 @@ class Trajectory:
             self.keys,
             self.angular_dims,
         )
-    
+
     def un_pca(self, pca_model = None) -> "Trajectory":
         """Reverse PCA normalization on the trajectory.
 
@@ -746,7 +825,8 @@ class Trajectory:
         if pca_model is None:
             pca_model: decomposition.PCA | None = self._map_history_kwargs.pop().get("pca_model")
             if pca_model is None:
-                raise ValueError("No PCA model found in history")
+                msg = "No PCA model found in history"
+                raise ValueError(msg)
             self._map_history.pop()
         original_array = pca_model.inverse_transform(self.array)
         return Trajectory(
@@ -759,7 +839,7 @@ class Trajectory:
             _sample_keys=self._sample_keys,
             _episode=self._episode,
             _map_history=self._map_history,
-            _map_history_kwargs=self._map_history_kwargs
+            _map_history_kwargs=self._map_history_kwargs,
         )
 
     def standardize(self) -> "Trajectory":
@@ -775,18 +855,18 @@ class Trajectory:
             {
                 "mean": mean,
                 "std": std,
-            }
+            },
         )
         return Trajectory((self.array - mean) / std, self.freq_hz, self.keys, self.timestamps, self.angular_dims,
-                            _sample_cls=self._sample_cls, _sample_keys=self._sample_keys, _episode=self._episode, 
+                            _sample_cls=self._sample_cls, _sample_keys=self._sample_keys, _episode=self._episode,
                             _map_history=self._map_history, _map_history_kwargs=self._map_history_kwargs)
 
-        
+
     def unstandardize(self, mean: np.ndarray, std: np.ndarray) -> "Trajectory":
         array = (self.array * std) + mean
         steps = [self._sample_cls(step) for step in array] if self._sample_cls is not None else array
         return Trajectory(steps, self.freq_hz, self.timestamps, self.keys, self.angular_dims,
-                            _sample_cls=self._sample_cls, _sample_keys=self._sample_keys, _episode=self._episode, 
+                            _sample_cls=self._sample_cls, _sample_keys=self._sample_keys, _episode=self._episode,
                             _map_history=self._map_history, _map_history_kwargs=self._map_history_kwargs)
 
     def minmax(self, min: float = 0, max: float = 1) -> "Trajectory":
@@ -806,7 +886,7 @@ class Trajectory:
             {
                 "orig_min": min_vals,
                 "orig_max": max_vals,
-            }
+            },
         )
         return Trajectory(
             (self.array - min_vals) / (max_vals - min_vals) * (max - min) + min,

@@ -30,7 +30,7 @@ class TimeStep(Sample):
     _action_class: type[Sample] = PrivateAttr(default=Sample)
     _state_class: type[Sample] = PrivateAttr(default=Sample)
     _supervision_class: type[Sample] = PrivateAttr(default=Sample)
-    
+
     @classmethod
     def from_dict(  # noqa: PLR0913
         cls,
@@ -111,30 +111,24 @@ class TimeStep(Sample):
         )
 
 
-    def window(self, steps: List["TimeStep"], current_n : int = 0, nforward: int = 1, nbackward: int = 1, pad_value: Any = None) -> Iterable[List["TimeStep"]]:
-        """Get a sliding window of the episode.
+    def window(self, steps: List["TimeStep"], nforward: int = 1, nbackward: int = 1, pad_value: Any = None) -> Iterable["TimeStep"]:
+        """Create a sliding window over the episode.
 
         Args:
-            steps (List[TimeStep]): List of timesteps.
-            nforward (int, optional): The number of steps to look forward. Defaults to 1.
-            nbackward (int, optional): The number of steps to look backward. Defaults to 1.
-            pad_value (Any, optional): The value to use for padding. Defaults to None.
+            steps (List[TimeStep]): The steps in the episode.
+            nforward (int): The number of steps to look forward.
+            nbackward (int, optional): The number of steps to look backward. Defaults to 0.
+            current_n (int, optional): The current step index. Defaults to 0.
+            pad_value (Any, optional): The value to pad the window with. Defaults to None.
 
-        Returns:
-            Iterable[List[TimeStep]]: A sliding window of the episode.
+        Yields:
+            Iterable: An iterable of steps in the window.
         """
-        length = len(steps)
-        start = max(0, current_n - nbackward)
-        end = min(length, current_n + nforward + 1)
-        window = steps[start:end]
-
-        if pad_value is not None:
-            while len(window) < nbackward + nforward + 1:
-                if len(window) < nbackward + 1:
-                    window.insert(0, pad_value)
-                else:
-                    window.append(pad_value)
-        return window
+        for i in range(self.step_idx - nbackward, self.step_idx + nforward):
+            if i < 0 or i >= len(self):
+                yield pad_value
+            else:
+                yield steps[i]
 
 class ImageTask(Sample):
     """Canonical Observation."""

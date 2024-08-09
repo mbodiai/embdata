@@ -58,18 +58,13 @@ Examples:
     Sample(x=1, y=2, z={'a': 3, 'b': 4}, extra_field=5)
 """
 
-import copy
 import logging
-import operator
 import os
-import re
-from enum import Enum
-from functools import cached_property, reduce
+import traceback
+from functools import cached_property
 from importlib import import_module
 from itertools import zip_longest
-from pathlib import Path
-import traceback
-from typing import Annotated, Any, Dict, Generator, List, Literal, Union, get_origin
+from typing import Annotated, Any, Dict, Generator, List, Literal, Union
 
 import numpy as np
 import torch
@@ -77,7 +72,6 @@ from datasets import Dataset, Features
 from gymnasium import spaces
 from pydantic import BaseModel, ConfigDict, Field, create_model
 from pydantic.fields import FieldInfo
-
 
 from embdata.describe import describe, describe_keys, full_paths
 from embdata.features import to_features_dict
@@ -88,7 +82,7 @@ OneDimensional = Annotated[Literal["dict", "np", "pt", "list", "sample"], "Numpy
 logger = logging.getLogger(" ")
 
 if logger.level == logging.DEBUG or "MBENCH" in os.environ:
-    from mbench.profile import profile, profileme
+    from mbench import profileme
     profileme()
 
 
@@ -189,6 +183,7 @@ class Sample(BaseModel):
                 shape[k] = v.shape()
             elif isinstance(v, list | tuple | np.ndarray):
                 shape[k] = len(v)
+        return shape
 
     def __getitem__(self, key: str | int) -> Any:  # noqa
         """Implements nested or flat key access for the Sample object.
@@ -334,7 +329,7 @@ class Sample(BaseModel):
         """Return a string representation of the Sample instance."""
         try:
             unnested = {"_items"}
-            for k, _ in self:
+            for k, _ in self._iter():
                 if "." in k:
                     unnested.add(k.split(".")[0])
                 elif "/" in k:
@@ -417,7 +412,7 @@ class Sample(BaseModel):
 
     def keys(self) -> Generator:
         ignore = set()
-        for k, _ in self:
+        for k,_ in self._iter():
             if "." in k:
                 ignore.add(k.split(".")[0])
             elif "/" in k:
@@ -580,7 +575,7 @@ class Sample(BaseModel):
                 full_excludes.remove(ex)
             if any(inc.startswith(ex) for inc in full_includes):
                 full_excludes.remove(ex)
-    
+
 
         if to in ["numpy", "np", "torch", "pt"] and non_numerical != "forbid":
             non_numerical = "ignore"
@@ -588,10 +583,10 @@ class Sample(BaseModel):
         logging.debug("Full excludes: %s", full_excludes)
         flattened_keys, flattened = iter_utils.flatten_recursive(
             self, exclude=full_excludes, non_numerical=non_numerical, sep=sep,
-            include=include
+            include=include,
         )
         logging.debug("Flattened keys: %s", flattened_keys)
-        # logging.debug("Flattened: %s", flattened)
+        logging.debug("Flattened: %s", [flattened if not hasattr(flattened, "__len__") else "Length: " + str(len(flattened)) for flattened in flattened])
         if not has_include:
             zipped = zip(flattened_keys, flattened, strict=False)
             if to == "sample":

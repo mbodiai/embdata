@@ -4,7 +4,7 @@ import sys
 import traceback
 from itertools import zip_longest
 from threading import Thread
-from typing import Any, Callable, Dict, Iterable, Iterator, List, Literal
+from typing import Any, Callable, Dict, Iterable, List, Literal
 
 import numpy as np
 import rerun as rr
@@ -13,7 +13,6 @@ from datasets import Dataset, DatasetDict, Features, IterableDataset, Sequence, 
 from datasets import Image as HFImage
 from pydantic import Field, PrivateAttr, model_validator
 
-from embdata.describe import describe
 from embdata.features import to_features_dict
 from embdata.motion.control import AnyMotionControl, RelativePoseHandControl
 from embdata.sample import Sample
@@ -188,7 +187,6 @@ class Episode(Sample):
             image_keys (str | list[str], optional): The keys to use for images. Defaults to "image".
             freq_hz (int, optional): The frequency in Hz. Defaults to None.
         """
-
         Step: type[TimeStep] = cls._step_class.get_default()  # noqa: N806
         observations = observations or []
         actions = actions or []
@@ -315,7 +313,7 @@ class Episode(Sample):
         return Episode(steps=self.steps[start:stop:step])
 
     def trajectory(
-        self, of: str | list[str] = "action", freq_hz: int | None = None, mode: Literal["full", "first10"] = "full"
+        self, of: str | list[str] = "action", freq_hz: int | None = None, mode: Literal["full", "first10"] = "full",
     ) -> Trajectory:
         """Numpy array with rows (axis 0) consisting of the `of` argument. Can be steps or plural form of fields.
 
@@ -344,7 +342,6 @@ class Episode(Sample):
         Example:
             Understand the relationship between frequency and grasping.
         """
-        
         step_keys = {"observations", "actions", "states", "steps", "supervisions"}
         of = of if isinstance(of, list) else [of]
         from embdata.describe import full_paths
@@ -421,21 +418,6 @@ class Episode(Sample):
     def __setitem__(self, idx, value) -> None:
         """Set the step at the specified index."""
         self.steps[idx] = value
-
-    def __iter__(self) -> Any:
-        """Iterate over the keys in the dataset."""
-        return iter(self.steps)
-    
-    def dump(self, as_field: str = "dict") -> Any:
-        """Dump the episode to a dictionary or list of dictionaries.
-
-        Args:
-            as_field (str, optional): The format to dump the episode to. Defaults to "dict".
-
-        Returns:
-            Any: The dumped episode.
-        """
-        return [step.dump(as_field) for step in self.steps]
 
     def map(self, func: Callable[[TimeStep | Dict | np.ndarray], np.ndarray | TimeStep], field=None) -> "Episode":
         """Apply a function to each step in the episode.
@@ -694,25 +676,8 @@ class Episode(Sample):
             freq_hz=lerobot_dataset.fps,
         )
 
-    def window(self, nforward: int, nbackward: int = 0, current_n: int = 0, pad_value: Any = None) -> Iterable:
-        """Create a sliding window over the episode.
 
-        Args:
-            nforward (int): The number of steps to look forward.
-            nbackward (int, optional): The number of steps to look backward. Defaults to 0.
-            current_n (int, optional): The current step index. Defaults to 0.
-            pad_value (Any, optional): The value to pad the window with. Defaults to None.
-
-        Yields:
-            Iterable: An iterable of steps in the window.
-        """
-        for i in range(current_n - nbackward, current_n + nforward):
-            if i < 0 or i >= len(self):
-                yield pad_value
-            else:
-                yield self[i]
-
-    def windowed(self, nforward: int, nbackward: int = 0, pad_value: Any = None) -> "Episode":
+    def windows(self, nforward: int, nbackward: int = 0, pad_value: Any = None) -> "Episode":
         """Create a windowed episode.
 
         Args:
@@ -723,30 +688,7 @@ class Episode(Sample):
         Returns:
             Episode: The windowed episode.
         """
-        self.__iter__ = yield from [self.window(nforward, nbackward, i, pad_value) for i in range(len(self))]
-        return self
-
-    def flatten(self, to: Literal["dicts", "lists", "torch"], include: list[str] | None = None, exclude: list[str] | None = None) -> Any:
-        """Flatten the episode to a list of dictionaries, lists, or torch tensors.
-
-        Args:
-            to (str): The format to flatten the episode to.
-            include (list[str], optional): The keys to include in the flattened data. Defaults to None.
-
-        Returns:
-            Any: The flattened episode.
-        """
-        to = [t[:-1] if t.endswith("s") else t for t in to]
-        include = [include.removeprefix("steps.*.") for include in include]
-        flattened = [step.flatten(to, include=include, exclude=exclude) for step in self.steps]
-        if flattened and not isinstance(flattened[0], dict | Sample) and len(flattened[0]) == 1:
-            return [f[0] for f in flattened]
-        return flattened
-
-    def log_scalar(self, name: str, value: float, step: int) -> None:
-
-        rr.log(name, rr.Scalar(value))
-
+        return [step.window(self.steps, nforward, nbackward, pad_value) for step in self.steps]
 
     def rerun(self, mode: Literal["local", "remote"], port=3389, ws_port=8888) -> "Episode":
         """Start a rerun server."""
@@ -761,33 +703,30 @@ class Episode(Sample):
                             "ef/x",
                             "ef/y",
                             "ef/z"]
-        
+
         plot_colors = [(255, 0, 0), (0, 255, 0), (0, 0, 255), (255, 255, 0), (0, 255, 255), (255, 0, 255)]
 
         for state, color in zip(states_to_log, plot_colors, strict=False):
-            print(f"Logging state {state}")
             rr.log(f"action/{state}", rr.SeriesLine(color=color, name=state), static=True)
-        
-        end_effector_offset = 0.175
+
         next_n = 4
         arrow_color = 0xF14F21 # Alpha set to 128 for 50% transparency
         radii = 7
-        
+
         for i, step in enumerate(self.steps):
-            print(f"Processing step {i}")
             if not hasattr(step, "timestamp") or step.timestamp is None:
                 step.timestamp = i / 5
             rr.set_time_sequence("timeline0", i)
             rr.set_time_seconds("timestamp", step.timestamp)
 
             # rr.log(f"action/ef/x", rr.Scalar(step.absolute_pose.pose.x))
-            rr.log(f"action/ef/y", rr.Scalar(step.absolute_pose.pose.y))
+            rr.log("action/ef/y", rr.Scalar(step.absolute_pose.pose.y))
             # rr.log(f"action/ef/z", rr.Scalar(step.absolute_pose.pose.z - end_effector_offset))
-            
+
             rr.log("scene/image", rr.Image(data=step.observation.image.array if step.observation.image else None))
             rr.log("augmented/image", rr.Image(data=step.inpaint_image.array if step.inpaint_image else None))
             # rr.log("segmented/image", rr.Image(data=step.segmentation_image.array if step.segmentation_image else None))
-            
+
             params = step.camera_params
 
             detection_results = step.detection_result.objects
@@ -814,19 +753,19 @@ class Episode(Sample):
                 start_points_2d_array = np.array(projected_start_points_2d)
                 end_points_2d_array = np.array(projected_end_points_2d)
                 vectors = end_points_2d_array - start_points_2d_array
-                
+
                 rr.log("scene/arrows", rr.Arrows2D(vectors=vectors, origins=start_points_2d_array, colors=(arrow_color, 50), radii=radii))
 
             scene_objects = step.state.scene.scene_objects
 
             for obj in scene_objects:
 
-                object_name = obj['object_name'].replace(' ', '')
-                rr.log(f"Objects/{object_name}", rr.Points3D(positions=[[obj['object_pose']["x"], obj['object_pose']["y"], obj['object_pose']["z"]]], labels=[obj['object_name']]))
-                
+                object_name = obj["object_name"].replace(" ", "")
+                rr.log(f"Objects/{object_name}", rr.Points3D(positions=[[obj["object_pose"]["x"], obj["object_pose"]["y"], obj["object_pose"]["z"]]], labels=[obj["object_name"]]))
+
                 if object_name == "RemoteControl":
                     # rr.log(f"action/{object_name}/x", rr.Scalar(obj['object_pose']['x']))
-                    rr.log(f"action/{object_name}/y", rr.Scalar(obj['object_pose']['y']))
+                    rr.log(f"action/{object_name}/y", rr.Scalar(obj["object_pose"]["y"]))
                     # rr.log(f"action/{object_name}/z", rr.Scalar(obj['object_pose']['z']))
 
 

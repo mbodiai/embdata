@@ -79,9 +79,10 @@ def flatten_recursive(obj, exclude: None | set = None, non_numerical="allow", se
     def _flatten(obj, prefix=""):
         if isinstance(obj, torch.Tensor | np.ndarray):
             if len(np.ravel(obj)) > MAX_FLATTENED_SIZE:
-                global logged_large_tensor
+                global logged_large_tensor # noqa
                 if not logged_large_tensor:
                     logging.warning("Large tensor encountered, skipping flattening. %s shape %s include: %s", prefix, obj.shape, include)
+                    logged_large_tensor = True
                 if is_exact_match(prefix.rstrip(sep), include, sep):
                     return [prefix.rstrip(sep)], [obj]
                 return [], []

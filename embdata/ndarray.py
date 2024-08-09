@@ -1,16 +1,6 @@
+import sys
 from functools import partial, singledispatch
 from pathlib import Path
-import sys
-from typing import (
-    TYPE_CHECKING,
-    Annotated,
-    Any,
-    Callable,
-    ClassVar,
-    List,
-    Sequence,
-    Tuple,
-)
 
 import numpy as np
 import numpy.typing as npt
@@ -31,7 +21,16 @@ from pydantic_numpy.helper.validation import (
     validate_numpy_array_file,
 )
 from rich import print
-from typing_extensions import TypedDict
+from typing_extensions import (
+    Annotated,
+    Any,
+    Callable,
+    ClassVar,
+    List,
+    Sequence,
+    Tuple,
+    TypedDict,
+)
 
 SupportedDTypes = (
     type[np.generic]
@@ -80,7 +79,8 @@ if sys.version_info < (3, 11):
         return array
 else:
     @singledispatch
-    def array_validator(array: np.ndarray, shape: Tuple[int, ...] | None, dtype: SupportedDTypes | None) -> npt.NDArray:
+    def array_validator(array: np.ndarray, shape: Tuple[int, ...] | None, dtype: SupportedDTypes | None,
+        labels: List[str] | None) -> npt.NDArray:
         if shape is not None:
             expected_ndim = len(shape)
             actual_ndim = array.ndim
@@ -117,17 +117,18 @@ else:
 
 
     @array_validator.register
-    def dict_validator(array: dict, shape: Tuple[int, ...] | None, dtype: SupportedDTypes | None) -> npt.NDArray:
+    def dict_validator(array: dict, shape: Tuple[int, ...] | None, dtype: SupportedDTypes | None, labels: List[str] | None) -> npt.NDArray:
         array = np.array(array["data"]).astype(array["data_type"]).reshape(array["shape"])
-        return array_validator.dispatch(np.ndarray)(array, shape, dtype)
+        return array_validator.dispatch(np.ndarray)(array, shape, dtype, labels)
 
 
 def create_array_validator(
     shape: Tuple[int, ...] | None,
     dtype: SupportedDTypes | None,
+    labels: List[str] | None,
 ) -> Callable[[Any], npt.NDArray]:
     """Creates a validator function for NumPy arrays with a specified shape and data type."""
-    return partial(array_validator, shape=shape, dtype=dtype)
+    return partial(array_validator, shape=shape, dtype=dtype, labels=labels)
 
 
 @validate_call
@@ -171,6 +172,7 @@ def get_numpy_json_schema(
     _handler: GetJsonSchemaHandler,
     shape: List[PositiveInt] | None = None,
     data_type: SupportedDTypes | None = None,
+    labels: List[str] | None = None,
 ) -> JsonSchemaValue:
     """Generates a JSON schema for a NumPy array field within a Pydantic model.
 
@@ -261,14 +263,15 @@ class NumpyArray:
 
     shape: ClassVar[Tuple[PositiveInt, ...] | None] = None
     dtype: ClassVar[SupportedDTypes | None] = None
+    labels: ClassVar[Tuple[str, ...] | None] = None
 
     def __repr__(self) -> str:
-        if TYPE_CHECKING:
-            class_params = str(*self.shape) if self.shape is not None else "*"
-            dtype = f", {self.dtype.__name__}" if self.dtype is not None else ", Any"
+        class_params = str(*self.shape) if self.shape is not None else "*"
+        dtype = f", {self.dtype.__name__}" if self.dtype is not None else ", Any"
+        if self.labels:
+            class_params = ",".join([f"{l}={s}" for l, s in zip(self.labels, self.shape, strict=False)])
 
-            return f"NumpyArray[{class_params}{dtype}]"
-        return "NumpyArray"
+        return f"NumpyArray[{class_params}{dtype}]"
 
     def __str__(self) -> str:
         return repr(self)
@@ -277,6 +280,7 @@ class NumpyArray:
     def __class_getitem__(cls, params=None) -> Any:
         _shape = None
         _dtype = None
+        _labels = None
         if params is None or params in ("*", Any, (Any,)):
             params = ("*",)
         if not isinstance(params, tuple):
@@ -288,14 +292,32 @@ class NumpyArray:
             *_shape, _dtype = params
             _shape = tuple(s if s not in ("*", Any) else -1 for s in _shape)
 
+        _labels = []
+        if isinstance(_dtype, str | int):
+            _shape += (_dtype,)
+            _dtype = Any
+        _shape = _shape or ()
+        for s in _shape:
+            if isinstance(s, str):
+                if s.isnumeric():
+                    _labels.append(int(s))
+                elif s in ("*", Any):
+                    _labels.append(-1)
+                elif "=" in s:
+                    s = s.split("=")[1]  # noqa: PLW2901
+                    if not s.isnumeric():
+                        msg = f"Invalid shape parameter: {s}"
+                        raise ValueError(msg)
+                    _labels.append(int(s))
+                else:
+                    msg = f"Invalid shape parameter: {s}"
+                    raise ValueError(msg)
         if _dtype is int:
             _dtype: SupportedDTypes | None = np.int64
         elif _dtype is float:
             _dtype = np.float64
         elif _dtype is not None and _dtype not in ("*", Any) and isinstance(_dtype, type):
             _dtype = np.dtype(_dtype).type
-        elif isinstance(_dtype, int):
-            _shape += (_dtype,)
 
         if _shape == ():
             _shape = None
@@ -303,6 +325,11 @@ class NumpyArray:
         class ParameterizedNumpyArray(cls):
             shape = _shape
             dtype = _dtype
+            labels = _labels or None
+
+            __repr__ = cls.__repr__
+            __str__ = cls.__str__
+            __doc__ = cls.__doc__
 
         return Annotated[np.ndarray | FilePath | MultiArrayNumpyFile, ParameterizedNumpyArray]
 
@@ -312,7 +339,7 @@ class NumpyArray:
         _source_type: Any,
         _handler: Callable[[Any], core_schema.CoreSchema],
     ) -> core_schema.CoreSchema:
-        np_array_validator = create_array_validator(cls.shape, cls.dtype)
+        np_array_validator = create_array_validator(cls.shape, cls.dtype, cls.labels)
         np_array_schema = core_schema.no_info_plain_validator_function(np_array_validator)
 
         return core_schema.json_or_python_schema(
@@ -353,7 +380,7 @@ class NumpyArray:
         field_core_schema: core_schema.CoreSchema,
         handler: GetJsonSchemaHandler,
     ) -> JsonSchemaValue:
-        return get_numpy_json_schema(field_core_schema, handler, cls.shape, cls.dtype)
+        return get_numpy_json_schema(field_core_schema, handler, cls.shape, cls.dtype, cls.labels)
 
 
 if __name__ == "__main__":

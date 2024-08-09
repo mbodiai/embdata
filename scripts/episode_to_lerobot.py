@@ -13,7 +13,6 @@ from lerobot.common.datasets.compute_stats import compute_stats
 from lerobot.common.datasets.lerobot_dataset import CODEBASE_VERSION
 from lerobot.scripts.push_dataset_to_hub import push_meta_data_to_hub, save_meta_data
 
-from embdata.describe import describe
 from embdata.episode import Episode
 from embdata.sample import Sample
 

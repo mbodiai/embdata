@@ -36,7 +36,6 @@ from typing import Any, List, SupportsBytes, Tuple, Union
 
 import cv2
 import numpy as np
-from PIL import Image as PILModule
 from PIL.Image import Image as PILImage
 from pydantic import (
     AnyUrl,
@@ -166,13 +165,14 @@ class Depth(Image):
     def colormap(self, depth_scale=1.0, path=None, **kwargs) -> Image:
         """Postprocess the predicted depth tensor."""
         depth_normalized = cv2.normalize(self.array, None, 0, 255, cv2.NORM_MINMAX)
-        
-        depth_8bit = depth_normalized.astype('uint8')
+
+        depth_8bit = depth_normalized.astype("uint8")
 
         import platform
-        import matplotlib
+
+        import matplotlib as mpl
         if platform.system() == "Darwin":
-            matplotlib.use('TkAgg')
+            mpl.use("TkAgg")
         import matplotlib.pyplot as plt
         colormap_image = plt.cm.inferno(depth_8bit / 255.0)
         colormap_image_rgb = (colormap_image[..., :3] * 255).astype(np.uint8)
@@ -218,7 +218,6 @@ class Depth(Image):
 
 
 if __name__ == "__main__":
-    import matplotlib.pyplot as plt
     img = Image(
         "https://github.com/mbodiai/embodied-agents/blob/main/resources/depth_image.png?raw=true",
         encoding="png",
@@ -228,7 +227,6 @@ if __name__ == "__main__":
     # img.save("rgb.png")
     # print(img.numpy()[20, 0])
     depth = Depth( "https://github.com/mbodiai/embodied-agents/blob/main/resources/depth_image.png?raw=true")
-    print(depth)
     img  = depth.colormap(path="colormap.png")
     img.save("depth.png")
     # depth.show()

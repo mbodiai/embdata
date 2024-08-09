@@ -221,6 +221,12 @@ class Image(Sample):
         kwargs = Image.dispatch_arg(arg, **kwargs)
         super().__init__(**kwargs)
 
+    def __repr__(self) -> str:
+        """Return a string representation of the image."""
+        out = self.dump()
+        out.update({"array": f"{np.round(self.array, 2)[:2, :2]}...{self.array.shape}"})
+        return out
+
     @singledispatchmethod
     @classmethod
     def dispatch_arg(cls, arg: SupportsImage | None = None, **kwargs) -> dict:
@@ -450,7 +456,7 @@ class Image(Sample):
 
     @staticmethod
     def load_url(
-        url: str, 
+        url: str,
         action: Literal["download", "set"] = "set",
         mode: Literal["RGB", "RGBA", "L", "P", "CMYK", "YCbCr", "I", "F"] | None = DEFAULT_MODE,
         **kwargs,
